@@ -3,6 +3,7 @@ using namespace std;
 
 #include <string>
 #include <curl/curl.h>
+#include <json/json.h>
 
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
     ((string*)userp)->append((char*)contents, size * nmemb);
@@ -35,6 +36,8 @@ void getBinanceOrderBook(const string& symbol) {
     if (res != CURLE_OK) {
         cerr << "[getBinanceOrderBook] curl_easy_perform() failed ("<< url<<"):" << curl_easy_strerror(res) << std::endl;
     } else {
+        
+        
         cout<< readBuffer <<endl<<endl;
     }
 

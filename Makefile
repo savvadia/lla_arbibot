@@ -1,10 +1,10 @@
 # Compiler settings
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -O2
+CXXFLAGS += -std=c++17 -Wall -O2
 
 # curl - for HTTP requests
-# jsoncpp - to parse JSON
-LDFLAGS = -lcurl 
+# jsoncpp - to parse JSON is added in shell.nix
+LDFLAGS += -lcurl -ljsoncpp
 
 # Directory settings
 SRC_DIR = src
