@@ -4,7 +4,7 @@ CXXFLAGS += -std=c++17 -Wall -O2
 
 # curl - for HTTP requests
 # jsoncpp - to parse JSON is added in shell.nix
-LDFLAGS += -lcurl -ljsoncpp
+LDFLAGS += -lcurl -ljsoncpp -v
 
 # Directory settings
 SRC_DIR = src

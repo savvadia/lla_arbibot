@@ -6,6 +6,9 @@ pkgs.mkShell {
     curl
     jsoncpp
     cmake
+    websocketpp
+    boost
+    nlohmann_json
   ];
 
   # This will set up promopt
