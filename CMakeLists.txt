@@ -16,9 +16,17 @@ add_executable(LlaArbibot src/main.cpp src/timers.cpp)
 
 # Link with external libraries (curl, jsoncpp)
 find_package(CURL REQUIRED)
+
 find_package(jsoncpp REQUIRED)
 
-target_link_libraries(LlaArbibot CURL::libcurl jsoncpp)
+set(jsoncpp_INCLUDE_DIRS "/opt/homebrew/opt/jsoncpp/include")
+set(jsoncpp_LIBRARIES "/opt/homebrew/opt/jsoncpp/lib/libjsoncpp.dylib")
+# Debugging message (optional)
+message(STATUS "Using jsoncpp from ${jsoncpp_INCLUDE_DIRS}")
+include_directories(${jsoncpp_INCLUDE_DIRS})
+
+# target_link_libraries(LlaArbibot CURL::libcurl jsoncpp)
+target_link_libraries(LlaArbibot CURL::libcurl ${jsoncpp_LIBRARIES})
 
 # Add include directories for the source files (make sure to add the src/ folder here)
 target_include_directories(LlaArbibot PRIVATE src)
