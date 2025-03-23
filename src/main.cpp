@@ -2,6 +2,8 @@
 #include <iomanip>
 using namespace std;
 
+#include <balance.h>
+
 #include <string>
 #include <curl/curl.h>
 #include <json/json.h>
@@ -171,6 +173,8 @@ void getBinanceOrderBook(const string& symbol) {
 
 
 int main() {
+    Balance b;
+    b.retrieveBalances();
     checkArbitrage();
     return 0;
 }

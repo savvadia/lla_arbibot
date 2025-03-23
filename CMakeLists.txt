@@ -12,7 +12,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O2")
 include_directories(src)
 
 # Add the source files to the executable
-add_executable(LlaArbibot src/main.cpp src/timers.cpp)
+file(GLOB SOURCES "src/*.cpp")
+add_executable(LlaArbibot ${SOURCES})
 
 # Link with external libraries (curl, jsoncpp)
 find_package(CURL REQUIRED)

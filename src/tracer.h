@@ -2,6 +2,7 @@
 
 enum TraceInstance {
     TRACE_TIMER,
+    TRACE_BALANCE,
 };
 
 // Compile-time function to extract only the filename without path
@@ -27,14 +28,12 @@ constexpr const char* extractFilename(const char* path) {
 // adds \n at the end
 #define TRACE_INST(instance, ...) \
     do { \
+        const unordered_map<TraceInstance, string> traceNames = { \
+            {TRACE_TIMER, "TIMER"}, \
+            {TRACE_BALANCE, "BALANCE"}, \
+        }; \
         constexpr const char* filename = extractFilename(__FILE__); \
-        switch (instance) { \
-            case TRACE_TIMER: \
-                printf("%s:%d [TIMER] ", filename, __LINE__); \
-                printf(__VA_ARGS__); \
-                printf("\n"); \
-                break; \
-            default: \
-                break; \
-        } \
+        printf("%s:%d [%s] ", filename, __LINE__, traceNames.at(instance).c_str()); \
+        printf(__VA_ARGS__); \
+        printf("\n"); \
     } while (0)
