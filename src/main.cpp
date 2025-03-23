@@ -7,6 +7,8 @@ using namespace std;
 #include <string>
 #include <curl/curl.h>
 #include <json/json.h>
+#include "timers.h"
+#include "s_poplavki.h"
 
 // #include <websocketpp/client.hpp>
 // #include <nlohmann/json.hpp>
@@ -174,7 +176,15 @@ void getBinanceOrderBook(const string& symbol) {
 
 int main() {
     Balance b;
+    TimersMgr tm;
+    StrategyPoplavki s("BTC", "USDT", tm);
+    
     b.retrieveBalances();
     checkArbitrage();
+
+    for (int i = 0; i < 1000; i++) {
+        tm.checkTimers();
+        sleep_ms(10);
+    }
     return 0;
 }

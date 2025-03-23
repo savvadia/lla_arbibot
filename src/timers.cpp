@@ -1,11 +1,17 @@
 #include "timers.h"
 #include <sstream>
 #include <iomanip>
+#include <thread>
 
 #include "tracer.h"
+#include <iostream>
 
 #define TRACE(_timer, ...) TRACE_INST_TIMER(_timer, __VA_ARGS__)
 TimersMgr::TimersMgr() {}
+
+void sleep_ms(int ms) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+}
 
 // Static method to format any time_point to hh:mm:ss.sss
 std::string Timer::formatTime(std::chrono::steady_clock::time_point time) {
@@ -57,9 +63,7 @@ void TimersMgr::stopTimer(int id) {
         timers.erase(it->second);
         timerIds.erase(it);
     } else {
-#ifdef DEBUG
         std::cout << "Timer with id " << id << " not found. nextId=" << nextId << std::endl;
-#endif
     }
 }
 
@@ -73,7 +77,7 @@ void TimersMgr::checkTimers() {
             timerIds.erase(timer.id);
             it = timers.erase(it);
         } else {
-            TRACE(timer, "not fired, now:%s", Timer::formatTime(now).c_str());
+            // TRACE(timer, "not fired, now:%s", Timer::formatTime(now).c_str());
             ++it;
         }
     }

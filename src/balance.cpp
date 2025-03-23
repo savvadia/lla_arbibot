@@ -43,7 +43,7 @@ double Balance::getBalance(std::string exchange, std::string coin) {
     return balances[exchange][coin];
 }
 
-const unordered_map<std::string,  unordered_map<std::string, double>> Balance::getBalances() const {
+const BalanceData Balance::getBalances() const {
     return balances;
 }
 

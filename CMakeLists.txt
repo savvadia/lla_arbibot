@@ -14,6 +14,8 @@ include_directories(src)
 # Add the source files to the executable
 file(GLOB SOURCES "src/*.cpp")
 add_executable(LlaArbibot ${SOURCES})
+# Force multi-pass linking
+# target_link_options(LlaArbibot PRIVATE -Wl,--start-group ${SOURCES} -Wl,--end-group)
 
 # Link with external libraries (curl, jsoncpp)
 find_package(CURL REQUIRED)

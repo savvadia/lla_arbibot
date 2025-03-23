@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 using TimerCallback = void (*)(int id, void* data);
+void sleep_ms(int ms);
 
 class Timer {
 public:
