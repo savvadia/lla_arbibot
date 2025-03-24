@@ -35,4 +35,6 @@ Thumbs.db
 *.out
 *.app
 LlaArbibot
-tests/TimersTest
+
+# Ignore test binaries
+tests/*Test
