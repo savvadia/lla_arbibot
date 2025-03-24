@@ -7,6 +7,12 @@
 },
 {
   "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/dianasavvatina/repo/lla_arbibot/src -I/opt/homebrew/Cellar/jsoncpp/1.9.6/include -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/LlaArbibot.dir/src/event_loop.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/event_loop.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/event_loop.cpp",
+  "output": "CMakeFiles/LlaArbibot.dir/src/event_loop.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
   "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/dianasavvatina/repo/lla_arbibot/src -I/opt/homebrew/Cellar/jsoncpp/1.9.6/include -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/LlaArbibot.dir/src/main.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/main.cpp",
   "file": "/Users/dianasavvatina/repo/lla_arbibot/src/main.cpp",
   "output": "CMakeFiles/LlaArbibot.dir/src/main.cpp.o"

@@ -9,6 +9,7 @@ using namespace std;
 #include <json/json.h>
 #include "timers.h"
 #include "s_poplavki.h"
+#include "event_loop.h"
 
 // #include <websocketpp/client.hpp>
 // #include <nlohmann/json.hpp>
@@ -172,19 +173,27 @@ void getBinanceOrderBook(const string& symbol) {
     }
 }
 
-
-
 int main() {
     Balance b;
     TimersMgr tm;
     StrategyPoplavki s("BTC", "USDT", tm);
+    EventLoop eventLoop;
     
     b.retrieveBalances();
     checkArbitrage();
 
-    for (int i = 0; i < 1000; i++) {
+    // Start the event loop
+    eventLoop.start();
+
+    // Post initial events
+    eventLoop.postEvent(EventType::TIMER, [&tm]() {
         tm.checkTimers();
-        sleep_ms(10);
-    }
+    });
+
+    // Keep the main thread alive
+    std::this_thread::sleep_for(std::chrono::seconds(10));
+
+    // Stop the event loop
+    eventLoop.stop();
     return 0;
 }
