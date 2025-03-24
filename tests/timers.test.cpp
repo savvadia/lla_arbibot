@@ -1,67 +1,86 @@
-#include <chrono>
-#include <thread>
-#include "timers.h"
 #include <gtest/gtest.h>
+#include "../src/timers.h"
+#include <thread>
+#include <chrono>
 
-using namespace std;
+struct TestOrder {
+    bool fired = false;
+};
 
 void testCallback(int id, void* data) {
-    cout << "Timer " << id << " fired" << endl;
-    std::vector<int>* order = static_cast<std::vector<int>*>(data);
-    order->push_back(id);
+    TestOrder* order = static_cast<TestOrder*>(data);
+    order->fired = true;
 }
 
-void sleep_in_test(int ms) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
-}
-
-TEST(TimersMgrTest, AddTimer) {
+TEST(TimersTest, AddTimer) {
     TimersMgr mgr;
-    std::vector<int> order;
-    int timerId = mgr.addTimer(50, testCallback, &order);
-    EXPECT_GT(timerId, 0);
+    TestOrder order;
+    int timerId = mgr.addTimer(50, testCallback, &order, TimerType::PRICE_CHECK);
+    EXPECT_EQ(timerId, 1);
+    EXPECT_FALSE(order.fired);
 }
 
-TEST(TimersMgrTest, StopTimer) {
+TEST(TimersTest, StopTimer) {
     TimersMgr mgr;
-    std::vector<int> order;
-    int timerId = mgr.addTimer(50, testCallback, &order);
+    TestOrder order;
+    int timerId = mgr.addTimer(50, testCallback, &order, TimerType::PRICE_CHECK);
     mgr.stopTimer(timerId);
-    sleep_in_test(100);
     mgr.checkTimers();
-    EXPECT_TRUE(order.empty());
+    EXPECT_FALSE(order.fired);
 }
 
-TEST(TimersMgrTest, CheckTimers) {
+TEST(TimersTest, CheckTimers) {
     TimersMgr mgr;
-    std::vector<int> order;
-    mgr.addTimer(50, testCallback, &order);
-    sleep_in_test(55);
+    TestOrder order;
+    mgr.addTimer(50, testCallback, &order, TimerType::PRICE_CHECK);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     mgr.checkTimers();
-    EXPECT_EQ(order.size(), 1);
+    EXPECT_TRUE(order.fired);
 }
 
-TEST(TimersMgrTest, FireInCorrectOrder) {
+TEST(TimersTest, FireInCorrectOrder) {
     TimersMgr mgr;
-    std::vector<int> order;
-    int id1 = mgr.addTimer(150, testCallback, &order);
-    int id2 = mgr.addTimer(50, testCallback, &order);
-    int id3 = mgr.addTimer(100, testCallback, &order);
-    sleep_in_test(160);
+    std::vector<int> firedOrder;
+    
+    auto orderCallback = [](int id, void* data) {
+        std::vector<int>* firedOrder = static_cast<std::vector<int>*>(data);
+        firedOrder->push_back(id);
+    };
+    
+    int id1 = mgr.addTimer(150, orderCallback, &firedOrder, TimerType::PRICE_CHECK);
+    int id2 = mgr.addTimer(50, orderCallback, &firedOrder, TimerType::PRICE_CHECK);
+    int id3 = mgr.addTimer(100, orderCallback, &firedOrder, TimerType::PRICE_CHECK);
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     mgr.checkTimers();
-    EXPECT_EQ(order, (std::vector<int>{id2, id3, id1}));
+    
+    EXPECT_EQ(firedOrder.size(), 3);
+    EXPECT_EQ(firedOrder[0], id2);  // 50ms
+    EXPECT_EQ(firedOrder[1], id3);  // 100ms
+    EXPECT_EQ(firedOrder[2], id1);  // 150ms
 }
 
-TEST(TimersMgrTest, CancelTimerBeforeFire) {
+TEST(TimersTest, CancelTimerBeforeFire) {
     TimersMgr mgr;
-    std::vector<int> order;
-    int id1 = mgr.addTimer(100, testCallback, &order);
-    int id2 = mgr.addTimer(50, testCallback, &order);
-    mgr.addTimer(150, testCallback, &order);
-    mgr.stopTimer(id1);
-    sleep_in_test(105);
+    std::vector<int> firedOrder;
+    
+    auto orderCallback = [](int id, void* data) {
+        std::vector<int>* firedOrder = static_cast<std::vector<int>*>(data);
+        firedOrder->push_back(id);
+    };
+    
+    int id1 = mgr.addTimer(100, orderCallback, &firedOrder, TimerType::PRICE_CHECK);
+    int id2 = mgr.addTimer(50, orderCallback, &firedOrder, TimerType::PRICE_CHECK);
+    int id3 = mgr.addTimer(150, orderCallback, &firedOrder, TimerType::PRICE_CHECK);
+    
+    mgr.stopTimer(id2);  // Cancel the 50ms timer
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     mgr.checkTimers();
-    EXPECT_EQ(order, (std::vector<int>{id2}));
+    
+    EXPECT_EQ(firedOrder.size(), 2);
+    EXPECT_EQ(firedOrder[0], id1);  // 100ms
+    EXPECT_EQ(firedOrder[1], id3);  // 150ms
 }
 
 int main(int argc, char **argv) {

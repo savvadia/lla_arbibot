@@ -3,6 +3,10 @@
 #include "balance.h"
 #include "timers.h"
 #include "s_poplavki.h"
+#include "event_loop.h"
+#include <thread>
+
+using namespace std;
 
 Strategy::Strategy(std::string name, std::string coin, std::string stableCoin, TimersMgr &timersMgr) : name(name), coin(coin), stableCoin(stableCoin), timersMgr(timersMgr)
 {
@@ -32,16 +36,18 @@ std::string Strategy::getName() const
 
 StrategyPoplavki::StrategyPoplavki(std::string coin, std::string stableCoin, TimersMgr &timersMgr) : Strategy("Poplavki", coin, stableCoin, timersMgr)
 {
-    timersMgr.addTimer(1000, timerCallback, this);
+    timersMgr.addTimer(1000, timerCallback, this, TimerType::PRICE_CHECK);
 }
+
 void StrategyPoplavki::timerCallback(int id, void *data)
 {
-    // std::cout << "Timer callback" << std::endl;
     StrategyPoplavki *strategy = static_cast<StrategyPoplavki *>(data);
-    strategy->timersMgr.addTimer(1000, timerCallback, strategy);
     strategy->execute();
+    strategy->timersMgr.addTimer(1000, timerCallback, strategy, TimerType::PRICE_CHECK);
 }
+
 void StrategyPoplavki::execute()
 {
     std::cout << "Executing Poplavki strategy" << std::endl;
+    // TODO: Implement strategy logic here
 }

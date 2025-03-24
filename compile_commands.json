@@ -30,10 +30,22 @@
   "output": "CMakeFiles/LlaArbibot.dir/src/timers.cpp.o"
 },
 {
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/dianasavvatina/repo/lla_arbibot/src -I/opt/homebrew/Cellar/jsoncpp/1.9.6/include -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/LlaArbibot.dir/src/tracer.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
+  "output": "CMakeFiles/LlaArbibot.dir/src/tracer.cpp.o"
+},
+{
   "directory": "/Users/dianasavvatina/repo/lla_arbibot/tests",
   "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/dianasavvatina/repo/lla_arbibot/tests/../src -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -Wno-ignored-attributes -o CMakeFiles/TimersTest.dir/timers.test.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/tests/timers.test.cpp",
   "file": "/Users/dianasavvatina/repo/lla_arbibot/tests/timers.test.cpp",
   "output": "tests/CMakeFiles/TimersTest.dir/timers.test.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot/tests",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/dianasavvatina/repo/lla_arbibot/tests/../src -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -Wno-ignored-attributes -o CMakeFiles/TimersTest.dir/timers_perf.test.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/tests/timers_perf.test.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/tests/timers_perf.test.cpp",
+  "output": "tests/CMakeFiles/TimersTest.dir/timers_perf.test.cpp.o"
 },
 {
   "directory": "/Users/dianasavvatina/repo/lla_arbibot/tests",
@@ -43,14 +55,32 @@
 },
 {
   "directory": "/Users/dianasavvatina/repo/lla_arbibot/tests",
-  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -Wno-ignored-attributes -o CMakeFiles/BalanceTest.dir/balance.test.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/tests/balance.test.cpp",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/dianasavvatina/repo/lla_arbibot/tests/../src -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -Wno-ignored-attributes -o CMakeFiles/TimersTest.dir/__/src/event_loop.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/event_loop.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/event_loop.cpp",
+  "output": "tests/CMakeFiles/TimersTest.dir/__/src/event_loop.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot/tests",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/dianasavvatina/repo/lla_arbibot/tests/../src -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -Wno-ignored-attributes -o CMakeFiles/TimersTest.dir/__/src/tracer.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
+  "output": "tests/CMakeFiles/TimersTest.dir/__/src/tracer.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot/tests",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/dianasavvatina/repo/lla_arbibot/tests/../src -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -Wno-ignored-attributes -o CMakeFiles/BalanceTest.dir/balance.test.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/tests/balance.test.cpp",
   "file": "/Users/dianasavvatina/repo/lla_arbibot/tests/balance.test.cpp",
   "output": "tests/CMakeFiles/BalanceTest.dir/balance.test.cpp.o"
 },
 {
   "directory": "/Users/dianasavvatina/repo/lla_arbibot/tests",
-  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -Wno-ignored-attributes -o CMakeFiles/BalanceTest.dir/__/src/balance.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/balance.cpp",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/dianasavvatina/repo/lla_arbibot/tests/../src -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -Wno-ignored-attributes -o CMakeFiles/BalanceTest.dir/__/src/balance.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/balance.cpp",
   "file": "/Users/dianasavvatina/repo/lla_arbibot/src/balance.cpp",
   "output": "tests/CMakeFiles/BalanceTest.dir/__/src/balance.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot/tests",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/dianasavvatina/repo/lla_arbibot/tests/../src -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -Wno-ignored-attributes -o CMakeFiles/BalanceTest.dir/__/src/tracer.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
+  "output": "tests/CMakeFiles/BalanceTest.dir/__/src/tracer.cpp.o"
 }
 ]

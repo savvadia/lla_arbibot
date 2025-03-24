@@ -10,7 +10,10 @@
 #include "tracer.h"
 
 enum class EventType {
-    TIMER,
+    TIMER,              // Generic timer event
+    WEBSOCKET_MESSAGE,  // Websocket message event
+    MARKET_DATA,        // Market data update event
+    SYSTEM_EVENT,       // System-level events
     ORDER_BOOK_UPDATE,
     ORDER_STATUS_CHANGE,
     BALANCE_UPDATE,

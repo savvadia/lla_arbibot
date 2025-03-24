@@ -4,11 +4,15 @@ find_package(GTest REQUIRED)
 # Add test executable
 add_executable(TimersTest 
     timers.test.cpp
+    timers_perf.test.cpp
     ../src/timers.cpp
+    ../src/event_loop.cpp
+    ../src/tracer.cpp
 )
 add_executable(BalanceTest
     balance.test.cpp
     ../src/balance.cpp
+    ../src/tracer.cpp
 )
 
 # Link GoogleTest and pthread
@@ -17,6 +21,7 @@ target_link_libraries(BalanceTest PRIVATE GTest::GTest GTest::Main pthread)
 
 # Add include directory for source code headers
 target_include_directories(TimersTest PRIVATE ../src)
+target_include_directories(BalanceTest PRIVATE ../src)
 
 # Register the test with CTest
 add_test(NAME TimersTest COMMAND TimersTest)

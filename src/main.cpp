@@ -175,9 +175,9 @@ void getBinanceOrderBook(const string& symbol) {
 
 int main() {
     Balance b;
+    EventLoop eventLoop;
     TimersMgr tm;
     StrategyPoplavki s("BTC", "USDT", tm);
-    EventLoop eventLoop;
     
     b.retrieveBalances();
     checkArbitrage();
@@ -185,13 +185,17 @@ int main() {
     // Start the event loop
     eventLoop.start();
 
-    // Post initial events
-    eventLoop.postEvent(EventType::TIMER, [&tm]() {
+    // Main loop: check timers and generate events
+    while (true) {
+        // Check timers and generate timer events
         tm.checkTimers();
-    });
-
-    // Keep the main thread alive
-    std::this_thread::sleep_for(std::chrono::seconds(10));
+        
+        // TODO: Check websockets and generate websocket events
+        // TODO: Check other event sources
+        
+        // Sleep for 10ms to prevent CPU spinning
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
 
     // Stop the event loop
     eventLoop.stop();
