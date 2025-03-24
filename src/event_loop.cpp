@@ -1,78 +1,64 @@
 #include "event_loop.h"
-#include <thread>
-#include <string>
-#include <unordered_map>
 #include <iostream>
 
-using namespace std;
-
-#define TRACE(...) TRACE_INST(TRACE_EVENT_LOOP, __VA_ARGS__)
-
-EventLoop::EventLoop() {
-    TRACE("created");
-}
+EventLoop::EventLoop() : m_running(false) {}
 
 EventLoop::~EventLoop() {
     stop();
-    TRACE("destroyed");
 }
 
 void EventLoop::start() {
-    if (running) return;
-    
-    running = true;
-    startTime = std::chrono::system_clock::now();
-    
-    eventThread = std::thread(&EventLoop::eventLoop, this);
-    TRACE("started");
+    if (m_running) {
+        return;
+    }
+    m_running = true;
+    processEvents();
 }
 
 void EventLoop::stop() {
-    if (!running) return;
-    
-    running = false;
-    queueCV.notify_all();
-    
-    if (eventThread.joinable()) {
-        eventThread.join();
-    }
-    
-    TRACE("stopped");
+    m_running = false;
+    m_queueCondition.notify_one();
 }
 
-void EventLoop::postEvent(EventType type, std::function<void()> handler) {
-    Event event{
-        .type = type,
-        .timestamp = std::chrono::system_clock::now(),
-        .handler = std::move(handler)
-    };
-    
+void EventLoop::postEvent(EventType type, std::function<void()> callback) {
     {
-        std::lock_guard<std::mutex> lock(queueMutex);
-        eventQueue.push(std::move(event));
+        std::lock_guard<std::mutex> lock(m_queueMutex);
+        m_eventQueue.emplace(type, callback, std::chrono::steady_clock::now());
     }
-    queueCV.notify_one();
+    m_queueCondition.notify_one();
 }
 
-void EventLoop::eventLoop() {
-    while (running) {
-        Event event;
-        {
-            std::unique_lock<std::mutex> lock(queueMutex);
-            queueCV.wait(lock, [this] { 
-                return !running || !eventQueue.empty(); 
+void EventLoop::postExchangeUpdate(ExchangeId exchange) {
+    postEvent(EventType::EXCHANGE_UPDATE, []() {
+        // Handle exchange update
+    });
+}
+
+void EventLoop::processEvents() {
+    while (m_running) {
+        Event event = [this]() {
+            std::unique_lock<std::mutex> lock(m_queueMutex);
+            m_queueCondition.wait(lock, [this] {
+                return !m_running || !m_eventQueue.empty();
             });
-            
-            if (!running) break;
-            
-            event = std::move(eventQueue.front());
-            eventQueue.pop();
+
+            if (!m_running) {
+                return Event(EventType::TIMER, [](){}, std::chrono::steady_clock::now());
+            }
+
+            Event event = std::move(m_eventQueue.front());
+            m_eventQueue.pop();
+            return event;
+        }();
+
+        if (!m_running) {
+            break;
         }
-        
+
         try {
-            event.handler();
+            event.callback();
         } catch (const std::exception& e) {
-            TRACE("error processing event: %s", e.what());
+            std::cerr << "Error processing event: " << e.what() << std::endl;
         }
     }
 } 

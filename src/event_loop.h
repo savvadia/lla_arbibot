@@ -1,4 +1,6 @@
 #pragma once
+
+#include "exchange_api.h"
 #include <functional>
 #include <queue>
 #include <mutex>
@@ -10,20 +12,37 @@
 #include "tracer.h"
 
 enum class EventType {
-    TIMER,              // Generic timer event
-    WEBSOCKET_MESSAGE,  // Websocket message event
-    MARKET_DATA,        // Market data update event
-    SYSTEM_EVENT,       // System-level events
+    // Timer events
+    TIMER,
+
+    // Market data events
+    MARKET_DATA,
     ORDER_BOOK_UPDATE,
+    
+    // Exchange-specific events
+    WEBSOCKET_MESSAGE,
+    BINANCE_UPDATED,
+    KRAKEN_UPDATED,
+    EXCHANGE_UPDATE,
+    
+    // Order events
     ORDER_STATUS_CHANGE,
+    
+    // Balance events
     BALANCE_UPDATE,
+    
+    // System events
+    SYSTEM_EVENT,
     SHUTDOWN_REQUEST
 };
 
 struct Event {
     EventType type;
-    std::chrono::system_clock::time_point timestamp;
-    std::function<void()> handler;
+    std::function<void()> callback;
+    std::chrono::steady_clock::time_point timestamp;
+
+    Event(EventType t, std::function<void()> cb, std::chrono::steady_clock::time_point ts)
+        : type(t), callback(cb), timestamp(ts) {}
 };
 
 class EventLoop {
@@ -34,22 +53,30 @@ public:
     // Core functionality
     void start();
     void stop();
-    void postEvent(EventType type, std::function<void()> handler);
+    void postEvent(EventType type, std::function<void()> callback);
+
+    // Post an order book update event
+    void postOrderBookUpdate(std::function<void()> callback);
+
+    // Post an exchange update event
+    void postExchangeUpdate(ExchangeId exchange);
 
     // Status
-    bool isRunning() const { return running; }
+    bool isRunning() const { return m_running; }
     std::chrono::system_clock::time_point getStartTime() const { return startTime; }
 
 private:
     void processEvents();
     void eventLoop();
 
-    std::atomic<bool> running{false};
+    std::atomic<bool> m_running{false};
     std::chrono::system_clock::time_point startTime;
     
-    std::queue<Event> eventQueue;
-    std::mutex queueMutex;
-    std::condition_variable queueCV;
+    std::queue<Event> m_eventQueue;
+    std::mutex m_queueMutex;
+    std::condition_variable m_queueCondition;
     
     std::thread eventThread;
+
+    void processEvent(const Event& event);
 }; 
