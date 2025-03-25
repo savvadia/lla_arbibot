@@ -35,6 +35,9 @@ public:
     // Convert TradingPair to exchange-specific symbol
     virtual std::string tradingPairToSymbol(TradingPair pair) const = 0;
 
+    // Check if connected to the exchange
+    virtual bool isConnected() const = 0;
+
 protected:
     // Helper function to convert string to lowercase
     static std::string toLower(std::string str) {

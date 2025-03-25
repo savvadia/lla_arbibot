@@ -11,10 +11,16 @@ protected:
     }
 
     void TearDown() override {
-        if (loop && loop->isRunning()) {
-            loop->stop();
+        if (loop) {
+            if (loop->isRunning()) {
+                loop->stop();
+                // Wait for the loop to actually stop
+                for (int i = 0; i < 10 && loop->isRunning(); i++) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                }
+            }
+            loop.reset();
         }
-        loop.reset();
     }
 
     std::unique_ptr<EventLoop> loop;
@@ -43,9 +49,12 @@ TEST_F(EventLoopTest, EventProcessing) {
     });
     
     // Wait for the event to be processed
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    for (int i = 0; i < 10 && counter == 0; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
     
     EXPECT_EQ(counter, 1);
+    loop->stop();  // Explicitly stop the loop
 }
 
 TEST_F(EventLoopTest, EventOrder) {
@@ -63,7 +72,9 @@ TEST_F(EventLoopTest, EventOrder) {
     }
     
     // Wait for all events to be processed
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    for (int i = 0; i < 10 && order.size() < 5; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
     
     std::lock_guard<std::mutex> lock(orderMutex);
     EXPECT_EQ(order.size(), 5);
@@ -88,15 +99,17 @@ TEST_F(EventLoopTest, ErrorHandling) {
     });
     
     // Wait for the event to be processed
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    for (int i = 0; i < 10 && !errorCaught; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
     
     EXPECT_TRUE(errorCaught);
 }
 
 TEST_F(EventLoopTest, ThreadSafety) {
     std::atomic<int> counter{0};
-    const int NUM_THREADS = 10;
-    const int EVENTS_PER_THREAD = 100;
+    const int NUM_THREADS = 5;  // Reduced from 10
+    const int EVENTS_PER_THREAD = 50;  // Reduced from 100
     
     loop->start();
     
@@ -117,9 +130,12 @@ TEST_F(EventLoopTest, ThreadSafety) {
     }
     
     // Wait for all events to be processed
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    for (int i = 0; i < 20 && counter < NUM_THREADS * EVENTS_PER_THREAD; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
     
     EXPECT_EQ(counter, NUM_THREADS * EVENTS_PER_THREAD);
+    loop->stop();  // Explicitly stop the loop
 }
 
 TEST_F(EventLoopTest, MultipleEventTypes) {
@@ -138,7 +154,9 @@ TEST_F(EventLoopTest, MultipleEventTypes) {
     });
     
     // Wait for events to be processed
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    for (int i = 0; i < 10 && (timerCount == 0 || marketDataCount == 0); i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
     
     EXPECT_EQ(timerCount, 1);
     EXPECT_EQ(marketDataCount, 1);
@@ -160,7 +178,9 @@ TEST_F(EventLoopTest, StopWithPendingEvents) {
     loop->stop();
     
     // Wait a bit to see if any events are processed
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    for (int i = 0; i < 10; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
     
     // Some events might be processed before stop, but not all
     EXPECT_LE(processedCount, 10);

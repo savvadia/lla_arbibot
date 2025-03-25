@@ -1,5 +1,6 @@
 #include "event_loop.h"
 #include <iostream>
+#include <thread>
 
 EventLoop::EventLoop() : m_running(false) {}
 
@@ -12,12 +13,15 @@ void EventLoop::start() {
         return;
     }
     m_running = true;
-    processEvents();
+    eventThread = std::thread(&EventLoop::processEvents, this);
 }
 
 void EventLoop::stop() {
     m_running = false;
     m_queueCondition.notify_one();
+    if (eventThread.joinable()) {
+        eventThread.join();
+    }
 }
 
 void EventLoop::postEvent(EventType type, std::function<void()> callback) {

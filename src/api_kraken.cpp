@@ -227,9 +227,16 @@ void KrakenApi::processMessage(const std::string& message) {
             }
 
             m_orderBookManager.updateOrderBook(pair, bids, asks);
+            processOrderBookUpdate(data);
         }
     } catch (const std::exception& e) {
         std::cerr << "Error processing message: " << e.what() << std::endl;
+    }
+}
+
+void KrakenApi::processOrderBookUpdate(const json& data) {
+    if (m_updateCallback) {
+        m_updateCallback();
     }
 }
 
@@ -254,6 +261,9 @@ bool KrakenApi::subscribeOrderBook(TradingPair pair) {
     };
 
     doWrite(subscribeMsg.dump());
+    if (m_subscriptionCallback) {
+        m_subscriptionCallback(true);
+    }
     return true;
 }
 
@@ -327,6 +337,9 @@ void KrakenApi::processOrderBookSnapshot(const json& data, TradingPair pair) {
         }
 
         m_orderBookManager.updateOrderBook(pair, bids, asks);
+        if (m_snapshotCallback) {
+            m_snapshotCallback(true);
+        }
     } catch (const std::exception& e) {
         std::cerr << "Error processing order book snapshot: " << e.what() << std::endl;
     }

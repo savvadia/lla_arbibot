@@ -190,6 +190,9 @@ bool BinanceApi::subscribeOrderBook(TradingPair pair) {
 
         std::string message = subscription.dump();
         m_ws->write(net::buffer(message));
+        if (m_subscriptionCallback) {
+            m_subscriptionCallback(true);
+        }
         return true;
     } catch (const std::exception& e) {
         std::cerr << "Error in subscribeOrderBook: " << e.what() << std::endl;
@@ -244,6 +247,9 @@ bool BinanceApi::getOrderBookSnapshot(TradingPair pair) {
         }
 
         m_orderBookManager.updateOrderBook(pair, bids, asks);
+        if (m_snapshotCallback) {
+            m_snapshotCallback(true);
+        }
         return true;
     } catch (const std::exception& e) {
         std::cerr << "Error in getOrderBookSnapshot: " << e.what() << std::endl;
@@ -289,8 +295,25 @@ void BinanceApi::processMessage(const std::string& message) {
             }
 
             m_orderBookManager.updateOrderBook(pair, bids, asks);
+            if (m_updateCallback) {
+                m_updateCallback();
+            }
         }
     } catch (const std::exception& e) {
         std::cerr << "Error processing message: " << e.what() << std::endl;
+    }
+}
+
+void BinanceApi::processOrderBookUpdate(const json& data) {
+    // ... existing code ...
+    if (m_updateCallback) {
+        m_updateCallback();
+    }
+}
+
+void BinanceApi::processOrderBookSnapshot(const json& data, TradingPair pair) {
+    // ... existing code ...
+    if (m_snapshotCallback) {
+        m_snapshotCallback(true);
     }
 } 

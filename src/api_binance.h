@@ -39,6 +39,12 @@ public:
     ExchangeId getExchangeId() const override { return ExchangeId::BINANCE; }
     TradingPair symbolToTradingPair(const std::string& symbol) const override;
     std::string tradingPairToSymbol(TradingPair pair) const override;
+    bool isConnected() const override { return m_connected; }
+
+    // Callback setters
+    void setSubscriptionCallback(std::function<void(bool)> callback) { m_subscriptionCallback = callback; }
+    void setUpdateCallback(std::function<void()> callback) { m_updateCallback = callback; }
+    void setSnapshotCallback(std::function<void(bool)> callback) { m_snapshotCallback = callback; }
 
     // Static method for string conversion (used for tracing)
     static std::string tradingPairToString(TradingPair pair) {
@@ -76,6 +82,11 @@ private:
     OrderBookManager& m_orderBookManager;
     std::map<TradingPair, std::string> m_symbolMap;
     bool m_connected;
+    
+    // Callbacks
+    std::function<void(bool)> m_subscriptionCallback;
+    std::function<void()> m_updateCallback;
+    std::function<void(bool)> m_snapshotCallback;
     
     net::io_context m_ioc;
     ssl::context m_ctx{ssl::context::tlsv12_client};

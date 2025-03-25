@@ -33,8 +33,13 @@ TEST(TimersTest, CheckTimers) {
     TimersMgr mgr;
     TestOrder order;
     mgr.addTimer(50, testCallback, &order, TimerType::PRICE_CHECK);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    mgr.checkTimers();
+    
+    // Wait for timer to fire
+    for (int i = 0; i < 10 && !order.fired; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        mgr.checkTimers();
+    }
+    
     EXPECT_TRUE(order.fired);
 }
 
@@ -51,8 +56,11 @@ TEST(TimersTest, FireInCorrectOrder) {
     int id2 = mgr.addTimer(50, orderCallback, &firedOrder, TimerType::PRICE_CHECK);
     int id3 = mgr.addTimer(100, orderCallback, &firedOrder, TimerType::PRICE_CHECK);
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    mgr.checkTimers();
+    // Wait for all timers to fire
+    for (int i = 0; i < 20 && firedOrder.size() < 3; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        mgr.checkTimers();
+    }
     
     EXPECT_EQ(firedOrder.size(), 3);
     EXPECT_EQ(firedOrder[0], id2);  // 50ms
@@ -75,8 +83,11 @@ TEST(TimersTest, CancelTimerBeforeFire) {
     
     mgr.stopTimer(id2);  // Cancel the 50ms timer
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    mgr.checkTimers();
+    // Wait for remaining timers to fire
+    for (int i = 0; i < 20 && firedOrder.size() < 2; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        mgr.checkTimers();
+    }
     
     EXPECT_EQ(firedOrder.size(), 2);
     EXPECT_EQ(firedOrder[0], id1);  // 100ms
