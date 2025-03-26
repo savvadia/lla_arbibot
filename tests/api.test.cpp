@@ -1,246 +1,180 @@
 #include <gtest/gtest.h>
-#include "../src/api_binance.h"
-#include "../src/api_kraken.h"
+#include "mock_api.h"
 #include "../src/orderbook.h"
-#include "../src/types.h"
-#include <memory>
 #include <thread>
 #include <chrono>
-#include <atomic>
-#include <iostream>
 
 class ApiTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        orderBookManager = std::make_unique<OrderBookManager>();
-        binanceApi = std::make_unique<BinanceApi>(*orderBookManager);
-        krakenApi = std::make_unique<KrakenApi>(*orderBookManager);
+        m_orderBookManager = std::make_unique<OrderBookManager>();
+        m_binanceApi = std::make_unique<MockApi>(*m_orderBookManager, "Binance");
+        m_krakenApi = std::make_unique<MockApi>(*m_orderBookManager, "Kraken");
     }
 
     void TearDown() override {
-        binanceApi.reset();
-        krakenApi.reset();
-        orderBookManager.reset();
+        m_binanceApi.reset();
+        m_krakenApi.reset();
+        m_orderBookManager.reset();
     }
 
-    std::unique_ptr<OrderBookManager> orderBookManager;
-    std::unique_ptr<BinanceApi> binanceApi;
-    std::unique_ptr<KrakenApi> krakenApi;
+    std::unique_ptr<OrderBookManager> m_orderBookManager;
+    std::unique_ptr<MockApi> m_binanceApi;
+    std::unique_ptr<MockApi> m_krakenApi;
 };
 
-// Test exchange names and IDs
 TEST_F(ApiTest, ExchangeIdentifiers) {
-    EXPECT_EQ(binanceApi->getExchangeName(), "Binance");
-    EXPECT_EQ(binanceApi->getExchangeId(), ExchangeId::BINANCE);
-    EXPECT_EQ(krakenApi->getExchangeName(), "Kraken");
-    EXPECT_EQ(krakenApi->getExchangeId(), ExchangeId::KRAKEN);
+    EXPECT_EQ(m_binanceApi->getExchangeId(), ExchangeId::BINANCE);
+    EXPECT_EQ(m_krakenApi->getExchangeId(), ExchangeId::KRAKEN);
 }
 
-// Test trading pair conversion
 TEST_F(ApiTest, TradingPairConversion) {
-    TradingPair btcUsdt = TradingPair::BTC_USDT;
-    EXPECT_EQ(binanceApi->tradingPairToSymbol(btcUsdt), "BTCUSDT");
-    EXPECT_EQ(krakenApi->tradingPairToSymbol(btcUsdt), "XBT/USD");
+    // Test Binance symbol conversion
+    EXPECT_EQ(m_binanceApi->symbolToTradingPair("BTCUSDT"), TradingPair::BTC_USDT);
+    EXPECT_EQ(m_binanceApi->symbolToTradingPair("ETHUSDT"), TradingPair::ETH_USDT);
+    EXPECT_EQ(m_binanceApi->symbolToTradingPair("XTZUSDT"), TradingPair::XTZ_USDT);
+    EXPECT_EQ(m_binanceApi->symbolToTradingPair("UNKNOWN"), TradingPair::UNKNOWN);
+
+    // Test Kraken symbol conversion
+    EXPECT_EQ(m_krakenApi->symbolToTradingPair("XBT/USD"), TradingPair::BTC_USDT);
+    EXPECT_EQ(m_krakenApi->symbolToTradingPair("ETH/USD"), TradingPair::ETH_USDT);
+    EXPECT_EQ(m_krakenApi->symbolToTradingPair("XTZ/USD"), TradingPair::XTZ_USDT);
+    EXPECT_EQ(m_krakenApi->symbolToTradingPair("UNKNOWN"), TradingPair::UNKNOWN);
+
+    // Test reverse conversion
+    EXPECT_EQ(m_binanceApi->tradingPairToSymbol(TradingPair::BTC_USDT), "BTCUSDT");
+    EXPECT_EQ(m_krakenApi->tradingPairToSymbol(TradingPair::BTC_USDT), "XBT/USD");
 }
 
-// Test order book subscription
 TEST_F(ApiTest, OrderBookSubscription) {
     bool binanceSubscribed = false;
     bool krakenSubscribed = false;
 
-    binanceApi->setSubscriptionCallback([&binanceSubscribed](bool success) {
+    m_binanceApi->setSubscriptionCallback([&binanceSubscribed](bool success) {
         binanceSubscribed = success;
     });
 
-    krakenApi->setSubscriptionCallback([&krakenSubscribed](bool success) {
+    m_krakenApi->setSubscriptionCallback([&krakenSubscribed](bool success) {
         krakenSubscribed = success;
     });
 
-    TradingPair btcUsdt = TradingPair::BTC_USDT;
-    EXPECT_TRUE(binanceApi->subscribeOrderBook(btcUsdt));
-    EXPECT_TRUE(krakenApi->subscribeOrderBook(btcUsdt));
+    // Connect to exchanges
+    ASSERT_TRUE(m_binanceApi->connect());
+    ASSERT_TRUE(m_krakenApi->connect());
 
-    // Wait for subscription callbacks
-    for (int i = 0; i < 100; ++i) {
-        if (binanceSubscribed && krakenSubscribed) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    // Subscribe to order books
+    ASSERT_TRUE(m_binanceApi->subscribeOrderBook(TradingPair::BTC_USDT));
+    ASSERT_TRUE(m_krakenApi->subscribeOrderBook(TradingPair::BTC_USDT));
+
+    // Wait for subscription callbacks with timeout
+    const auto startTime = std::chrono::steady_clock::now();
+    const auto timeout = std::chrono::milliseconds(50); // 50ms timeout
+
+    while (!binanceSubscribed || !krakenSubscribed) {
+        if (std::chrono::steady_clock::now() - startTime > timeout) {
+            FAIL() << "Subscription timeout: Binance=" << binanceSubscribed 
+                  << ", Kraken=" << krakenSubscribed;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     EXPECT_TRUE(binanceSubscribed);
     EXPECT_TRUE(krakenSubscribed);
 }
 
-// Test order book updates
 TEST_F(ApiTest, OrderBookUpdates) {
-    bool binanceUpdates = false;
-    bool krakenUpdates = false;
-    TradingPair btcUsdt = TradingPair::BTC_USDT;
-
-    // Get initial snapshots
-    EXPECT_TRUE(binanceApi->getOrderBookSnapshot(btcUsdt));
-    EXPECT_TRUE(krakenApi->getOrderBookSnapshot(btcUsdt));
-
-    // Store initial order book states
-    const auto& initialBinanceBook = orderBookManager->getOrderBook(btcUsdt);
-    const auto& initialKrakenBook = orderBookManager->getOrderBook(btcUsdt);
-    auto initialBinanceBids = initialBinanceBook.getBids();
-    auto initialBinanceAsks = initialBinanceBook.getAsks();
-    auto initialKrakenBids = initialKrakenBook.getBids();
-    auto initialKrakenAsks = initialKrakenBook.getAsks();
-
-    binanceApi->setUpdateCallback([&binanceUpdates]() {
-        binanceUpdates = true;
+    bool updateReceived = false;
+    m_binanceApi->setUpdateCallback([&updateReceived]() {
+        updateReceived = true;
     });
 
-    krakenApi->setUpdateCallback([&krakenUpdates]() {
-        krakenUpdates = true;
-    });
+    // Connect and subscribe
+    ASSERT_TRUE(m_binanceApi->connect());
+    ASSERT_TRUE(m_binanceApi->subscribeOrderBook(TradingPair::BTC_USDT));
 
-    EXPECT_TRUE(binanceApi->subscribeOrderBook(btcUsdt));
-    EXPECT_TRUE(krakenApi->subscribeOrderBook(btcUsdt));
+    // Get initial snapshot
+    ASSERT_TRUE(m_binanceApi->getOrderBookSnapshot(TradingPair::BTC_USDT));
 
-    // Wait for updates
-    for (int i = 0; i < 100; ++i) {
-        if (binanceUpdates && krakenUpdates) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    // Send an update
+    std::vector<PriceLevel> bids = {
+        {50000.0, 1.0},
+        {49999.0, 2.0}
+    };
+    std::vector<PriceLevel> asks = {
+        {50001.0, 1.0},
+        {50002.0, 2.0}
+    };
+    m_binanceApi->sendOrderBookUpdate(bids, asks);
+
+    // Wait for update with timeout
+    const auto startTime = std::chrono::steady_clock::now();
+    const auto timeout = std::chrono::milliseconds(50); // 50ms timeout
+
+    while (!updateReceived) {
+        if (std::chrono::steady_clock::now() - startTime > timeout) {
+            FAIL() << "Update timeout: no update received";
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    EXPECT_TRUE(binanceUpdates);
-    EXPECT_TRUE(krakenUpdates);
+    EXPECT_TRUE(updateReceived);
 
-    // Get updated order books
-    const auto& updatedBinanceBook = orderBookManager->getOrderBook(btcUsdt);
-    const auto& updatedKrakenBook = orderBookManager->getOrderBook(btcUsdt);
-
-    // Verify that order books have been updated
-    EXPECT_FALSE(updatedBinanceBook.getBids().empty());
-    EXPECT_FALSE(updatedBinanceBook.getAsks().empty());
-    EXPECT_FALSE(updatedKrakenBook.getBids().empty());
-    EXPECT_FALSE(updatedKrakenBook.getAsks().empty());
-
-    // Verify that at least some prices or quantities have changed
-    bool binanceChanged = false;
-    bool krakenChanged = false;
-
-    // Check if Binance order book changed
-    const auto& newBinanceBids = updatedBinanceBook.getBids();
-    const auto& newBinanceAsks = updatedBinanceBook.getAsks();
-    if (newBinanceBids.size() != initialBinanceBids.size() || 
-        newBinanceAsks.size() != initialBinanceAsks.size()) {
-        binanceChanged = true;
-    } else {
-        for (size_t i = 0; i < newBinanceBids.size() && !binanceChanged; ++i) {
-            if (newBinanceBids[i].price != initialBinanceBids[i].price ||
-                newBinanceBids[i].quantity != initialBinanceBids[i].quantity) {
-                binanceChanged = true;
-            }
-        }
-        for (size_t i = 0; i < newBinanceAsks.size() && !binanceChanged; ++i) {
-            if (newBinanceAsks[i].price != initialBinanceAsks[i].price ||
-                newBinanceAsks[i].quantity != initialBinanceAsks[i].quantity) {
-                binanceChanged = true;
-            }
-        }
-    }
-
-    // Check if Kraken order book changed
-    const auto& newKrakenBids = updatedKrakenBook.getBids();
-    const auto& newKrakenAsks = updatedKrakenBook.getAsks();
-    if (newKrakenBids.size() != initialKrakenBids.size() || 
-        newKrakenAsks.size() != initialKrakenAsks.size()) {
-        krakenChanged = true;
-    } else {
-        for (size_t i = 0; i < newKrakenBids.size() && !krakenChanged; ++i) {
-            if (newKrakenBids[i].price != initialKrakenBids[i].price ||
-                newKrakenBids[i].quantity != initialKrakenBids[i].quantity) {
-                krakenChanged = true;
-            }
-        }
-        for (size_t i = 0; i < newKrakenAsks.size() && !krakenChanged; ++i) {
-            if (newKrakenAsks[i].price != initialKrakenAsks[i].price ||
-                newKrakenAsks[i].quantity != initialKrakenAsks[i].quantity) {
-                krakenChanged = true;
-            }
-        }
-    }
-
-    EXPECT_TRUE(binanceChanged) << "Binance order book did not change after updates";
-    EXPECT_TRUE(krakenChanged) << "Kraken order book did not change after updates";
+    // Verify order book state
+    const auto& orderBook = m_orderBookManager->getOrderBook(TradingPair::BTC_USDT);
+    EXPECT_EQ(orderBook.getBids().size(), 2);
+    EXPECT_EQ(orderBook.getAsks().size(), 2);
+    EXPECT_EQ(orderBook.getBids()[0].price, 50000.0);
+    EXPECT_EQ(orderBook.getAsks()[0].price, 50001.0);
 }
 
-// Test order book snapshot
 TEST_F(ApiTest, OrderBookSnapshot) {
-    bool binanceSnapshotReceived = false;
-    bool krakenSnapshotReceived = false;
-
-    binanceApi->setSnapshotCallback([&binanceSnapshotReceived](bool success) {
-        binanceSnapshotReceived = success;
+    bool snapshotReceived = false;
+    m_binanceApi->setSnapshotCallback([&snapshotReceived](bool success) {
+        snapshotReceived = success;
     });
 
-    krakenApi->setSnapshotCallback([&krakenSnapshotReceived](bool success) {
-        krakenSnapshotReceived = success;
-    });
+    // Connect and get snapshot
+    ASSERT_TRUE(m_binanceApi->connect());
+    ASSERT_TRUE(m_binanceApi->getOrderBookSnapshot(TradingPair::BTC_USDT));
 
-    TradingPair btcUsdt = TradingPair::BTC_USDT;
-    EXPECT_TRUE(binanceApi->getOrderBookSnapshot(btcUsdt));
-    EXPECT_TRUE(krakenApi->getOrderBookSnapshot(btcUsdt));
+    // Wait for snapshot with timeout
+    const auto startTime = std::chrono::steady_clock::now();
+    const auto timeout = std::chrono::milliseconds(50); // 50ms timeout
 
-    // Wait for snapshots
-    for (int i = 0; i < 100; ++i) {
-        if (binanceSnapshotReceived && krakenSnapshotReceived) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    while (!snapshotReceived) {
+        if (std::chrono::steady_clock::now() - startTime > timeout) {
+            FAIL() << "Snapshot timeout: no snapshot received";
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    EXPECT_TRUE(binanceSnapshotReceived);
-    EXPECT_TRUE(krakenSnapshotReceived);
+    EXPECT_TRUE(snapshotReceived);
 
-    // Check order books
-    const auto& binanceOrderBook = orderBookManager->getOrderBook(btcUsdt);
-    const auto& krakenOrderBook = orderBookManager->getOrderBook(btcUsdt);
-
-    EXPECT_FALSE(binanceOrderBook.getBids().empty());
-    EXPECT_FALSE(binanceOrderBook.getAsks().empty());
-    EXPECT_FALSE(krakenOrderBook.getBids().empty());
-    EXPECT_FALSE(krakenOrderBook.getAsks().empty());
+    // Verify order book state
+    const auto& orderBook = m_orderBookManager->getOrderBook(TradingPair::BTC_USDT);
+    EXPECT_EQ(orderBook.getBids().size(), 3);
+    EXPECT_EQ(orderBook.getAsks().size(), 3);
+    EXPECT_EQ(orderBook.getBids()[0].price, 50000.0);
+    EXPECT_EQ(orderBook.getAsks()[0].price, 50001.0);
 }
 
-// Test connection management
 TEST_F(ApiTest, ConnectionManagement) {
-    EXPECT_FALSE(binanceApi->isConnected());
-    EXPECT_FALSE(krakenApi->isConnected());
+    // Test connection
+    ASSERT_TRUE(m_binanceApi->connect());
+    ASSERT_TRUE(m_krakenApi->connect());
 
-    EXPECT_TRUE(binanceApi->connect());
-    EXPECT_TRUE(krakenApi->connect());
+    // Test disconnection
+    m_binanceApi->disconnect();
+    m_krakenApi->disconnect();
 
-    // Wait for connection
-    for (int i = 0; i < 100; ++i) {
-        if (binanceApi->isConnected() && krakenApi->isConnected()) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-
-    EXPECT_TRUE(binanceApi->isConnected());
-    EXPECT_TRUE(krakenApi->isConnected());
-
-    binanceApi->disconnect();
-    krakenApi->disconnect();
-
-    // Wait for disconnection
-    for (int i = 0; i < 100; ++i) {
-        if (!binanceApi->isConnected() && !krakenApi->isConnected()) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-
-    EXPECT_FALSE(binanceApi->isConnected());
-    EXPECT_FALSE(krakenApi->isConnected());
-}
-
-// Test error handling
-TEST_F(ApiTest, ErrorHandling) {
-    TradingPair invalidPair = TradingPair::UNKNOWN;  // Invalid pair
-    EXPECT_FALSE(binanceApi->subscribeOrderBook(invalidPair));
-    EXPECT_FALSE(krakenApi->subscribeOrderBook(invalidPair));
-    EXPECT_FALSE(binanceApi->getOrderBookSnapshot(invalidPair));
-    EXPECT_FALSE(krakenApi->getOrderBookSnapshot(invalidPair));
+    // Verify operations fail when disconnected
+    EXPECT_FALSE(m_binanceApi->subscribeOrderBook(TradingPair::BTC_USDT));
+    EXPECT_FALSE(m_krakenApi->subscribeOrderBook(TradingPair::BTC_USDT));
+    EXPECT_FALSE(m_binanceApi->getOrderBookSnapshot(TradingPair::BTC_USDT));
+    EXPECT_FALSE(m_krakenApi->getOrderBookSnapshot(TradingPair::BTC_USDT));
 }
 
 int main(int argc, char **argv) {

@@ -1,33 +1,28 @@
 #pragma once
 
-#include "types.h"
-#include "trading_pair_format.h"
 #include <string>
 #include <vector>
 #include <map>
 #include <mutex>
-#include <functional>
+#include "tracer.h"
+#include "types.h"
 
-// Price level in the order book
 struct PriceLevel {
     double price;
     double quantity;
-
     PriceLevel(double p = 0.0, double q = 0.0) : price(p), quantity(q) {}
 };
 
 // Order book for a specific trading pair
-class OrderBook {
+class OrderBook : public Traceable {
 public:
-    OrderBook() = default;
+    OrderBook() : exchangeId(ExchangeId::UNKNOWN), pair(TradingPair::UNKNOWN) {}
+    OrderBook(ExchangeId exchangeId, TradingPair pair) 
+        : exchangeId(exchangeId), pair(pair) {}
     ~OrderBook() = default;
 
     // Update the order book with new price levels
-    void update(const std::vector<PriceLevel>& bids, const std::vector<PriceLevel>& asks) {
-        std::lock_guard<std::mutex> lock(mutex);
-        this->bids = bids;
-        this->asks = asks;
-    }
+    void update(const std::vector<PriceLevel>& bids, const std::vector<PriceLevel>& asks);
 
     // Get best bid price
     double getBestBid() const {
@@ -60,48 +55,41 @@ public:
     const std::vector<PriceLevel>& getBids() const { return bids; }
     const std::vector<PriceLevel>& getAsks() const { return asks; }
 
+    // For TRACE identification
+    ExchangeId getExchangeId() const { return exchangeId; }
+    TradingPair getTradingPair() const { return pair; }
+
+protected:
+    void trace(std::ostream& os) const override {
+        os << "OrderBook(" << exchangeId << ", " << pair << ")";
+    }
+
 private:
     std::vector<PriceLevel> bids;
     std::vector<PriceLevel> asks;
     mutable std::mutex mutex;
+    ExchangeId exchangeId;
+    TradingPair pair;
 };
 
 // Order book manager for all trading pairs
 class OrderBookManager {
 public:
-    OrderBookManager() = default;
+    OrderBookManager();
+    ~OrderBookManager() = default;
 
     // Update order book for a trading pair
-    void updateOrderBook(TradingPair pair, const std::vector<PriceLevel>& bids, const std::vector<PriceLevel>& asks) {
-        std::lock_guard<std::mutex> lock(mutex);
-        orderBooks[pair].update(bids, asks);
-        
-        // Notify callback if set
-        if (updateCallback) {
-            updateCallback(pair, orderBooks[pair]);
-        }
-    }
+    void updateOrderBook(ExchangeId exchangeId, TradingPair pair, const std::vector<PriceLevel>& bids, const std::vector<PriceLevel>& asks);
+    void updateOrderBook(ExchangeId exchangeId, TradingPair pair, double price, double quantity, bool isBid);
 
     // Get order book for a trading pair
-    OrderBook& getOrderBook(TradingPair pair) {
-        std::lock_guard<std::mutex> lock(mutex);
-        return orderBooks[pair];
-    }
+    OrderBook& getOrderBook(TradingPair pair);
 
     // Set callback for order book updates
-    void setUpdateCallback(std::function<void(TradingPair, const OrderBook&)> callback) {
-        std::lock_guard<std::mutex> lock(mutex);
-        updateCallback = callback;
-    }
+    void setUpdateCallback(std::function<void(ExchangeId, TradingPair, const OrderBook&)> callback);
 
 private:
     std::map<TradingPair, OrderBook> orderBooks;
-    std::function<void(TradingPair, const OrderBook&)> updateCallback;
+    std::function<void(ExchangeId, TradingPair, const OrderBook&)> updateCallback;
     mutable std::mutex mutex;
-};
-
-// Stream operator for TradingPair - will use Binance's format for tracing
-inline std::ostream& operator<<(std::ostream& os, TradingPair pair) {
-    os << trading::toString(pair);
-    return os;
-} 
+}; 

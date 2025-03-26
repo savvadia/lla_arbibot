@@ -7,11 +7,8 @@
 #include "tracer.h"
 #include <iostream>
 
-#ifdef DISABLE_TRACES
-#define TRACE(_timer, ...) ((void)0)
-#else
-#define TRACE(_timer, ...) TRACE_INST_TIMER(_timer, __VA_ARGS__)
-#endif
+// Define TRACE macro for TimersMgr
+#define TRACE(_timer, ...) TRACE_OBJ(&_timer, TraceInstance::TIMER, __VA_ARGS__)
 
 // Initialize static member
 int TimersMgr::nextId = 1;
@@ -59,7 +56,7 @@ int TimersMgr::addTimer(int intervalMs, TimerCallback callback, void* data, Time
     timer.data = data;
     timer.type = type;
 
-    TRACE(timer, "added with intervalMs %d", intervalMs);
+    TRACE(timer, "Added with interval ", intervalMs, "ms");
 
     {
         std::lock_guard<std::mutex> lock(timerMutex);
@@ -81,13 +78,24 @@ void TimersMgr::stopTimer(int id) {
 
 void TimersMgr::checkTimers() {
     auto now = std::chrono::steady_clock::now();
-    std::lock_guard<std::mutex> lock(timerMutex);
+    std::vector<Timer> timersToExecute;
     
-    auto it = timers.begin();
-    while (it != timers.end() && it->first <= now) {
-        auto& timer = it->second;
+    // First, collect timers that need to be executed
+    {
+        std::lock_guard<std::mutex> lock(timerMutex);
+        auto it = timers.begin();
+        while (it != timers.end() && it->first <= now) {
+            timersToExecute.push_back(it->second);
+            // Remove from both maps
+            timerIds.erase(it->second.id);
+            it = timers.erase(it);
+        }
+    }
+    
+    // Now execute callbacks without holding the mutex
+    for (const auto& timer : timersToExecute) {
         auto delay = std::chrono::duration_cast<std::chrono::microseconds>(now - timer.timeToFire).count();
-        TRACE(timer, "fired (delay: %lld us)", delay);
+        TRACE(timer, "fired (delay: ", delay, " us)");
         
         auto start = std::chrono::steady_clock::now();
         timer.callback(timer.id, timer.data);
@@ -95,11 +103,9 @@ void TimersMgr::checkTimers() {
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         
         if (duration > MAX_CALLBACK_TIME_MS * 1000) {
-            TRACE(timer, "Timer callback took %lldus (max: %dus)", duration, MAX_CALLBACK_TIME_MS * 1000);
+            TRACE(timer, "callback took ", duration, "us (max: ", MAX_CALLBACK_TIME_MS * 1000, "us)");
         } else {
-            TRACE(timer, "Timer '%s' callback took %lldus (max: %dus)", 
-                timerTypeToString(timer.type), duration, MAX_CALLBACK_TIME_MS * 1000);
+            TRACE(timer, "callback took ", duration, "us (max: ", MAX_CALLBACK_TIME_MS * 1000, "us)");
         }
-        it = timers.erase(it);
     }
 }

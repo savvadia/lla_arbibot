@@ -29,12 +29,18 @@ using json = nlohmann::json;
 class BinanceApi : public ExchangeApi {
 public:
     BinanceApi(OrderBookManager& orderBookManager);
-    ~BinanceApi();
+    ~BinanceApi() override;
 
+    // Initialize WebSocket connection
     bool connect() override;
     void disconnect() override;
+
+    // Subscribe to order book updates for a trading pair
     bool subscribeOrderBook(TradingPair pair) override;
+
+    // Get current order book snapshot
     bool getOrderBookSnapshot(TradingPair pair) override;
+
     std::string getExchangeName() const override { return "Binance"; }
     ExchangeId getExchangeId() const override { return ExchangeId::BINANCE; }
     TradingPair symbolToTradingPair(const std::string& symbol) const override;
@@ -93,7 +99,7 @@ private:
     std::unique_ptr<websocket::stream<beast::ssl_stream<beast::tcp_stream>>> m_ws;
     beast::flat_buffer m_buffer;
     std::string m_host{"stream.binance.com"};
-    std::string m_port{"9443"};
+    std::string m_port{"9443"};  // Using SSL port
     
     std::unique_ptr<net::executor_work_guard<net::io_context::executor_type>> m_work;
     std::thread m_thread;

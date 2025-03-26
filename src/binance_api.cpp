@@ -8,6 +8,7 @@ BinanceApi::BinanceApi(OrderBookManager& orderBookManager)
     
     // Initialize symbol to trading pair mapping
     symbolToPair["BTCUSDT"] = TradingPair::BTC_USDT;
+    symbolToPair["ETHUSDT"] = TradingPair::ETH_USDT;
     symbolToPair["XTZUSDT"] = TradingPair::XTZ_USDT;
 
     // Initialize WebSocket client
@@ -27,14 +28,14 @@ void BinanceApi::connect() {
 
     try {
         websocketpp::lib::error_code ec;
-        client.connect(ec);
+        client::connection_ptr con = client.get_connection("ws://" + m_host + ":" + m_port + "/ws", ec);
         if (ec) {
-            TRACE("BINANCE", "Failed to connect: %s", ec.message().c_str());
+            TRACE("BINANCE", "Failed to create connection: %s", ec.message().c_str());
             return;
         }
 
-        // Start the ASIO io_service run loop
-        client.run();
+        client.connect(con);
+        connection = con->get_handle();
         connected = true;
         TRACE("BINANCE", "Connected to Binance WebSocket");
     } catch (const std::exception& e) {
@@ -55,7 +56,10 @@ void BinanceApi::disconnect() {
 }
 
 void BinanceApi::subscribeOrderBook(TradingPair pair) {
-    if (!connected) return;
+    if (!connected) {
+        TRACE("BINANCE", "Not connected, subscription will be queued");
+        return;
+    }
 
     try {
         std::string symbol;
@@ -88,6 +92,11 @@ void BinanceApi::subscribeOrderBook(TradingPair pair) {
 }
 
 void BinanceApi::getOrderBookSnapshot(TradingPair pair) {
+    if (!connected) {
+        TRACE("BINANCE", "Not connected, cannot get snapshot");
+        return;
+    }
+
     std::string symbol;
     for (const auto& [sym, p] : symbolToPair) {
         if (p == pair) {
@@ -108,6 +117,7 @@ void BinanceApi::getOrderBookSnapshot(TradingPair pair) {
 
 void BinanceApi::onOpen(websocketpp::connection_hdl hdl) {
     connection = hdl;
+    connected = true;
     TRACE("BINANCE", "WebSocket connection opened");
 }
 
@@ -119,17 +129,9 @@ void BinanceApi::onClose(websocketpp::connection_hdl hdl) {
 void BinanceApi::onMessage(websocketpp::connection_hdl hdl, websocketpp::config::asio_client::message_type::ptr msg) {
     try {
         json data = json::parse(msg->get_payload());
-        
-        // Check if this is an order book update
-        if (data.contains("e") && data["e"] == "depthUpdate") {
-            processOrderBookUpdate(data);
-        }
-        // Check if this is an order book snapshot
-        else if (data.contains("lastUpdateId")) {
-            processOrderBookSnapshot(data);
-        }
+        processOrderBookUpdate(data);
     } catch (const std::exception& e) {
-        TRACE("BINANCE", "Exception processing message: %s", e.what());
+        TRACE("BINANCE", "Error processing message: %s", e.what());
     }
 }
 
@@ -139,77 +141,82 @@ void BinanceApi::onError(websocketpp::connection_hdl hdl) {
 
 void BinanceApi::processOrderBookUpdate(const json& data) {
     try {
-        std::string symbol = data["s"];
+        if (!data.contains("e") || data["e"] != "depthUpdate") {
+            return;
+        }
+
+        std::string symbol = data["s"].get<std::string>();
         TradingPair pair = binanceSymbolToTradingPair(symbol);
-        
+        if (pair == TradingPair::UNKNOWN) {
+            return;
+        }
+
         std::vector<PriceLevel> bids;
         std::vector<PriceLevel> asks;
 
         // Process bids
         for (const auto& bid : data["b"]) {
-            PriceLevel level;
-            level.price = std::stod(bid[0].get<std::string>());
-            level.quantity = std::stod(bid[1].get<std::string>());
-            if (level.quantity > 0) {  // Only add non-zero quantity levels
-                bids.push_back(level);
-            }
+            bids.push_back({
+                std::stod(bid[0].get<std::string>()),  // price
+                std::stod(bid[1].get<std::string>())   // quantity
+            });
         }
 
         // Process asks
         for (const auto& ask : data["a"]) {
-            PriceLevel level;
-            level.price = std::stod(ask[0].get<std::string>());
-            level.quantity = std::stod(ask[1].get<std::string>());
-            if (level.quantity > 0) {  // Only add non-zero quantity levels
-                asks.push_back(level);
-            }
+            asks.push_back({
+                std::stod(ask[0].get<std::string>()),  // price
+                std::stod(ask[1].get<std::string>())   // quantity
+            });
         }
 
-        // Update order book
-        orderBookManager.updateOrderBook(pair, bids, asks);
-        TRACE("BINANCE", "Updated order book for %s", symbol.c_str());
+        orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
     } catch (const std::exception& e) {
-        TRACE("BINANCE", "Exception processing order book update: %s", e.what());
+        TRACE("BINANCE", "Error processing order book update: %s", e.what());
     }
 }
 
 void BinanceApi::processOrderBookSnapshot(const json& data) {
     try {
-        std::string symbol = data["symbol"];
+        if (!data.contains("symbol")) {
+            return;
+        }
+
+        std::string symbol = data["symbol"].get<std::string>();
         TradingPair pair = binanceSymbolToTradingPair(symbol);
-        
+        if (pair == TradingPair::UNKNOWN) {
+            return;
+        }
+
         std::vector<PriceLevel> bids;
         std::vector<PriceLevel> asks;
 
         // Process bids
         for (const auto& bid : data["bids"]) {
-            PriceLevel level;
-            level.price = std::stod(bid[0].get<std::string>());
-            level.quantity = std::stod(bid[1].get<std::string>());
-            if (level.quantity > 0) {  // Only add non-zero quantity levels
-                bids.push_back(level);
-            }
+            bids.push_back({
+                std::stod(bid[0].get<std::string>()),  // price
+                std::stod(bid[1].get<std::string>())   // quantity
+            });
         }
 
         // Process asks
         for (const auto& ask : data["asks"]) {
-            PriceLevel level;
-            level.price = std::stod(ask[0].get<std::string>());
-            level.quantity = std::stod(ask[1].get<std::string>());
-            if (level.quantity > 0) {  // Only add non-zero quantity levels
-                asks.push_back(level);
-            }
+            asks.push_back({
+                std::stod(ask[0].get<std::string>()),  // price
+                std::stod(ask[1].get<std::string>())   // quantity
+            });
         }
 
-        // Update order book
-        orderBookManager.updateOrderBook(pair, bids, asks);
-        TRACE("BINANCE", "Updated order book snapshot for %s", symbol.c_str());
+        orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
     } catch (const std::exception& e) {
-        TRACE("BINANCE", "Exception processing order book snapshot: %s", e.what());
+        TRACE("BINANCE", "Error processing order book snapshot: %s", e.what());
     }
 }
 
 TradingPair BinanceApi::binanceSymbolToTradingPair(const std::string& symbol) {
     auto it = symbolToPair.find(symbol);
-    return it != symbolToPair.end() ? it->second : TradingPair::MAX;
+    if (it != symbolToPair.end()) {
+        return it->second;
+    }
+    return TradingPair::UNKNOWN;
 } 

@@ -39,6 +39,8 @@ set(SOURCES
     src/api_kraken.cpp
     src/s_poplavki.cpp
     src/orderbook.cpp
+    src/ex_mgr.cpp
+    src/exchange_api.cpp
 )
 
 set(HEADERS
@@ -51,6 +53,7 @@ set(HEADERS
     src/s_poplavki.h
     src/orderbook.h
     src/exchange_api.h
+    src/ex_mgr.h
 )
 
 # Add executable

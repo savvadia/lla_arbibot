@@ -8,39 +8,26 @@
 
 using namespace std;
 
-#define TRACE(...) TRACE_INST(TRACE_BALANCE, __VA_ARGS__)
+// Define TRACE macro for Balance class
+#define TRACE(...) TRACE_THIS(TraceInstance::BALANCE, __VA_ARGS__)
 
 Balance::Balance() {
     balances = {};
 }
 
-std::ostream& operator<<(std::ostream& os, const Balance& balance) {
-    os << fixed << setprecision(5);
-    os << "Balance { ";
-    for (const auto& exchange : balance.balances) {
-        os << exchange.first << " { ";
-        for (const auto& coin : exchange.second) {
-            os << coin.first << ": " << coin.second << ", ";
-        }
-        os << "}, ";
-    }
-    os << " }";
-    return os;
-}
-
-void Balance::increaseBalance(std::string exchange, std::string coin, double amount) {
-    TRACE("Inc for %s %s by %f", exchange.c_str(), coin.c_str(), amount);
+void Balance::inc(const std::string& exchange, const std::string& coin, double amount) {
     balances[exchange][coin] += amount;
+    TRACE("Inc for ", exchange, " ", coin, " by ", amount);
 }
 
-void Balance::decreaseBalance(std::string exchange, std::string coin, double amount) {
-    TRACE("Dec for %s %s by %f", exchange.c_str(), coin.c_str(), amount);
+void Balance::dec(const std::string& exchange, const std::string& coin, double amount) {
     balances[exchange][coin] -= amount;
+    TRACE("Dec for ", exchange, " ", coin, " by ", amount);
 }
 
-double Balance::getBalance(std::string exchange, std::string coin) {
-    TRACE("Get for %s %s: %f", exchange.c_str(), coin.c_str(), balances[exchange][coin]);
-    return balances[exchange][coin];
+double Balance::get(const std::string& exchange, const std::string& coin) const {
+    TRACE("Get for ", exchange, " ", coin, ": ", balances.at(exchange).at(coin));
+    return balances.at(exchange).at(coin);
 }
 
 const BalanceData Balance::getBalances() const {
@@ -54,13 +41,12 @@ void Balance::retrieveBalances() {
     balances["binance"]["BTC"] = 0.02;
     balances["binance"]["USDT"] = 200.0;
     for (const auto& exchange : balances) {
-        ostringstream oss;
-        oss << exchange.first << " { ";
+        std::ostringstream oss;
+        oss << exchange.first << ": ";
         for (const auto& coin : exchange.second) {
-            oss << coin.first << ": " << coin.second << ", ";
+            oss << coin.first << "=" << coin.second << " ";
         }
-        oss << "}, ";
-        TRACE("Balance @ %s", oss.str().c_str());
+        TRACE("Balance @ ", oss.str());
     }
 }
 

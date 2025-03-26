@@ -7,6 +7,8 @@
 #include <unordered_map>
 #include <functional>
 #include <mutex>
+#include <ostream>
+#include "tracer.h"
 
 typedef void (*TimerCallback)(int id, void* data);
 void sleep_ms(int ms);
@@ -36,7 +38,7 @@ inline const char* timerTypeToString(TimerType type) {
 // 2. Must not block
 // 3. For longer operations, post an event to the event loop
 // 4. Must handle its own thread safety if needed (e.g. mutex for shared data)
-struct Timer {
+struct Timer : public Traceable {
     int id;
     int interval;
     std::chrono::steady_clock::time_point timeToFire;
@@ -52,6 +54,10 @@ struct Timer {
 
     // Check if the timer has expired
     bool isExpired(std::chrono::steady_clock::time_point now) const;
+
+    void trace(std::ostream& os) const override {
+        os << id << ' ' << formatFireTime() << " " << timerTypeToString(type);
+    }
 };
 
 class TimersMgr {

@@ -24,19 +24,43 @@ TEST_F(BalanceTest, RetrieveBalances) {
 
 // Test increasing balances
 TEST_F(BalanceTest, IncreaseBalance) {
-    balance.increaseBalance("kraken", "BTC", 0.005);
+    balance.inc("kraken", "BTC", 0.005);
     
-    EXPECT_DOUBLE_EQ(balance.getBalance("kraken", "BTC"), 0.015);
+    EXPECT_DOUBLE_EQ(balance.get("kraken", "BTC"), 0.015);
 }
 
 // Test decreasing balances
 TEST_F(BalanceTest, DecreaseBalance) {
-    balance.decreaseBalance("binance", "USDT", 50.0);
+    balance.dec("binance", "USDT", 50.0);
     
-    EXPECT_DOUBLE_EQ(balance.getBalance("binance", "USDT"), 150.0);
+    EXPECT_DOUBLE_EQ(balance.get("binance", "USDT"), 150.0);
 }
 
 // Test retrieving balance for a specific exchange/coin
 TEST_F(BalanceTest, GetBalance) {
-    EXPECT_DOUBLE_EQ(balance.getBalance("kraken", "BTC"), 0.01);
+    EXPECT_DOUBLE_EQ(balance.get("kraken", "BTC"), 0.01);
+}
+
+TEST(BalanceTest, BasicOperations) {
+    Balance balance;
+    
+    // Test increasing balance
+    balance.inc("kraken", "BTC", 0.005);
+    EXPECT_DOUBLE_EQ(balance.get("kraken", "BTC"), 0.005);
+    
+    // Test increasing balance again
+    balance.inc("kraken", "BTC", 0.01);
+    EXPECT_DOUBLE_EQ(balance.get("kraken", "BTC"), 0.015);
+    
+    // Test decreasing balance
+    balance.dec("binance", "USDT", 50.0);
+    EXPECT_DOUBLE_EQ(balance.get("binance", "USDT"), -50.0);
+    
+    // Test decreasing balance again
+    balance.dec("binance", "USDT", 100.0);
+    EXPECT_DOUBLE_EQ(balance.get("binance", "USDT"), -150.0);
+    
+    // Test decreasing balance from positive
+    balance.dec("kraken", "BTC", 0.005);
+    EXPECT_DOUBLE_EQ(balance.get("kraken", "BTC"), 0.01);
 }

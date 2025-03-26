@@ -5,9 +5,10 @@
 #include <string>
 #include <functional>
 #include <memory>
+#include "tracer.h"
 
 // Base class for exchange APIs
-class ExchangeApi {
+class ExchangeApi : public Traceable {
 public:
     virtual ~ExchangeApi() = default;
 
@@ -37,6 +38,16 @@ public:
 
     // Check if connected to the exchange
     virtual bool isConnected() const = 0;
+
+    // operator<<
+    friend std::ostream& operator<<(std::ostream& os, const ExchangeApi& api) {
+        api.trace(os);
+        return os;
+    }
+
+    void trace(std::ostream& os) const override {
+        os << getExchangeName();
+    }
 
 protected:
     // Helper function to convert string to lowercase

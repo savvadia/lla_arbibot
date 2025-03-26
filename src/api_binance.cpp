@@ -12,11 +12,12 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <nlohmann/json.hpp>
+#include "tracer.h"
 
 using json = nlohmann::json;
 using tcp = boost::asio::ip::tcp;
 namespace websocket = boost::beast::websocket;
-namespace http = boost::beast::http;
+namespace http = beast::http;
 namespace ssl = boost::asio::ssl;
 
 constexpr const char* REST_ENDPOINT = "https://api.binance.com/api/v3";
@@ -39,15 +40,25 @@ json BinanceApi::makeHttpRequest(const std::string& endpoint, const std::string&
         url += "?" + params;
     }
 
+    TRACE_BASE(TraceInstance::API, "Making HTTP request to: ", url);
+
     std::string response;
     
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
     
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         throw std::runtime_error(std::string("curl_easy_perform() failed: ") + curl_easy_strerror(res));
+    }
+
+    TRACE_BASE(TraceInstance::API, "Response: ", response);
+
+    if (response.empty()) {
+        throw std::runtime_error("Empty response from server");
     }
 
     return json::parse(response);
@@ -76,7 +87,7 @@ BinanceApi::BinanceApi(OrderBookManager& orderBookManager)
     : m_orderBookManager(orderBookManager)
     , m_connected(false)
     , curl(nullptr) {
-    
+
     // Initialize CURL
     curl = curl_easy_init();
     if (!curl) {
@@ -98,6 +109,7 @@ BinanceApi::~BinanceApi() {
 
 bool BinanceApi::connect() {
     if (m_connected) {
+        TRACE_BASE(TraceInstance::API, "Already connected to Binance");
         return true;
     }
 
@@ -118,7 +130,8 @@ bool BinanceApi::connect() {
         }
 
         // Look up the domain name
-        auto const results = net::ip::tcp::resolver(m_ioc).resolve(m_host, m_port);
+        tcp::resolver resolver(m_ioc);
+        auto const results = resolver.resolve(m_host, m_port);
 
         // Connect to the IP address we get from a lookup
         beast::get_lowest_layer(*m_ws).connect(results);
@@ -127,18 +140,39 @@ bool BinanceApi::connect() {
         m_ws->next_layer().handshake(ssl::stream_base::client);
 
         // Perform the websocket handshake
-        m_ws->handshake(m_host, "/");
+        m_ws->handshake(m_host, "/ws");
 
-        // Start the IO context in a separate thread
+        m_connected = true;
+
+        // Start the IO context in a separate thread for reading
         m_work = std::make_unique<net::executor_work_guard<net::io_context::executor_type>>(m_ioc.get_executor());
         m_thread = std::thread([this]() { m_ioc.run(); });
 
-        m_connected = true;
+        // Start reading
+        doRead();
+
+        TRACE_BASE(TraceInstance::API, "Successfully connected to Binance");
         return true;
     } catch (const std::exception& e) {
-        std::cerr << "Error in connect: " << e.what() << std::endl;
+        TRACE_BASE(TraceInstance::API, "Error in connect: ", e.what());
         return false;
     }
+}
+
+void BinanceApi::doRead() {
+    m_ws->async_read(m_buffer,
+        [this](beast::error_code ec, std::size_t bytes_transferred) {
+            if (ec) {
+                TRACE_BASE(TraceInstance::API, "Read error: ", ec.message());
+                return;
+            }
+
+            std::string message = beast::buffers_to_string(m_buffer.data());
+            m_buffer.consume(m_buffer.size());
+            TRACE_BASE(TraceInstance::API, "Received message: ", message);
+            processMessage(message);
+            doRead();
+        });
 }
 
 void BinanceApi::disconnect() {
@@ -147,112 +181,85 @@ void BinanceApi::disconnect() {
     }
 
     try {
-        if (m_ws) {
-            m_ws->close(websocket::close_code::normal);
-        }
-        
+        // First, stop the IO context to prevent new operations
         if (m_work) {
             m_work.reset();
         }
-        
+
+        // Stop the IO context
+        m_ioc.stop();
+
+        // Wait for the IO thread to finish
         if (m_thread.joinable()) {
             m_thread.join();
         }
-        
-        m_ws.reset();
+
+        // Now it's safe to close the WebSocket
+        if (m_ws) {
+            boost::beast::error_code ec;
+            m_ws->close(websocket::close_code::normal, ec);
+            if (ec) {
+                TRACE_BASE(TraceInstance::API, "Warning: Error during WebSocket close: ", ec.message());
+            }
+            m_ws.reset();
+        }
+
         m_connected = false;
+        TRACE_BASE(TraceInstance::API, "Disconnected from Binance");
     } catch (const std::exception& e) {
-        std::cerr << "Error in disconnect: " << e.what() << std::endl;
+        TRACE_BASE(TraceInstance::API, "Warning: Error in disconnect: ", e.what());
     }
 }
 
 bool BinanceApi::subscribeOrderBook(TradingPair pair) {
     if (!m_connected) {
-        std::cerr << "Not connected to Binance" << std::endl;
-        return false;
-    }
-
-    auto it = m_symbolMap.find(pair);
-    if (it == m_symbolMap.end()) {
-        std::cerr << "Unsupported trading pair: " << trading::toString(pair) << std::endl;
+        TRACE_BASE(TraceInstance::API, "Not connected to Binance");
         return false;
     }
 
     try {
-        std::string symbol = it->second;
-        std::transform(symbol.begin(), symbol.end(), symbol.begin(), ::tolower);
-
-        json subscription = {
-            {"method", "SUBSCRIBE"},
-            {"params", {symbol + "@depth@100ms"}},
-            {"id", 1}
-        };
-
-        std::string message = subscription.dump();
-        m_ws->write(net::buffer(message));
+        std::string symbol = tradingPairToSymbol(pair);
+        std::stringstream ss;
+        ss << "{\"method\":\"SUBSCRIBE\",\"params\":[\"" << symbol << "@depth@100ms\"],\"id\":1}";
+        
+        TRACE_BASE(TraceInstance::API, "Subscribing to Binance order book for ", symbol);
+        doWrite(ss.str());
+        
         if (m_subscriptionCallback) {
             m_subscriptionCallback(true);
         }
+        
         return true;
     } catch (const std::exception& e) {
-        std::cerr << "Error in subscribeOrderBook: " << e.what() << std::endl;
+        TRACE_BASE(TraceInstance::API, "Error subscribing to order book: ", e.what());
+        if (m_subscriptionCallback) {
+            m_subscriptionCallback(false);
+        }
         return false;
     }
 }
 
 bool BinanceApi::getOrderBookSnapshot(TradingPair pair) {
     if (!m_connected) {
-        std::cerr << "Not connected to Binance" << std::endl;
-        return false;
-    }
-
-    auto it = m_symbolMap.find(pair);
-    if (it == m_symbolMap.end()) {
-        std::cerr << "Unsupported trading pair: " << trading::toString(pair) << std::endl;
-        return false;
-    }
-
-    if (!curl) {
+        TRACE_BASE(TraceInstance::API, "Not connected to Binance");
         return false;
     }
 
     try {
-        std::string symbol = it->second;
-        std::string endpoint = "/api/v3/depth";
+        std::string symbol = tradingPairToSymbol(pair);
+        std::string endpoint = "/depth";
         std::string params = "symbol=" + symbol + "&limit=1000";
-
+        
+        TRACE_BASE(TraceInstance::API, "Getting order book snapshot for ", symbol);
         json response = makeHttpRequest(endpoint, params);
-        if (response.contains("code")) {
-            std::cerr << "Binance API error: " << response["msg"].get<std::string>() << std::endl;
-            return false;
-        }
-
-        std::vector<PriceLevel> bids;
-        std::vector<PriceLevel> asks;
-
-        // Process bids
-        for (const auto& bid : response["bids"]) {
-            bids.push_back({
-                std::stod(bid[0].get<std::string>()),  // price
-                std::stod(bid[1].get<std::string>())   // quantity
-            });
-        }
-
-        // Process asks
-        for (const auto& ask : response["asks"]) {
-            asks.push_back({
-                std::stod(ask[0].get<std::string>()),  // price
-                std::stod(ask[1].get<std::string>())   // quantity
-            });
-        }
-
-        m_orderBookManager.updateOrderBook(pair, bids, asks);
-        if (m_snapshotCallback) {
-            m_snapshotCallback(true);
-        }
+        processOrderBookSnapshot(response, pair);
+        
         return true;
     } catch (const std::exception& e) {
-        std::cerr << "Error in getOrderBookSnapshot: " << e.what() << std::endl;
+        TRACE_BASE(TraceInstance::API, "Error getting order book snapshot: ", e.what());
+        if (m_snapshotCallback) {
+            m_snapshotCallback(false);
+        }
         return false;
     }
 }
@@ -260,60 +267,106 @@ bool BinanceApi::getOrderBookSnapshot(TradingPair pair) {
 void BinanceApi::processMessage(const std::string& message) {
     try {
         json data = json::parse(message);
-
-        // Check if it's a heartbeat message
+        
+        // Log all messages for debugging
+        TRACE_BASE(TraceInstance::API, "Processing message: ", message);
+        
+        // Check if it's a subscription response
         if (data.contains("result") && data["result"] == nullptr) {
+            TRACE_BASE(TraceInstance::API, "Subscription successful");
             return;
         }
 
         // Check if it's an order book update
         if (data.contains("e") && data["e"] == "depthUpdate") {
-            std::string symbol = data["s"];
-            TradingPair pair = symbolToTradingPair(symbol);
-            
-            std::vector<PriceLevel> bids;
-            std::vector<PriceLevel> asks;
-
-            // Process bid updates
-            if (data.contains("b")) {
-                for (const auto& bid : data["b"]) {
-                    bids.push_back({
-                        std::stod(bid[0].get<std::string>()),  // price
-                        std::stod(bid[1].get<std::string>())   // quantity
-                    });
-                }
-            }
-
-            // Process ask updates
-            if (data.contains("a")) {
-                for (const auto& ask : data["a"]) {
-                    asks.push_back({
-                        std::stod(ask[0].get<std::string>()),  // price
-                        std::stod(ask[1].get<std::string>())   // quantity
-                    });
-                }
-            }
-
-            m_orderBookManager.updateOrderBook(pair, bids, asks);
-            if (m_updateCallback) {
-                m_updateCallback();
-            }
+            TRACE_BASE(TraceInstance::API, "Processing order book update");
+            processOrderBookUpdate(data);
         }
     } catch (const std::exception& e) {
-        std::cerr << "Error processing message: " << e.what() << std::endl;
+        TRACE_BASE(TraceInstance::API, "Error processing message: ", e.what());
     }
 }
 
 void BinanceApi::processOrderBookUpdate(const json& data) {
-    // ... existing code ...
-    if (m_updateCallback) {
-        m_updateCallback();
+    try {
+        if (!data.contains("e") || data["e"] != "depthUpdate") {
+            return;
+        }
+
+        std::string symbol = data["s"].get<std::string>();
+        TradingPair pair = symbolToTradingPair(symbol);
+        if (pair == TradingPair::UNKNOWN) {
+            return;
+        }
+
+        std::vector<PriceLevel> bids;
+        std::vector<PriceLevel> asks;
+
+        // Process bids
+        for (const auto& bid : data["b"]) {
+            bids.push_back({
+                std::stod(bid[0].get<std::string>()),  // price
+                std::stod(bid[1].get<std::string>())   // quantity
+            });
+        }
+
+        // Process asks
+        for (const auto& ask : data["a"]) {
+            asks.push_back({
+                std::stod(ask[0].get<std::string>()),  // price
+                std::stod(ask[1].get<std::string>())   // quantity
+            });
+        }
+
+        TRACE_BASE(TraceInstance::API, "Updating order book for ", symbol, " with ", bids.size(), " bids and ", asks.size(), " asks");
+        m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
+    } catch (const std::exception& e) {
+        TRACE_BASE(TraceInstance::API, "Error processing order book update: ", e.what());
     }
 }
 
 void BinanceApi::processOrderBookSnapshot(const json& data, TradingPair pair) {
-    // ... existing code ...
-    if (m_snapshotCallback) {
-        m_snapshotCallback(true);
+    try {
+        auto& state = symbolStates[pair];
+        state.lastUpdateId = data["lastUpdateId"];
+        state.hasSnapshot = true;
+        
+        // Process bids
+        for (const auto& bid : data["bids"]) {
+            double price = std::stod(bid[0].get<std::string>());
+            double quantity = std::stod(bid[1].get<std::string>());
+            if (quantity > 0) {
+                m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, price, quantity, true);
+            }
+        }
+        
+        // Process asks
+        for (const auto& ask : data["asks"]) {
+            double price = std::stod(ask[0].get<std::string>());
+            double quantity = std::stod(ask[1].get<std::string>());
+            if (quantity > 0) {
+                m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, price, quantity, false);
+            }
+        }
+        
+        TRACE_BASE(TraceInstance::API, "Processed order book snapshot for ", tradingPairToSymbol(pair));
+        if (m_snapshotCallback) {
+            m_snapshotCallback(true);
+        }
+    } catch (const std::exception& e) {
+        TRACE_BASE(TraceInstance::API, "Error processing order book snapshot: ", e.what());
+        if (m_snapshotCallback) {
+            m_snapshotCallback(false);
+        }
     }
+}
+
+void BinanceApi::doWrite(std::string message) {
+    m_ws->async_write(net::buffer(message),
+        [](beast::error_code ec, std::size_t bytes_transferred) {
+            if (ec) {
+                TRACE_BASE(TraceInstance::API, "Write error: ", ec.message());
+                return;
+            }
+        });
 } 

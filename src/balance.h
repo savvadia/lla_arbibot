@@ -1,23 +1,34 @@
-#ifndef BALANCE_H
-#define BALANCE_H
+#pragma once
 
 #include <string>
 #include <unordered_map>
+#include <iostream>
+#include <iomanip>
+#include "tracer.h"
 
-using namespace std;
+using BalanceData = std::unordered_map<std::string, std::unordered_map<std::string, double>>;
 
-using BalanceData = unordered_map<std::string,  unordered_map<std::string, double>>;
+class Balance : public Traceable {
+private:
+    BalanceData balances;
 
-class Balance {
-    BalanceData balances; // exchange -> coin -> amount
 public:
     Balance();
-    void increaseBalance(std::string exchange, std::string coin, double amount);
-    void decreaseBalance(std::string exchange, std::string coin, double amount);
-    void retrieveBalances();
-    double getBalance(std::string exchange, std::string coin);
+    void inc(const std::string& exchange, const std::string& coin, double amount);
+    void dec(const std::string& exchange, const std::string& coin, double amount);
+    double get(const std::string& exchange, const std::string& coin) const;
     const BalanceData getBalances() const;
-    friend std::ostream& operator<<(std::ostream& os, const Balance& balance);
-};
+    void retrieveBalances();
 
-#endif // BALANCE_H
+protected:
+    void trace(std::ostream& os) const override {
+        // for (const auto& exchange : balances) {
+        //     os << exchange.first << "{";
+        //     for (const auto& coin : exchange.second) {
+        //         os << std::fixed << std::setprecision(8) 
+        //            << coin.first << "=" << coin.second << " ";
+        //     }
+        //     os << "} ";
+        // }
+    }
+};

@@ -1,55 +1,167 @@
+#pragma once
 #ifndef TRACER_H
 #define TRACER_H
 
-#include <cstdio>
-#include <string>
+#include <iostream>
+#include <fstream>
+#include <mutex>
+#include <atomic>
+#include <string_view>
 #include <unordered_map>
+#include <array>
+#include <string>
+#include <sstream>
+#include <iomanip>
 
-enum TraceInstance {
-    TRACE_TIMER,
-    TRACE_BALANCE,
-    TRACE_EVENT_LOOP,
+// Enum for logging types
+enum class TraceInstance {
+    TIMER,
+    BALANCE,
+    EVENT_LOOP,
+    BOOK,
+    EX_MGR,
+    STRAT,
+    ORDERBOOK,
+    EVENTLOOP,
+    API,
+    MAIN,  // For main function logging
+    COUNT  // To track the number of log types
 };
 
-// Runtime flag to control tracing
-extern bool g_traces_enabled;
-
-// Compile-time function to extract only the filename without path
-constexpr const char* extractFilename(const char* path) {
-    const char* filename = path;
-    while (*path) {
-        if (*path == '/' || *path == '\\') {
-            filename = path + 1;
-        }
-        ++path;
+// Convert enum to string for logging purposes
+constexpr std::string_view traceTypeToStr(TraceInstance type) {
+    switch (type) {
+        case TraceInstance::TIMER:      return "TIMER";
+        case TraceInstance::BALANCE:    return "BALANCE";
+        case TraceInstance::EVENT_LOOP: return "EVENT_LOOP";
+        case TraceInstance::BOOK:       return "BOOK";
+        case TraceInstance::EX_MGR:     return "EX_MGR";
+        case TraceInstance::STRAT:      return "STRAT";
+        case TraceInstance::ORDERBOOK:  return "ORDERBOOK";
+        case TraceInstance::EVENTLOOP:  return "EVENTLOOP";
+        case TraceInstance::API:        return "API";
+        case TraceInstance::MAIN:       return "MAIN";
+        default: return "UNKNOWN";
     }
-    return filename;
 }
 
-#define TRACE_INST_TIMER(_timer, ...) \
-    do { \
-        if (g_traces_enabled) { \
-            constexpr const char* filename = extractFilename(__FILE__); \
-            printf("%-15s:%d [TIMER] [%d %s] ", filename, __LINE__, _timer.id, _timer.formatFireTime().c_str()); \
-            printf(__VA_ARGS__); \
-            printf("\n"); \
-        } \
-    } while (0)
+// Base class for traceable objects
+class Traceable {
+public:
+    virtual ~Traceable() = default;
 
-// adds \n at the end
-#define TRACE_INST(instance, ...) \
-    do { \
-        if (g_traces_enabled) { \
-            const std::unordered_map<TraceInstance, std::string> traceNames = { \
-                {TRACE_TIMER, "TIMER"}, \
-                {TRACE_BALANCE, "BALANCE"}, \
-                {TRACE_EVENT_LOOP, "EVENT_LOOP"}, \
-            }; \
-            constexpr const char* filename = extractFilename(__FILE__); \
-            printf("%-15s:%d [%s] ", filename, __LINE__, traceNames.at(instance).c_str()); \
-            printf(__VA_ARGS__); \
-            printf("\n"); \
-        } \
-    } while (0)
+    // Public operator<< that uses the protected trace method
+    friend std::ostream& operator<<(std::ostream& os, const Traceable& obj) {
+        obj.trace(os);
+        return os;
+    }
+
+protected:
+    // Protected virtual method that derived classes must implement
+    virtual void trace(std::ostream& os) const = 0;
+};
+
+class FastTraceLogger {
+public:
+    // Enable or disable global logging
+    static void setLoggingEnabled(bool enabled);
+
+    // Enable or disable logging for a specific TraceInstance
+    static void setLoggingEnabled(TraceInstance type, bool enabled);
+
+    // Set the log file where logs will be written
+    static void setLogFile(const std::string& filename);
+
+    // Log message with file and line info, plus any additional arguments
+    template <typename... Args>
+    static void log(const Traceable* instance, TraceInstance type, std::string_view file, int line, Args&&... args) {
+        std::lock_guard<std::mutex> lock(getMutex());
+
+        // Construct log message
+        std::ostringstream oss;
+        // filename should be 15 characters long
+        oss << std::right << std::setw(15) << getBaseName(file) << ":"
+            << std::left << std::setw(3) << line
+            << " [" << traceTypeToStr(type) << "] ";
+
+        // Print instance if it exists
+        if (instance) {
+            oss << " [" << *instance << "]";
+        }
+
+        oss << " ";
+
+        // Print additional args (variadic)
+        (oss << ... << std::forward<Args>(args));
+
+        // Get the log stream (file or console)
+        std::ostream& out = getOutputStream();
+
+        // Output the log message
+        out << oss.str() << std::endl;
+    }
+
+    // Specialization for nullptr
+    template <typename... Args>
+    static void log(std::nullptr_t, TraceInstance type, std::string_view file, int line, Args&&... args) {
+        std::lock_guard<std::mutex> lock(getMutex());
+
+        // Construct log message
+        std::ostringstream oss;
+        // filename should be 15 characters long
+        oss << std::right << std::setw(15) << getBaseName(file) << ":"
+            << std::left << std::setw(3) << line
+            << " [" << traceTypeToStr(type) << "] ";
+
+        // Print additional args (variadic)
+        (oss << ... << std::forward<Args>(args));
+
+        // Get the log stream (file or console)
+        std::ostream& out = getOutputStream();
+
+        // Output the log message
+        out << oss.str() << std::endl;
+    }
+
+    // Atomic flag for global logging enable/disable
+    static std::atomic<bool>& globalLoggingEnabled();
+
+    // Atomic array for enabling/disabling logging per TraceInstance
+    static std::array<std::atomic<bool>, static_cast<int>(TraceInstance::COUNT)>& logLevels();
+
+    // Retrieve the output stream (console or file)
+    static std::ostream& getOutputStream();
+
+    // Get the log stream (file)
+    static std::ofstream& getLogStream();
+
+    // Mutex for thread safety during logging
+    static std::mutex& getMutex();
+
+    // Utility to get the base file name from a full file path
+    static constexpr std::string_view getBaseName(std::string_view path) {
+        size_t lastSlash = path.find_last_of("/\\");
+        if (lastSlash == std::string_view::npos) {
+            return path;  // No path, just the file name
+        }
+        return path.substr(lastSlash + 1);
+    }
+
+    // Convert TraceInstance to a string
+    static std::string traceTypeToStr(TraceInstance type);
+};
+
+// Macro for TRACE with conditional logging (enabled only if logging is enabled)
+#ifndef DISABLED_TRACE
+    #define TRACE_OBJ(_obj, _type, ...)                                            \
+        if (FastTraceLogger::globalLoggingEnabled().load(std::memory_order_relaxed) &&  \
+            FastTraceLogger::logLevels()[static_cast<int>(_type)].load(std::memory_order_relaxed)) { \
+            FastTraceLogger::log(_obj, _type, __FILE__, __LINE__, __VA_ARGS__); \
+        }
+#else
+    #define TRACE_OBJ(_obj, _type, ...) ((void)0)  // Compiler removes the call entirely
+#endif
+    #define TRACE_THIS(_type, ...) TRACE_OBJ(this, _type, __VA_ARGS__)
+    #define TRACE_BASE(_type, ...) TRACE_OBJ(nullptr, _type, __VA_ARGS__)
 
 #endif // TRACER_H

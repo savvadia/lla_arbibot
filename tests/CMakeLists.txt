@@ -21,10 +21,9 @@ add_executable(EventLoopTest
 )
 add_executable(ApiTest
     api.test.cpp
-    ../src/api_binance.cpp
-    ../src/api_kraken.cpp
+    mock_websocket_server.cpp
+    mock_api.cpp
     ../src/orderbook.cpp
-    ../src/event_loop.cpp
     ../src/tracer.cpp
 )
 
@@ -39,7 +38,6 @@ target_link_libraries(ApiTest PRIVATE
     ${OPENSSL_LIBRARIES}
     ${CURL_LIBRARIES}
     ${Boost_LIBRARIES}
-    nlohmann_json::nlohmann_json
 )
 
 # Add include directory for source code headers
@@ -47,11 +45,10 @@ target_include_directories(TimersTest PRIVATE ../src)
 target_include_directories(BalanceTest PRIVATE ../src)
 target_include_directories(EventLoopTest PRIVATE ../src)
 target_include_directories(ApiTest PRIVATE 
-    ../src
+    ${CMAKE_SOURCE_DIR}/src
     ${OPENSSL_INCLUDE_DIR}
     ${CURL_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIRS}
-    ${nlohmann_json_SOURCE_DIR}/include
 )
 
 # Register the test with CTest

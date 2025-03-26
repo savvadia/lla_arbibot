@@ -31,12 +31,12 @@ class TimersPerfTest : public ::testing::Test {
 protected:
     void SetUp() override {
         // Disable traces for all performance tests
-        g_traces_enabled = false;
+        FastTraceLogger::setLoggingEnabled(false);
     }
 
     void TearDown() override {
         // Re-enable traces after tests
-        g_traces_enabled = true;
+        FastTraceLogger::setLoggingEnabled(true);
     }
 };
 

@@ -6,13 +6,14 @@
 #include "orderbook.h"
 #include <map>
 #include <mutex>
-#include "api_binance.h"
-#include "api_kraken.h"
+#include <vector>
 #include <memory>
 #include <chrono>
 #include "event_loop.h"
+#include "ex_mgr.h"
+#include "tracer.h"
 
-class Strategy
+class Strategy : public Traceable
 {
 private:
     std::string name;
@@ -40,12 +41,23 @@ public:
     
     virtual ~Strategy() = default;
     std::string getName() const;
+
+    // For TRACE identification
+    const std::string& getStrategyName() const { return name; }
+protected:
+    virtual void trace(std::ostream& os) const override {
+        os << name << " " << coin << "/" << stableCoin;
+    }
 };
 
 class StrategyPoplavki : public Strategy
 {
 public:
-    StrategyPoplavki(const std::string& baseAsset, const std::string& quoteAsset, TimersMgr& timers);
+    StrategyPoplavki(const std::string& baseAsset, 
+                     const std::string& quoteAsset, 
+                     TimersMgr& timers,
+                     ExchangeManager& exchangeManager,
+                     const std::vector<ExchangeId>& exchangeIds);
     ~StrategyPoplavki() override;
 
     // Event handling
@@ -57,6 +69,11 @@ public:
 
     static void timerCallback(int id, void *data);
     void execute() override;
+
+protected:
+    void trace(std::ostream& os) const override {
+        Strategy::trace(os);
+    }
 
 private:
     // Exchange data
@@ -71,11 +88,10 @@ private:
     // Core components
     std::string baseAsset;
     std::string quoteAsset;
-    OrderBookManager orderBookManager;
+    ExchangeManager& exchangeManager;
     
-    // Exchange instances
-    std::unique_ptr<BinanceApi> binanceApi;
-    std::unique_ptr<KrakenApi> krakenApi;
+    // List of exchanges this strategy uses
+    std::vector<ExchangeId> exchangeIds;
 
     // Order book data
     std::mutex dataMutex;
@@ -84,7 +100,8 @@ private:
 
     // Helper methods
     void updateOrderBookData(ExchangeId exchange, const OrderBook& orderBook);
-    void checkArbitrage();
     double calculateProfit(ExchangeId buyExchange, ExchangeId sellExchange, double amount);
-    void disconnectExchanges();
+
+    // For TRACE identification
+    const std::vector<ExchangeId>& getExchangeIds() const { return exchangeIds; }
 };

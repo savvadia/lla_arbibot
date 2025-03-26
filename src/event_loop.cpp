@@ -40,24 +40,18 @@ void EventLoop::postExchangeUpdate(ExchangeId exchange) {
 
 void EventLoop::processEvents() {
     while (m_running) {
-        Event event = [this]() {
-            std::unique_lock<std::mutex> lock(m_queueMutex);
-            m_queueCondition.wait(lock, [this] {
-                return !m_running || !m_eventQueue.empty();
-            });
-
-            if (!m_running) {
-                return Event(EventType::TIMER, [](){}, std::chrono::steady_clock::now());
-            }
-
-            Event event = std::move(m_eventQueue.front());
-            m_eventQueue.pop();
-            return event;
-        }();
+        std::unique_lock<std::mutex> lock(m_queueMutex);
+        m_queueCondition.wait(lock, [this] {
+            return !m_running || !m_eventQueue.empty();
+        });
 
         if (!m_running) {
             break;
         }
+
+        Event event = std::move(m_eventQueue.front());
+        m_eventQueue.pop();
+        lock.unlock();
 
         try {
             event.callback();
