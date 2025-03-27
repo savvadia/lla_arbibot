@@ -1,6 +1,7 @@
 #pragma once
 
-#include "exchange_api.h"
+#include "types.h"
+#include "api_exchange.h"
 #include "orderbook.h"
 #include <vector>
 #include <memory>
@@ -17,7 +18,7 @@ public:
     bool initializeExchanges(const std::vector<ExchangeId>& exchangeIds);
     
     // Get exchange API instance
-    ExchangeApi* getExchange(ExchangeId id) const;
+    ApiExchange* getExchange(ExchangeId id) const;
     
     // Get order book manager
     OrderBookManager& getOrderBookManager() { return orderBookManager; }
@@ -46,6 +47,6 @@ protected:
 
 private:
     OrderBookManager orderBookManager;
-    std::map<ExchangeId, std::unique_ptr<ExchangeApi>> exchanges;
+    std::map<ExchangeId, std::unique_ptr<ApiExchange>> exchanges;
     std::vector<ExchangeId> exchangeIds;
 }; 

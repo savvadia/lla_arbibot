@@ -1,6 +1,6 @@
 #pragma once
 
-#include "exchange_api.h"
+#include "api_exchange.h"
 #include "orderbook.h"
 #include <string>
 #include <functional>
@@ -26,10 +26,10 @@ namespace ssl = boost::asio::ssl;
 namespace net = boost::asio;
 namespace beast = boost::beast;
 
-class KrakenApi : public ExchangeApi {
+class ApiKraken : public ApiExchange {
 public:
-    KrakenApi(OrderBookManager& orderBookManager);
-    ~KrakenApi() override;
+    ApiKraken(OrderBookManager& orderBookManager);
+    ~ApiKraken() override;
 
     // Initialize WebSocket connection
     bool connect() override;
@@ -41,16 +41,18 @@ public:
     // Get current order book snapshot
     bool getOrderBookSnapshot(TradingPair pair) override;
 
+    // Order management
+    bool placeOrder(TradingPair pair, OrderType type, double price, double quantity) override;
+    bool cancelOrder(const std::string& orderId) override;
+    bool getBalance(const std::string& asset) override;
+
     std::string getExchangeName() const override { return "Kraken"; }
     ExchangeId getExchangeId() const override { return ExchangeId::KRAKEN; }
-    TradingPair symbolToTradingPair(const std::string& symbol) const override;
-    std::string tradingPairToSymbol(TradingPair pair) const override;
     bool isConnected() const override { return m_connected; }
 
     // Callback setters
-    void setSubscriptionCallback(std::function<void(bool)> callback) { m_subscriptionCallback = callback; }
-    void setUpdateCallback(std::function<void()> callback) { m_updateCallback = callback; }
-    void setSnapshotCallback(std::function<void(bool)> callback) { m_snapshotCallback = callback; }
+    void setSubscriptionCallback(std::function<void(bool)> callback) override;
+    void setSnapshotCallback(std::function<void(bool)> callback) override;
 
 private:
     struct SymbolState {
@@ -59,39 +61,37 @@ private:
 
     // HTTP client callback
     static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp);
-
-    // Make HTTP request to Kraken API
-    json makeHttpRequest(const std::string& endpoint, const std::string& params);
+    json makeHttpRequest(const std::string& endpoint, const std::string& params = "", const std::string& method = "GET");
 
     // WebSocket callbacks
     void doRead();
     void processMessage(const std::string& message);
-
-    // Process order book updates
     void processOrderBookUpdate(const json& data);
     void processOrderBookSnapshot(const json& data, TradingPair pair);
+    void doWrite(std::string message);
 
-    // Convert Kraken symbol to our TradingPair
-    TradingPair krakenSymbolToTradingPair(const std::string& symbol);
+    // Internal symbol conversion methods
+    TradingPair symbolToTradingPair(const std::string& symbol) const;
+    std::string tradingPairToSymbol(TradingPair pair) const;
 
     OrderBookManager& m_orderBookManager;
-    net::io_context m_ioc;
-    ssl::context m_ctx{ssl::context::tlsv12_client};
-    std::unique_ptr<websocket::stream<boost::beast::ssl_stream<boost::beast::tcp_stream>>> m_ws;
-    std::unique_ptr<net::executor_work_guard<net::io_context::executor_type>> m_work;
-    std::thread m_thread;
-    boost::beast::flat_buffer m_buffer;
-    bool m_connected{false};
     std::map<TradingPair, std::string> m_symbolMap;
-    std::string m_host{"ws.kraken.com"};
-    std::string m_port{"443"};
-    CURL* curl;
-    std::map<TradingPair, SymbolState> symbolStates;
-
+    bool m_connected;
+    
     // Callbacks
     std::function<void(bool)> m_subscriptionCallback;
     std::function<void()> m_updateCallback;
     std::function<void(bool)> m_snapshotCallback;
-
-    void doWrite(std::string message);
+    
+    net::io_context m_ioc;
+    ssl::context m_ctx{ssl::context::tlsv12_client};
+    std::unique_ptr<websocket::stream<beast::ssl_stream<beast::tcp_stream>>> m_ws;
+    beast::flat_buffer m_buffer;
+    std::string m_host{"ws.kraken.com"};
+    std::string m_port{"443"};  // Using SSL port
+    
+    std::unique_ptr<net::executor_work_guard<net::io_context::executor_type>> m_work;
+    std::thread m_thread;
+    CURL* curl{nullptr};
+    std::map<TradingPair, SymbolState> symbolStates;
 }; 

@@ -54,31 +54,24 @@ std::atomic<bool>& FastTraceLogger::globalLoggingEnabled() {
 }
 
 std::array<std::atomic<bool>, static_cast<int>(TraceInstance::COUNT)>& FastTraceLogger::logLevels() {
-    static std::array<std::atomic<bool>, static_cast<int>(TraceInstance::COUNT)> levels{};
-    
-    // Enable all by default (can be adjusted during runtime)
-    for (auto& level : levels) {
-        level.store(true, std::memory_order_relaxed);
-    }
-    return levels;
+    return g_logLevels;
 }
 
-std::string FastTraceLogger::traceTypeToStr(TraceInstance type) {
+std::string_view FastTraceLogger::traceTypeToStr(TraceInstance type) {
     switch (type) {
-        case TraceInstance::TIMER: return "TIMER";
-        case TraceInstance::BALANCE: return "BALANCE";
+        case TraceInstance::TIMER:      return "TIMER";
+        case TraceInstance::BALANCE:    return "BALANCE";
         case TraceInstance::EVENT_LOOP: return "EVENT_LOOP";
-        case TraceInstance::BOOK: return "BOOK";
-        case TraceInstance::EX_MGR: return "EX_MGR";
-        case TraceInstance::STRAT: return "STRAT";
-        case TraceInstance::ORDERBOOK: return "ORDERBOOK";
-        case TraceInstance::EVENTLOOP: return "EVENTLOOP";
-        case TraceInstance::API: return "API";
-        case TraceInstance::MAIN: return "MAIN";
+        case TraceInstance::BOOK:       return "BOOK";
+        case TraceInstance::EX_MGR:     return "EX_MGR";
+        case TraceInstance::STRAT:      return "STRAT";
+        case TraceInstance::ORDERBOOK:  return "ORDERBOOK";
+        case TraceInstance::EVENTLOOP:  return "EVENTLOOP";
+        case TraceInstance::API:        return "API";
+        case TraceInstance::MAIN:       return "MAIN";
         default: return "UNKNOWN";
     }
 }
-
 
 /* Example
 

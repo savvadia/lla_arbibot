@@ -40,7 +40,7 @@ set(SOURCES
     src/s_poplavki.cpp
     src/orderbook.cpp
     src/ex_mgr.cpp
-    src/exchange_api.cpp
+    src/api_exchange.cpp
 )
 
 set(HEADERS
@@ -52,7 +52,7 @@ set(HEADERS
     src/api_kraken.h
     src/s_poplavki.h
     src/orderbook.h
-    src/exchange_api.h
+    src/api_exchange.h
     src/ex_mgr.h
 )
 

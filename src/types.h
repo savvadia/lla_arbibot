@@ -52,4 +52,27 @@ inline const char* toString(TradingPair pair) {
 inline std::ostream& operator<<(std::ostream& os, TradingPair pair) {
     os << toString(pair);
     return os;
+}
+
+enum class OrderType {
+    BUY = 0,
+    SELL = 1
+};
+
+// Convert OrderType to string
+inline const char* toString(OrderType type) {
+    switch (type) {
+        case OrderType::BUY:
+            return "BUY";
+        case OrderType::SELL:
+            return "SELL";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+// Stream operator for OrderType
+inline std::ostream& operator<<(std::ostream& os, OrderType type) {
+    os << toString(type);
+    return os;
 } 

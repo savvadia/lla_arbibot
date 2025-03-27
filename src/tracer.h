@@ -29,21 +29,7 @@ enum class TraceInstance {
 };
 
 // Convert enum to string for logging purposes
-constexpr std::string_view traceTypeToStr(TraceInstance type) {
-    switch (type) {
-        case TraceInstance::TIMER:      return "TIMER";
-        case TraceInstance::BALANCE:    return "BALANCE";
-        case TraceInstance::EVENT_LOOP: return "EVENT_LOOP";
-        case TraceInstance::BOOK:       return "BOOK";
-        case TraceInstance::EX_MGR:     return "EX_MGR";
-        case TraceInstance::STRAT:      return "STRAT";
-        case TraceInstance::ORDERBOOK:  return "ORDERBOOK";
-        case TraceInstance::EVENTLOOP:  return "EVENTLOOP";
-        case TraceInstance::API:        return "API";
-        case TraceInstance::MAIN:       return "MAIN";
-        default: return "UNKNOWN";
-    }
-}
+std::string_view traceTypeToStr(TraceInstance type);
 
 // Base class for traceable objects
 class Traceable {
@@ -71,6 +57,9 @@ public:
 
     // Set the log file where logs will be written
     static void setLogFile(const std::string& filename);
+
+    // Convert TraceInstance to a string
+    static std::string_view traceTypeToStr(TraceInstance type);
 
     // Log message with file and line info, plus any additional arguments
     template <typename... Args>
@@ -146,9 +135,6 @@ public:
         }
         return path.substr(lastSlash + 1);
     }
-
-    // Convert TraceInstance to a string
-    static std::string traceTypeToStr(TraceInstance type);
 };
 
 // Macro for TRACE with conditional logging (enabled only if logging is enabled)

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "exchange_api.h"
+#include "api_exchange.h"
 #include "orderbook.h"
 #include "trading_pair_format.h"
 #include <string>
@@ -26,10 +26,10 @@ namespace ssl = boost::asio::ssl;
 using tcp = boost::asio::ip::tcp;
 using json = nlohmann::json;
 
-class BinanceApi : public ExchangeApi {
+class ApiBinance : public ApiExchange {
 public:
-    BinanceApi(OrderBookManager& orderBookManager);
-    ~BinanceApi() override;
+    ApiBinance(OrderBookManager& orderBookManager);
+    ~ApiBinance() override;
 
     // Initialize WebSocket connection
     bool connect() override;
@@ -41,16 +41,18 @@ public:
     // Get current order book snapshot
     bool getOrderBookSnapshot(TradingPair pair) override;
 
+    // Order management
+    bool placeOrder(TradingPair pair, OrderType type, double price, double quantity) override;
+    bool cancelOrder(const std::string& orderId) override;
+    bool getBalance(const std::string& asset) override;
+
     std::string getExchangeName() const override { return "Binance"; }
     ExchangeId getExchangeId() const override { return ExchangeId::BINANCE; }
-    TradingPair symbolToTradingPair(const std::string& symbol) const override;
-    std::string tradingPairToSymbol(TradingPair pair) const override;
     bool isConnected() const override { return m_connected; }
 
     // Callback setters
-    void setSubscriptionCallback(std::function<void(bool)> callback) { m_subscriptionCallback = callback; }
-    void setUpdateCallback(std::function<void()> callback) { m_updateCallback = callback; }
-    void setSnapshotCallback(std::function<void(bool)> callback) { m_snapshotCallback = callback; }
+    void setSubscriptionCallback(std::function<void(bool)> callback) override;
+    void setSnapshotCallback(std::function<void(bool)> callback) override;
 
     // Static method for string conversion (used for tracing)
     static std::string tradingPairToString(TradingPair pair) {
@@ -63,27 +65,25 @@ public:
     }
 
 private:
-    void doConnect();
-    void onConnect(beast::error_code ec);
-    void doRead();
-    void onRead(beast::error_code ec, std::size_t bytes_transferred);
-    void doWrite(std::string message);
-    void onWrite(beast::error_code ec, std::size_t bytes_transferred);
-    void processMessage(const std::string& message);
-
-    void processOrderBookUpdate(const json& data);
-    void processOrderBookSnapshot(const json& data, TradingPair pair);
-
-    // HTTP client methods
-    json makeHttpRequest(const std::string& endpoint, const std::string& params = "");
-    static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp);
-
-    // Track last update ID for each symbol
     struct SymbolState {
         uint64_t lastUpdateId{0};
         bool hasSnapshot{false};
     };
-    std::map<TradingPair, SymbolState> symbolStates;
+
+    // HTTP client methods
+    json makeHttpRequest(const std::string& endpoint, const std::string& params = "", const std::string& method = "GET");
+    static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp);
+
+    // WebSocket callbacks
+    void doRead();
+    void processMessage(const std::string& message);
+    void processOrderBookUpdate(const json& data);
+    void processOrderBookSnapshot(const json& data, TradingPair pair);
+    void doWrite(std::string message);
+
+    // Internal symbol conversion methods
+    TradingPair symbolToTradingPair(const std::string& symbol) const;
+    std::string tradingPairToSymbol(TradingPair pair) const;
 
     OrderBookManager& m_orderBookManager;
     std::map<TradingPair, std::string> m_symbolMap;
@@ -104,4 +104,5 @@ private:
     std::unique_ptr<net::executor_work_guard<net::io_context::executor_type>> m_work;
     std::thread m_thread;
     CURL* curl{nullptr};
+    std::map<TradingPair, SymbolState> symbolStates;
 }; 

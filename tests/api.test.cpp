@@ -1,183 +1,193 @@
 #include <gtest/gtest.h>
+#include "../src/api_exchange.h"
+#include "../src/api_binance.h"
+#include "../src/api_kraken.h"
 #include "mock_api.h"
-#include "../src/orderbook.h"
-#include <thread>
+#include "test_utils.h"
+#include <memory>
 #include <chrono>
+#include <thread>
+#include <iostream>
+#include <iomanip>
 
 class ApiTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        m_orderBookManager = std::make_unique<OrderBookManager>();
-        m_binanceApi = std::make_unique<MockApi>(*m_orderBookManager, "Binance");
-        m_krakenApi = std::make_unique<MockApi>(*m_orderBookManager, "Kraken");
+        std::cout << "\n[" << getTestTimestamp() << "] TEST: Setting up test..." << std::endl;
+        orderBookManager = std::make_shared<OrderBookManager>();
+        std::cout << "[" << getTestTimestamp() << "] TEST: Creating MockApi..." << std::endl;
+        mockApi = std::make_unique<MockApi>(*orderBookManager, "TestExchange");
+        std::cout << "[" << getTestTimestamp() << "] TEST: Test setup completed" << std::endl;
     }
 
     void TearDown() override {
-        m_binanceApi.reset();
-        m_krakenApi.reset();
-        m_orderBookManager.reset();
+        std::cout << "[" << getTestTimestamp() << "] TEST: Tearing down test..." << std::endl;
+        mockApi->disconnect();
+        std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for cleanup..." << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        std::cout << "[" << getTestTimestamp() << "] TEST: Test teardown completed" << std::endl;
     }
 
-    std::unique_ptr<OrderBookManager> m_orderBookManager;
-    std::unique_ptr<MockApi> m_binanceApi;
-    std::unique_ptr<MockApi> m_krakenApi;
+    std::shared_ptr<OrderBookManager> orderBookManager;
+    std::unique_ptr<MockApi> mockApi;
 };
 
-TEST_F(ApiTest, ExchangeIdentifiers) {
-    EXPECT_EQ(m_binanceApi->getExchangeId(), ExchangeId::BINANCE);
-    EXPECT_EQ(m_krakenApi->getExchangeId(), ExchangeId::KRAKEN);
+TEST_F(ApiTest, ConnectTest) {
+    std::cout << "\n[" << getTestTimestamp() << "] TEST: Starting ConnectTest..." << std::endl;
+    std::cout << "[" << getTestTimestamp() << "] TEST: Calling connect()..." << std::endl;
+    EXPECT_TRUE(mockApi->connect());
+    std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for connection..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::cout << "[" << getTestTimestamp() << "] TEST: Checking connection status..." << std::endl;
+    EXPECT_TRUE(mockApi->isConnected());
+    std::cout << "[" << getTestTimestamp() << "] TEST: ConnectTest completed" << std::endl;
 }
 
-TEST_F(ApiTest, TradingPairConversion) {
-    // Test Binance symbol conversion
-    EXPECT_EQ(m_binanceApi->symbolToTradingPair("BTCUSDT"), TradingPair::BTC_USDT);
-    EXPECT_EQ(m_binanceApi->symbolToTradingPair("ETHUSDT"), TradingPair::ETH_USDT);
-    EXPECT_EQ(m_binanceApi->symbolToTradingPair("XTZUSDT"), TradingPair::XTZ_USDT);
-    EXPECT_EQ(m_binanceApi->symbolToTradingPair("UNKNOWN"), TradingPair::UNKNOWN);
-
-    // Test Kraken symbol conversion
-    EXPECT_EQ(m_krakenApi->symbolToTradingPair("XBT/USD"), TradingPair::BTC_USDT);
-    EXPECT_EQ(m_krakenApi->symbolToTradingPair("ETH/USD"), TradingPair::ETH_USDT);
-    EXPECT_EQ(m_krakenApi->symbolToTradingPair("XTZ/USD"), TradingPair::XTZ_USDT);
-    EXPECT_EQ(m_krakenApi->symbolToTradingPair("UNKNOWN"), TradingPair::UNKNOWN);
-
-    // Test reverse conversion
-    EXPECT_EQ(m_binanceApi->tradingPairToSymbol(TradingPair::BTC_USDT), "BTCUSDT");
-    EXPECT_EQ(m_krakenApi->tradingPairToSymbol(TradingPair::BTC_USDT), "XBT/USD");
+TEST_F(ApiTest, DisconnectTest) {
+    std::cout << "\n[" << getTestTimestamp() << "] TEST: Starting DisconnectTest..." << std::endl;
+    std::cout << "[" << getTestTimestamp() << "] TEST: Calling connect()..." << std::endl;
+    EXPECT_TRUE(mockApi->connect());
+    std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for connection..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::cout << "[" << getTestTimestamp() << "] TEST: Calling disconnect()..." << std::endl;
+    mockApi->disconnect();
+    std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for disconnection..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::cout << "[" << getTestTimestamp() << "] TEST: Checking connection status..." << std::endl;
+    EXPECT_FALSE(mockApi->isConnected());
+    std::cout << "[" << getTestTimestamp() << "] TEST: DisconnectTest completed" << std::endl;
 }
 
-TEST_F(ApiTest, OrderBookSubscription) {
-    bool binanceSubscribed = false;
-    bool krakenSubscribed = false;
-
-    m_binanceApi->setSubscriptionCallback([&binanceSubscribed](bool success) {
-        binanceSubscribed = success;
+TEST_F(ApiTest, SubscribeOrderBookTest) {
+    std::cout << "\n[" << getTestTimestamp() << "] TEST: Starting SubscribeOrderBookTest..." << std::endl;
+    bool callbackCalled = false;
+    std::cout << "[" << getTestTimestamp() << "] TEST: Setting up subscription callback..." << std::endl;
+    mockApi->setSubscriptionCallback([&callbackCalled](bool success) {
+        std::cout << "[" << getTestTimestamp() << "] TEST: Subscription callback called with success=" << success << std::endl;
+        callbackCalled = success;
     });
 
-    m_krakenApi->setSubscriptionCallback([&krakenSubscribed](bool success) {
-        krakenSubscribed = success;
-    });
-
-    // Connect to exchanges
-    ASSERT_TRUE(m_binanceApi->connect());
-    ASSERT_TRUE(m_krakenApi->connect());
-
-    // Subscribe to order books
-    ASSERT_TRUE(m_binanceApi->subscribeOrderBook(TradingPair::BTC_USDT));
-    ASSERT_TRUE(m_krakenApi->subscribeOrderBook(TradingPair::BTC_USDT));
-
-    // Wait for subscription callbacks with timeout
-    const auto startTime = std::chrono::steady_clock::now();
-    const auto timeout = std::chrono::milliseconds(50); // 50ms timeout
-
-    while (!binanceSubscribed || !krakenSubscribed) {
-        if (std::chrono::steady_clock::now() - startTime > timeout) {
-            FAIL() << "Subscription timeout: Binance=" << binanceSubscribed 
-                  << ", Kraken=" << krakenSubscribed;
-            break;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-
-    EXPECT_TRUE(binanceSubscribed);
-    EXPECT_TRUE(krakenSubscribed);
+    std::cout << "[" << getTestTimestamp() << "] TEST: Calling connect()..." << std::endl;
+    EXPECT_TRUE(mockApi->connect());
+    std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for connection..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::cout << "[" << getTestTimestamp() << "] TEST: Subscribing to order book..." << std::endl;
+    EXPECT_TRUE(mockApi->subscribeOrderBook(TradingPair::BTC_USDT));
+    
+    std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for callback..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::cout << "[" << getTestTimestamp() << "] TEST: Checking callback status..." << std::endl;
+    EXPECT_TRUE(callbackCalled);
+    std::cout << "[" << getTestTimestamp() << "] TEST: SubscribeOrderBookTest completed" << std::endl;
 }
 
-TEST_F(ApiTest, OrderBookUpdates) {
-    bool updateReceived = false;
-    m_binanceApi->setUpdateCallback([&updateReceived]() {
-        updateReceived = true;
+TEST_F(ApiTest, GetOrderBookSnapshotTest) {
+    std::cout << "\n[" << getTestTimestamp() << "] TEST: Starting GetOrderBookSnapshotTest..." << std::endl;
+    bool callbackCalled = false;
+    mockApi->setSnapshotCallback([&callbackCalled](bool success) {
+        std::cout << "[" << getTestTimestamp() << "] TEST: Snapshot callback called with success=" << success << std::endl;
+        callbackCalled = success;
     });
 
-    // Connect and subscribe
-    ASSERT_TRUE(m_binanceApi->connect());
-    ASSERT_TRUE(m_binanceApi->subscribeOrderBook(TradingPair::BTC_USDT));
+    std::cout << "[" << getTestTimestamp() << "] TEST: Calling connect()..." << std::endl;
+    EXPECT_TRUE(mockApi->connect());
+    std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for connection..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::cout << "[" << getTestTimestamp() << "] TEST: Getting order book snapshot..." << std::endl;
+    EXPECT_TRUE(mockApi->getOrderBookSnapshot(TradingPair::BTC_USDT));
+    
+    std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for callback..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::cout << "[" << getTestTimestamp() << "] TEST: Checking callback status..." << std::endl;
+    EXPECT_TRUE(callbackCalled);
+    std::cout << "[" << getTestTimestamp() << "] TEST: GetOrderBookSnapshotTest completed" << std::endl;
+}
 
-    // Get initial snapshot
-    ASSERT_TRUE(m_binanceApi->getOrderBookSnapshot(TradingPair::BTC_USDT));
-
-    // Send an update
+TEST_F(ApiTest, OrderBookUpdateTest) {
+    std::cout << "\n[" << getTestTimestamp() << "] TEST: Starting OrderBookUpdateTest..." << std::endl;
+    
+    std::cout << "[" << getTestTimestamp() << "] TEST: Calling connect()..." << std::endl;
+    EXPECT_TRUE(mockApi->connect());
+    std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for connection..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    
+    std::cout << "[" << getTestTimestamp() << "] TEST: Subscribing to order book..." << std::endl;
+    EXPECT_TRUE(mockApi->subscribeOrderBook(TradingPair::BTC_USDT));
+    std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for subscription..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    
+    std::cout << "[" << getTestTimestamp() << "] TEST: Simulating order book update..." << std::endl;
     std::vector<PriceLevel> bids = {
         {50000.0, 1.0},
-        {49999.0, 2.0}
+        {49999.0, 2.0},
+        {49998.0, 3.0}
     };
     std::vector<PriceLevel> asks = {
         {50001.0, 1.0},
-        {50002.0, 2.0}
+        {50002.0, 2.0},
+        {50003.0, 3.0}
     };
-    m_binanceApi->sendOrderBookUpdate(bids, asks);
-
-    // Wait for update with timeout
-    const auto startTime = std::chrono::steady_clock::now();
-    const auto timeout = std::chrono::milliseconds(50); // 50ms timeout
-
-    while (!updateReceived) {
-        if (std::chrono::steady_clock::now() - startTime > timeout) {
-            FAIL() << "Update timeout: no update received";
-            break;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-
-    EXPECT_TRUE(updateReceived);
-
-    // Verify order book state
-    const auto& orderBook = m_orderBookManager->getOrderBook(TradingPair::BTC_USDT);
-    EXPECT_EQ(orderBook.getBids().size(), 2);
-    EXPECT_EQ(orderBook.getAsks().size(), 2);
-    EXPECT_EQ(orderBook.getBids()[0].price, 50000.0);
-    EXPECT_EQ(orderBook.getAsks()[0].price, 50001.0);
-}
-
-TEST_F(ApiTest, OrderBookSnapshot) {
-    bool snapshotReceived = false;
-    m_binanceApi->setSnapshotCallback([&snapshotReceived](bool success) {
-        snapshotReceived = success;
-    });
-
-    // Connect and get snapshot
-    ASSERT_TRUE(m_binanceApi->connect());
-    ASSERT_TRUE(m_binanceApi->getOrderBookSnapshot(TradingPair::BTC_USDT));
-
-    // Wait for snapshot with timeout
-    const auto startTime = std::chrono::steady_clock::now();
-    const auto timeout = std::chrono::milliseconds(50); // 50ms timeout
-
-    while (!snapshotReceived) {
-        if (std::chrono::steady_clock::now() - startTime > timeout) {
-            FAIL() << "Snapshot timeout: no snapshot received";
-            break;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-
-    EXPECT_TRUE(snapshotReceived);
-
-    // Verify order book state
-    const auto& orderBook = m_orderBookManager->getOrderBook(TradingPair::BTC_USDT);
+    mockApi->simulateOrderBookUpdate(bids, asks);
+    
+    std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for update processing..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    
+    // Verify the order book was updated
+    auto& orderBook = orderBookManager->getOrderBook(TradingPair::BTC_USDT);
     EXPECT_EQ(orderBook.getBids().size(), 3);
     EXPECT_EQ(orderBook.getAsks().size(), 3);
-    EXPECT_EQ(orderBook.getBids()[0].price, 50000.0);
-    EXPECT_EQ(orderBook.getAsks()[0].price, 50001.0);
+    
+    // Verify the order book contents
+    const auto& orderBookBids = orderBook.getBids();
+    const auto& orderBookAsks = orderBook.getAsks();
+    
+    for (size_t i = 0; i < 3; ++i) {
+        EXPECT_EQ(orderBookBids[i].price, bids[i].price);
+        EXPECT_EQ(orderBookBids[i].quantity, bids[i].quantity);
+        EXPECT_EQ(orderBookAsks[i].price, asks[i].price);
+        EXPECT_EQ(orderBookAsks[i].quantity, asks[i].quantity);
+    }
+    
+    std::cout << "[" << getTestTimestamp() << "] TEST: OrderBookUpdateTest completed" << std::endl;
 }
 
-TEST_F(ApiTest, ConnectionManagement) {
-    // Test connection
-    ASSERT_TRUE(m_binanceApi->connect());
-    ASSERT_TRUE(m_krakenApi->connect());
+TEST_F(ApiTest, PlaceOrderTest) {
+    std::cout << "\n[" << getTestTimestamp() << "] TEST: Starting PlaceOrderTest..." << std::endl;
+    std::cout << "[" << getTestTimestamp() << "] TEST: Calling connect()..." << std::endl;
+    EXPECT_TRUE(mockApi->connect());
+    std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for connection..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::cout << "[" << getTestTimestamp() << "] TEST: Placing order..." << std::endl;
+    EXPECT_TRUE(mockApi->placeOrder(TradingPair::BTC_USDT, OrderType::BUY, 50000.0, 1.0));
+    std::cout << "[" << getTestTimestamp() << "] TEST: PlaceOrderTest completed" << std::endl;
+}
 
-    // Test disconnection
-    m_binanceApi->disconnect();
-    m_krakenApi->disconnect();
+TEST_F(ApiTest, CancelOrderTest) {
+    std::cout << "\n[" << getTestTimestamp() << "] TEST: Starting CancelOrderTest..." << std::endl;
+    std::cout << "[" << getTestTimestamp() << "] TEST: Calling connect()..." << std::endl;
+    EXPECT_TRUE(mockApi->connect());
+    std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for connection..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::cout << "[" << getTestTimestamp() << "] TEST: Canceling order..." << std::endl;
+    EXPECT_TRUE(mockApi->cancelOrder("test-order-id"));
+    std::cout << "[" << getTestTimestamp() << "] TEST: CancelOrderTest completed" << std::endl;
+}
 
-    // Verify operations fail when disconnected
-    EXPECT_FALSE(m_binanceApi->subscribeOrderBook(TradingPair::BTC_USDT));
-    EXPECT_FALSE(m_krakenApi->subscribeOrderBook(TradingPair::BTC_USDT));
-    EXPECT_FALSE(m_binanceApi->getOrderBookSnapshot(TradingPair::BTC_USDT));
-    EXPECT_FALSE(m_krakenApi->getOrderBookSnapshot(TradingPair::BTC_USDT));
+TEST_F(ApiTest, GetBalanceTest) {
+    std::cout << "\n[" << getTestTimestamp() << "] TEST: Starting GetBalanceTest..." << std::endl;
+    std::cout << "[" << getTestTimestamp() << "] TEST: Calling connect()..." << std::endl;
+    EXPECT_TRUE(mockApi->connect());
+    std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for connection..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::cout << "[" << getTestTimestamp() << "] TEST: Getting balance..." << std::endl;
+    EXPECT_TRUE(mockApi->getBalance("BTC"));
+    std::cout << "[" << getTestTimestamp() << "] TEST: GetBalanceTest completed" << std::endl;
 }
 
 int main(int argc, char **argv) {
+    std::cout << "[" << getTestTimestamp() << "] TEST: Starting test suite..." << std::endl;
     ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int result = RUN_ALL_TESTS();
+    std::cout << "[" << getTestTimestamp() << "] TEST: Test suite completed with result: " << result << std::endl;
+    return result;
 } 

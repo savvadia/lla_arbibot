@@ -23,13 +23,13 @@ bool ExchangeManager::initializeExchanges(const std::vector<ExchangeId>& exchang
         std::string exchangeName = (exchangeId == ExchangeId::BINANCE) ? "BINANCE" : "KRAKEN";
         TRACE("creating exchange API for: ", exchangeName);
         
-        std::unique_ptr<ExchangeApi> api;
+        std::unique_ptr<ApiExchange> api;
         switch (exchangeId) {
             case ExchangeId::BINANCE:
-                api = std::make_unique<BinanceApi>(orderBookManager);
+                api = std::make_unique<ApiBinance>(orderBookManager);
                 break;
             case ExchangeId::KRAKEN:
-                api = std::make_unique<KrakenApi>(orderBookManager);
+                api = std::make_unique<ApiKraken>(orderBookManager);
                 break;
             default:
                 return false;
@@ -41,7 +41,7 @@ bool ExchangeManager::initializeExchanges(const std::vector<ExchangeId>& exchang
     return true;
 }
 
-ExchangeApi* ExchangeManager::getExchange(ExchangeId id) const {
+ApiExchange* ExchangeManager::getExchange(ExchangeId id) const {
     auto it = exchanges.find(id);
     return it != exchanges.end() ? it->second.get() : nullptr;
 }

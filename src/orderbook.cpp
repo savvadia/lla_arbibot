@@ -25,7 +25,9 @@ void OrderBook::updatePriceLevel(bool isBid, double price, double quantity) {
     
     // Find the position to insert/update
     auto it = std::lower_bound(levels.begin(), levels.end(), price,
-        [](const PriceLevel& level, double p) { return level.price > p; });
+        [isBid](const PriceLevel& level, double p) { 
+            return isBid ? level.price > p : level.price < p;
+        });
     
     if (it != levels.end() && it->price == price) {
         // Update existing level

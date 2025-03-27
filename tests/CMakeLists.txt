@@ -21,10 +21,15 @@ add_executable(EventLoopTest
 )
 add_executable(ApiTest
     api.test.cpp
-    mock_websocket_server.cpp
     mock_api.cpp
-    ../src/orderbook.cpp
-    ../src/tracer.cpp
+    ${CMAKE_SOURCE_DIR}/src/api_exchange.cpp
+    ${CMAKE_SOURCE_DIR}/src/api_binance.cpp
+    ${CMAKE_SOURCE_DIR}/src/api_kraken.cpp
+    ${CMAKE_SOURCE_DIR}/src/orderbook.cpp
+    ${CMAKE_SOURCE_DIR}/src/event_loop.cpp
+    ${CMAKE_SOURCE_DIR}/src/timers.cpp
+    ${CMAKE_SOURCE_DIR}/src/balance.cpp
+    ${CMAKE_SOURCE_DIR}/src/tracer.cpp
 )
 
 # Link GoogleTest and pthread
@@ -32,12 +37,12 @@ target_link_libraries(TimersTest PRIVATE GTest::GTest GTest::Main pthread)
 target_link_libraries(BalanceTest PRIVATE GTest::GTest GTest::Main pthread)
 target_link_libraries(EventLoopTest PRIVATE GTest::GTest GTest::Main pthread)
 target_link_libraries(ApiTest PRIVATE 
-    GTest::GTest 
-    GTest::Main 
-    pthread 
+    GTest::gtest
+    GTest::gtest_main
+    pthread
+    ${Boost_LIBRARIES}
     ${OPENSSL_LIBRARIES}
     ${CURL_LIBRARIES}
-    ${Boost_LIBRARIES}
 )
 
 # Add include directory for source code headers
