@@ -8,7 +8,7 @@
 #include <iostream>
 
 // Define TRACE macro for TimersMgr
-#define TRACE(_timer, ...) TRACE_OBJ(&_timer, TraceInstance::TIMER, __VA_ARGS__)
+#define TRACE(_timer, ...) TRACE_OBJ("INFO ", &_timer, TraceInstance::TIMER, __VA_ARGS__)
 
 // Initialize static member
 int TimersMgr::nextId = 1;
@@ -59,7 +59,7 @@ int TimersMgr::addTimer(int intervalMs, TimerCallback callback, void* data, Time
     TRACE(timer, "Added with interval ", intervalMs, "ms");
 
     {
-        std::lock_guard<std::mutex> lock(timerMutex);
+        MUTEX_LOCK(timerMutex);
         auto it = timers.insert({timer.timeToFire, timer});
         timerIds[timer.id] = it;
     }
@@ -67,7 +67,7 @@ int TimersMgr::addTimer(int intervalMs, TimerCallback callback, void* data, Time
 }
 
 void TimersMgr::stopTimer(int id) {
-    std::lock_guard<std::mutex> lock(timerMutex);
+    MUTEX_LOCK(timerMutex);
     auto it = timerIds.find(id);
     if (it != timerIds.end()) {
         TRACE(it->second->second, "stopped");
@@ -82,7 +82,7 @@ void TimersMgr::checkTimers() {
     
     // First, collect timers that need to be executed
     {
-        std::lock_guard<std::mutex> lock(timerMutex);
+        MUTEX_LOCK(timerMutex);
         auto it = timers.begin();
         while (it != timers.end() && it->first <= now) {
             timersToExecute.push_back(it->second);

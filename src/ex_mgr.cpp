@@ -47,8 +47,6 @@ ApiExchange* ExchangeManager::getExchange(ExchangeId id) const {
 }
 
 bool ExchangeManager::connectAll() {
-    TRACE("connecting to all exchanges");
-    
     for (const auto& [exchangeId, api] : exchanges) {
         std::string exchangeName = (exchangeId == ExchangeId::BINANCE) ? "BINANCE" : "KRAKEN";
         TRACE("connecting to ", exchangeName);
@@ -74,8 +72,6 @@ void ExchangeManager::disconnectAll() {
 }
 
 bool ExchangeManager::subscribeAllOrderBooks(TradingPair pair) {
-    TRACE("subscribing to order books for all exchanges");
-    
     for (const auto& [exchangeId, api] : exchanges) {
         std::string exchangeName = (exchangeId == ExchangeId::BINANCE) ? "BINANCE" : "KRAKEN";
         TRACE("subscribing to order book for ", exchangeName);
@@ -89,8 +85,6 @@ bool ExchangeManager::subscribeAllOrderBooks(TradingPair pair) {
 }
 
 bool ExchangeManager::getOrderBookSnapshots(TradingPair pair) {
-    TRACE("getting order book snapshots for all exchanges");
-    
     for (const auto& [exchangeId, api] : exchanges) {
         std::string exchangeName = (exchangeId == ExchangeId::BINANCE) ? "BINANCE" : "KRAKEN";
         TRACE("getting order book snapshot for ", exchangeName);

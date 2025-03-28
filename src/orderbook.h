@@ -26,46 +26,45 @@ public:
 
     // Get best bid price
     double getBestBid() const {
-        std::lock_guard<std::mutex> lock(mutex);
+        MUTEX_LOCK(mutex);
         return bids.empty() ? 0.0 : bids[0].price;
     }
 
     // Get best ask price
     double getBestAsk() const {
-        std::lock_guard<std::mutex> lock(mutex);
+        MUTEX_LOCK(mutex);
         return asks.empty() ? 0.0 : asks[0].price;
     }
 
     // Get bid quantity at best price
     double getBestBidQuantity() const {
-        std::lock_guard<std::mutex> lock(mutex);
+        MUTEX_LOCK(mutex);
         return bids.empty() ? 0.0 : bids[0].quantity;
     }
 
     // Get ask quantity at best price
     double getBestAskQuantity() const {
-        std::lock_guard<std::mutex> lock(mutex);
+        MUTEX_LOCK(mutex);
         return asks.empty() ? 0.0 : asks[0].quantity;
     }
 
-    void updatePriceLevel(bool isBid, double price, double quantity);
-    void updateBids(const std::vector<PriceLevel>& bids);
-    void updateAsks(const std::vector<PriceLevel>& asks);
     
     // Get a copy of the current state
     std::pair<std::vector<PriceLevel>, std::vector<PriceLevel>> getState() const {
-        std::lock_guard<std::mutex> lock(mutex);
+        MUTEX_LOCK(mutex);
         return {bids, asks};
     }
     
     const std::vector<PriceLevel>& getBids() const { 
-        std::lock_guard<std::mutex> lock(mutex);
+        MUTEX_LOCK(mutex);
         return bids; 
     }
     const std::vector<PriceLevel>& getAsks() const { 
-        std::lock_guard<std::mutex> lock(mutex);
+        MUTEX_LOCK(mutex);
         return asks; 
     }
+
+    void updatePriceLevel(bool isBid, double price, double quantity);
 
     // For TRACE identification
     ExchangeId getExchangeId() const { return exchangeId; }
@@ -85,7 +84,7 @@ private:
 };
 
 // Order book manager for all trading pairs
-class OrderBookManager {
+class OrderBookManager : public Traceable {
 public:
     OrderBookManager();
     ~OrderBookManager() = default;
@@ -99,6 +98,11 @@ public:
 
     // Set callback for order book updates
     void setUpdateCallback(std::function<void(ExchangeId, TradingPair, const OrderBook&)> callback);
+
+protected:
+    void trace(std::ostream& os) const override {
+        os << "OrderBookManager()";
+    }
 
 private:
     std::map<TradingPair, OrderBook> orderBooks;

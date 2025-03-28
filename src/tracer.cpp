@@ -13,7 +13,7 @@ std::ofstream g_logFile;
 std::mutex g_logMutex;
 
 void FastTraceLogger::setLogFile(const std::string& filename) {
-    std::lock_guard<std::mutex> lock(g_logMutex);
+    MUTEX_LOCK(g_logMutex);
     if (g_logFile.is_open()) {
         g_logFile.close();
     }
@@ -67,7 +67,9 @@ std::string_view FastTraceLogger::traceTypeToStr(TraceInstance type) {
         case TraceInstance::STRAT:      return "STRAT";
         case TraceInstance::ORDERBOOK:  return "ORDERBOOK";
         case TraceInstance::EVENTLOOP:  return "EVENTLOOP";
-        case TraceInstance::API:        return "API";
+        case TraceInstance::A_EXCHANGE: return "A_EXCHANGE";
+        case TraceInstance::A_KRAKEN:   return "A_KRAKEN";
+        case TraceInstance::A_BINANCE:  return "A_BINANCE";
         case TraceInstance::MAIN:       return "MAIN";
         default: return "UNKNOWN";
     }

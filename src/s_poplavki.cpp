@@ -14,7 +14,7 @@ using namespace std;
 
 // Define TRACE macro for StrategyPoplavki class
 #define TRACE(...) TRACE_THIS(TraceInstance::STRAT, __VA_ARGS__)
-
+#define DEBUG(...) DEBUG_THIS(TraceInstance::STRAT, __VA_ARGS__)
 Strategy::Strategy(std::string name, std::string coin, std::string stableCoin, TimersMgr &timersMgr) : name(name), coin(coin), stableCoin(stableCoin), timersMgr(timersMgr)
 {
     balances = {};
@@ -94,17 +94,17 @@ void StrategyPoplavki::updateOrderBookData(ExchangeId exchange, const OrderBook&
     data.lastUpdate = std::chrono::steady_clock::now();
 
     {
-        std::lock_guard<std::mutex> lock(dataMutex);
+        MUTEX_LOCK(dataMutex);
         orderBookData[exchange] = data;
     }
 
-    TRACE("Updated order book data for ", getExchange(exchange), 
-          " bid:", data.bestBid, "(", data.bestBidQuantity, ")"
-          " ask:", data.bestAsk, "(", data.bestAskQuantity, ")");
+    DEBUG("Updated order book data for ", getExchange(exchange), 
+          " bid:", data.bestBid, " (", data.bestBidQuantity, ")"
+          " ask:", data.bestAsk, " (", data.bestAskQuantity, ")");
 }
 
 Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId sellExchange) {
-    std::lock_guard<std::mutex> lock(dataMutex);
+    MUTEX_LOCK(dataMutex);
     const auto& buyData = orderBookData[buyExchange];
     const auto& sellData = orderBookData[sellExchange];
 
@@ -113,7 +113,7 @@ Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId
         return Opportunity{buyExchange, sellExchange, 0.0, 0.0, 0.0};
     }
     if(buyData.bestAsk <= sellData.bestBid) {
-        TRACE("No arbitrage: ", buyData.bestAsk, "@", getExchange(buyExchange), " ", sellData.bestBid, "@", getExchange(sellExchange));
+        DEBUG("No arbitrage: ", buyData.bestAsk, "@", getExchange(buyExchange), " ", sellData.bestBid, "@", getExchange(sellExchange));
         return Opportunity{buyExchange, sellExchange, 0.0, 0.0, 0.0};
     }
     double amount = std::min(buyData.bestAskQuantity, sellData.bestBidQuantity);
@@ -142,7 +142,6 @@ void StrategyPoplavki::scanOpportunities() {
 }
 
 void StrategyPoplavki::execute() {
-    TRACE("Executing Poplavki strategy...");
     scanOpportunities();
 }
 

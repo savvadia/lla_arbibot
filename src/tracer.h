@@ -23,9 +23,12 @@ enum class TraceInstance {
     STRAT,
     ORDERBOOK,
     EVENTLOOP,
-    API,
+    A_EXCHANGE,
+    A_KRAKEN,
+    A_BINANCE,
     MAIN,  // For main function logging
-    COUNT  // To track the number of log types
+    COUNT,  // To track the number of log types
+    MUTEX
 };
 
 // Convert enum to string for logging purposes
@@ -63,13 +66,21 @@ public:
 
     // Log message with file and line info, plus any additional arguments
     template <typename... Args>
-    static void log(const Traceable* instance, TraceInstance type, std::string_view file, int line, Args&&... args) {
+    static void log(std::string level, const Traceable* instance, TraceInstance type, std::string_view file, int line, Args&&... args) {
         std::lock_guard<std::mutex> lock(getMutex());
 
         // Construct log message
         std::ostringstream oss;
+        // timestamp hh:mm::ss.ms
+        auto now = std::chrono::system_clock::now();
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+        auto time = std::chrono::system_clock::to_time_t(now);
+        oss << std::put_time(std::localtime(&time), "%H:%M:%S") << "." << std::setw(3) << std::setfill('0') << ms.count();
+        
+        oss << " " << level;
+
         // filename should be 15 characters long
-        oss << std::right << std::setw(15) << getBaseName(file) << ":"
+        oss << " " <<std::right << std::setw(15) << std::setfill(' ') << getBaseName(file) << ":"
             << std::left << std::setw(3) << line
             << " [" << traceTypeToStr(type) << "] ";
 
@@ -97,8 +108,15 @@ public:
 
         // Construct log message
         std::ostringstream oss;
+
+        // timestamp hh:mm::ss.ms
+        auto now = std::chrono::system_clock::now();
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+        auto time = std::chrono::system_clock::to_time_t(now);
+        oss << std::put_time(std::localtime(&time), "%H:%M:%S") << "." << std::setw(3) << std::setfill('0') << ms.count();
+
         // filename should be 15 characters long
-        oss << std::right << std::setw(15) << getBaseName(file) << ":"
+        oss << " "<< std::right << std::setw(15) << std::setfill(' ') << getBaseName(file) << ":"
             << std::left << std::setw(3) << line
             << " [" << traceTypeToStr(type) << "] ";
 
@@ -139,15 +157,32 @@ public:
 
 // Macro for TRACE with conditional logging (enabled only if logging is enabled)
 #ifndef DISABLED_TRACE
-    #define TRACE_OBJ(_obj, _type, ...)                                            \
+    #define TRACE_OBJ(_level, _obj, _type, ...)                                            \
         if (FastTraceLogger::globalLoggingEnabled().load(std::memory_order_relaxed) &&  \
             FastTraceLogger::logLevels()[static_cast<int>(_type)].load(std::memory_order_relaxed)) { \
-            FastTraceLogger::log(_obj, _type, __FILE__, __LINE__, __VA_ARGS__); \
+            FastTraceLogger::log(_level, _obj, _type, __FILE__, __LINE__, __VA_ARGS__); \
         }
 #else
     #define TRACE_OBJ(_obj, _type, ...) ((void)0)  // Compiler removes the call entirely
 #endif
-    #define TRACE_THIS(_type, ...) TRACE_OBJ(this, _type, __VA_ARGS__)
-    #define TRACE_BASE(_type, ...) TRACE_OBJ(nullptr, _type, __VA_ARGS__)
+#define TRACE_THIS(_type, ...) TRACE_OBJ("INFO ", this, _type, __VA_ARGS__)
+#define TRACE_BASE(_type, ...) TRACE_OBJ("INFO ",nullptr, _type, __VA_ARGS__)
+
+#if 0
+    #define DEBUG_THIS(_type, ...) TRACE_OBJ("DEBUG", this, _type, __VA_ARGS__)
+    #define DEBUG_BASE(_type, ...) TRACE_OBJ("DEBUG",nullptr, _type, __VA_ARGS__)
+#else
+    #define DEBUG_THIS(_type, ...) ((void)0)
+    #define DEBUG_BASE(_type, ...) ((void)0)
+#endif
+
+#if 0
+#define MUTEX_LOCK(_mutex) \
+    std::cout<<__FILE__<<":"<<__LINE__<<" locking "<<#_mutex<<std::endl; \
+    std::lock_guard<std::mutex> lock(_mutex);
+#else
+#define MUTEX_LOCK(_mutex) \
+    std::lock_guard<std::mutex> lock(_mutex);
+#endif
 
 #endif // TRACER_H

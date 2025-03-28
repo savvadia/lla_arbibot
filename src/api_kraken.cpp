@@ -23,7 +23,7 @@ namespace ssl = boost::asio::ssl;
 
 constexpr const char* REST_ENDPOINT = "https://api.kraken.com/0/public";
 
-#define TRACE(...) TRACE_THIS(TraceInstance::API, __VA_ARGS__)
+#define TRACE(...) TRACE_THIS(TraceInstance::A_KRAKEN, __VA_ARGS__)
 
 // HTTP client callback
 size_t ApiKraken::WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {
@@ -87,9 +87,9 @@ json ApiKraken::makeHttpRequest(const std::string& endpoint, const std::string& 
 TradingPair ApiKraken::symbolToTradingPair(const std::string& symbol) const {
     std::string lowerSymbol = toLower(symbol);
     
-    if (lowerSymbol == "xbt/usd" || lowerSymbol == "btc/usd") return TradingPair::BTC_USDT;
-    if (lowerSymbol == "eth/usd") return TradingPair::ETH_USDT;
-    if (lowerSymbol == "xtz/usd") return TradingPair::XTZ_USDT;
+    if (lowerSymbol == "xbt/usd" || lowerSymbol == "btc/usd" || lowerSymbol == "xxbtzusd") return TradingPair::BTC_USDT;
+    if (lowerSymbol == "eth/usd" || lowerSymbol == "xethzusd") return TradingPair::ETH_USDT;
+    if (lowerSymbol == "xtz/usd" || lowerSymbol == "xtzusdt") return TradingPair::XTZ_USDT;
     
     return TradingPair::UNKNOWN;
 }
@@ -423,55 +423,58 @@ void ApiKraken::processOrderBookSnapshot(const json& data, TradingPair pair) {
     try {
         auto& state = symbolStates[pair];
         state.hasSnapshot = true;
-        
-        // Get the symbol without the forward slash for accessing the response data
-        std::string symbol = tradingPairToSymbol(pair);
-        symbol.erase(std::remove(symbol.begin(), symbol.end(), '/'), symbol.end());
+
+        TRACE("Processing order book snapshot for ", tradingPairToSymbol(pair));
         
         // Check if we have a valid response with result data
-        if (!data.contains("result") || !data["result"].contains(symbol)) {
-            throw std::runtime_error("Invalid response format: missing result data for " + symbol);
-        }
-        
-        const auto& orderBook = data["result"][symbol];
-        std::vector<PriceLevel> bids;
-        std::vector<PriceLevel> asks;
-        
-        // Process bids
-        if (orderBook.contains("bids")) {
-            for (const auto& bid : orderBook["bids"]) {
-                if (bid.size() >= 2) {
-                    double price = std::stod(bid[0].get<std::string>());
-                    double quantity = std::stod(bid[1].get<std::string>());
-                    if (quantity > 0) {
-                        bids.push_back({price, quantity});
-                    }
-                }
-            }
-        }
-        
-        // Process asks
-        if (orderBook.contains("asks")) {
-            for (const auto& ask : orderBook["asks"]) {
-                if (ask.size() >= 2) {
-                    double price = std::stod(ask[0].get<std::string>());
-                    double quantity = std::stod(ask[1].get<std::string>());
-                    if (quantity > 0) {
-                        asks.push_back({price, quantity});
-                    }
-                }
-            }
-        }
+        if (!data.contains("result"))
+            throw std::runtime_error("Invalid response format: missing result data for " + tradingPairToSymbol(pair));
 
-        // Update the order book with all bids and asks at once
-        if (!bids.empty() || !asks.empty()) {
-            TRACE("Updating order book for ", symbol, " with ", bids.size(), " bids and ", asks.size(), " asks");
-            m_orderBookManager.updateOrderBook(ExchangeId::KRAKEN, pair, bids, asks);
-        }
+        for (const auto& [symbol, orderBook] : data["result"].items()) {
+            TradingPair receivedPair = symbolToTradingPair(symbol);
+            if (receivedPair != pair) {
+                throw std::runtime_error("Invalid response format: unknown trading symbol " + symbol);
+            }
         
-        TRACE("Processed order book snapshot for ", tradingPairToSymbol(pair));
-        if (m_snapshotCallback) {
-            m_snapshotCallback(true);
+            std::vector<PriceLevel> bids;
+            std::vector<PriceLevel> asks;
+            
+            // Process bids
+            if (orderBook.contains("bids")) {
+                for (const auto& bid : orderBook["bids"]) {
+                    if (bid.size() >= 2) {
+                        double price = std::stod(bid[0].get<std::string>());
+                        double quantity = std::stod(bid[1].get<std::string>());
+                        if (quantity > 0) {
+                            bids.push_back({price, quantity});
+                        }
+                    }
+                }
+            }
+            
+            // Process asks
+            if (orderBook.contains("asks")) {
+                for (const auto& ask : orderBook["asks"]) {
+                    if (ask.size() >= 2) {
+                        double price = std::stod(ask[0].get<std::string>());
+                        double quantity = std::stod(ask[1].get<std::string>());
+                        if (quantity > 0) {
+                            asks.push_back({price, quantity});
+                        }
+                    }
+                }
+            }
+
+            // Update the order book with all bids and asks at once
+            if (!bids.empty() || !asks.empty()) {
+                TRACE("Updating order book for ", symbol, " with ", bids.size(), " bids and ", asks.size(), " asks");
+                m_orderBookManager.updateOrderBook(ExchangeId::KRAKEN, pair, bids, asks);
+            }
+            
+            TRACE("Processed order book snapshot for ", tradingPairToSymbol(pair));
+            if (m_snapshotCallback) {
+                m_snapshotCallback(true);
+            }
         }
     } catch (const std::exception& e) {
         TRACE("Error processing order book snapshot: ", e.what());

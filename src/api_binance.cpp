@@ -22,7 +22,7 @@ namespace ssl = boost::asio::ssl;
 
 constexpr const char* REST_ENDPOINT = "https://api.binance.com/api/v3";
 
-#define TRACE(...) TRACE_THIS(TraceInstance::API, __VA_ARGS__)
+#define TRACE(...) TRACE_THIS(TraceInstance::A_BINANCE, __VA_ARGS__)
 
 // HTTP client callback
 size_t ApiBinance::WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {
@@ -366,6 +366,8 @@ void ApiBinance::processOrderBookUpdate(const json& data) {
 
 void ApiBinance::processOrderBookSnapshot(const json& data, TradingPair pair) {
     try {
+        TRACE("Processing order book snapshot for ", tradingPairToSymbol(pair));
+
         auto& state = symbolStates[pair];
         state.lastUpdateId = data["lastUpdateId"];
         state.hasSnapshot = true;

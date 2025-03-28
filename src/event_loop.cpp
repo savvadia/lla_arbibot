@@ -26,7 +26,7 @@ void EventLoop::stop() {
 
 void EventLoop::postEvent(EventType type, std::function<void()> callback) {
     {
-        std::lock_guard<std::mutex> lock(m_queueMutex);
+        MUTEX_LOCK(m_queueMutex);
         m_eventQueue.emplace(type, callback, std::chrono::steady_clock::now());
     }
     m_queueCondition.notify_one();

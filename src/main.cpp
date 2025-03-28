@@ -46,9 +46,11 @@ int main() {
     FastTraceLogger::setLoggingEnabled(TraceInstance::STRAT, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::BALANCE, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, true);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::API, true);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_EXCHANGE, true);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_KRAKEN, false);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_BINANCE, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::MAIN, true);
-    TRACE("Trace types enabled: EVENT_LOOP, STRAT, BALANCE, ORDERBOOK, API, MAIN");
+    TRACE("Trace types enabled: EVENT_LOOP, STRAT, BALANCE, ORDERBOOK, A_EXCHANGE, A_KRAKEN, A_BINANCE, MAIN");
 
     // Set up signal handlers
     TRACE("Setting up signal handlers...");
@@ -139,6 +141,10 @@ int main() {
                     TRACE("Shutdown timeout reached, forcing immediate shutdown");
                     break;
                 }
+                
+                // During graceful shutdown, try to disconnect from exchanges
+                TRACE("Attempting graceful shutdown...");
+                exchangeManager.disconnectAll();
             }
             
             // Sleep for a short time to prevent CPU spinning
@@ -153,7 +159,7 @@ int main() {
     TRACE("Trading system shutting down...");
     TRACE("Total main loop iterations: ", loopCount);
 
-    // Proper cleanup sequence
+    // Final cleanup
     TRACE("Disconnecting from exchanges...");
     exchangeManager.disconnectAll();
     
