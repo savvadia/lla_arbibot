@@ -13,10 +13,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O2")
 
 # Find required packages
-find_package(OpenSSL REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system thread)
-find_package(Threads REQUIRED)
+find_package(GTest REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 # Include FetchContent module
 include(FetchContent)
@@ -28,53 +28,97 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(json)
 
-# Set source files
+# Add source files
 set(SOURCES
     src/main.cpp
     src/event_loop.cpp
-    src/tracer.cpp
-    src/balance.cpp
     src/timers.cpp
     src/api_binance.cpp
     src/api_kraken.cpp
     src/s_poplavki.cpp
     src/orderbook.cpp
+    src/balance.cpp
+    src/tracer.cpp
     src/ex_mgr.cpp
     src/api_exchange.cpp
 )
 
+# Add test source files (excluding main.cpp)
+set(TEST_SOURCES
+    src/event_loop.cpp
+    src/timers.cpp
+    src/api_binance.cpp
+    src/api_kraken.cpp
+    src/s_poplavki.cpp
+    src/orderbook.cpp
+    src/balance.cpp
+    src/tracer.cpp
+    src/ex_mgr.cpp
+    src/api_exchange.cpp
+)
+
+# Set header files
 set(HEADERS
-    src/balance.h
     src/event_loop.h
-    src/tracer.h
     src/timers.h
+    src/api_exchange.h
     src/api_binance.h
     src/api_kraken.h
     src/s_poplavki.h
     src/orderbook.h
-    src/api_exchange.h
-    src/ex_mgr.h
+    src/balance.h
+    src/tracer.h
+    src/types.h
 )
 
-# Add executable
+# Create executable
 add_executable(LlaArbibot ${SOURCES} ${HEADERS})
 
 # Add include directories
 target_include_directories(LlaArbibot PRIVATE
     ${CMAKE_SOURCE_DIR}/src
-    ${OPENSSL_INCLUDE_DIR}
-    ${CURL_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIRS}
+    ${CURL_INCLUDE_DIRS}
+    ${GTEST_INCLUDE_DIRS}
+    ${OPENSSL_INCLUDE_DIR}
     ${nlohmann_json_SOURCE_DIR}/include
 )
 
 # Link libraries
 target_link_libraries(LlaArbibot PRIVATE
-    ${OPENSSL_LIBRARIES}
-    ${CURL_LIBRARIES}
     ${Boost_LIBRARIES}
-    Threads::Threads
+    ${CURL_LIBRARIES}
+    ${OPENSSL_LIBRARIES}
+    pthread
     nlohmann_json::nlohmann_json
+)
+
+# Add test executable
+add_executable(api_test 
+    tests/api.test.cpp 
+    tests/mock_api.cpp
+    ${TEST_SOURCES} 
+    ${HEADERS}
+)
+
+# Include directories for tests
+target_include_directories(api_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/tests
+    ${Boost_INCLUDE_DIRS}
+    ${CURL_INCLUDE_DIRS}
+    ${GTEST_INCLUDE_DIRS}
+    ${OPENSSL_INCLUDE_DIR}
+)
+
+# Link libraries for tests
+target_link_libraries(api_test PRIVATE
+    ${Boost_LIBRARIES}
+    ${CURL_LIBRARIES}
+    ${OPENSSL_LIBRARIES}
+    pthread
+    GTest::GTest
+    GTest::Main
 )
 
 # Enable testing

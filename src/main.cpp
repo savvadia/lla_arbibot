@@ -18,15 +18,23 @@ using namespace std;
 
 // Global flag for graceful shutdown
 volatile sig_atomic_t g_running = 1;
+std::atomic<bool> g_shutdown_requested{false};
 
 // Signal handler for graceful shutdown
 void signal_handler(int signum) {
-    std::cout << std::endl << "Received signal " << signum << ", shutting down..." << std::endl;
-    g_running = 0;
+    if (!g_shutdown_requested) {
+        std::cout << std::endl << "Received signal " << signum << ", initiating graceful shutdown..." << std::endl;
+        g_shutdown_requested = true;
+        g_running = 0;
+    } else {
+        std::cout << std::endl << "Forcing immediate shutdown..." << std::endl;
+        exit(1);
+    }
 }
 
 int main() {
     const int LOOP_SLEEP_MS = 500;
+    const int SHUTDOWN_TIMEOUT_MS = 5000; // 5 seconds timeout for graceful shutdown
     TRACE("Starting LlaArbibot...");
     
     // Initialize tracing system
@@ -107,24 +115,38 @@ int main() {
     
     // Main event loop
     int loopCount = 0;
-    while (g_running && loopCount < 1000/LOOP_SLEEP_MS*5) {
+    auto shutdownStartTime = std::chrono::steady_clock::now();
+    
+    while (g_running) {
         try {
             // Process timers
             timersMgr.checkTimers();
             
             // Execute strategy
-            // strategy.execute();
+            strategy.execute();
             
             // Log loop count periodically
             if (++loopCount % 100 == 0) {
                 TRACE("Main loop iteration: ", loopCount);
             }
             
+            // Check if shutdown was requested
+            if (g_shutdown_requested) {
+                auto now = std::chrono::steady_clock::now();
+                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - shutdownStartTime).count();
+                
+                if (elapsed >= SHUTDOWN_TIMEOUT_MS) {
+                    TRACE("Shutdown timeout reached, forcing immediate shutdown");
+                    break;
+                }
+            }
+            
             // Sleep for a short time to prevent CPU spinning
             std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_SLEEP_MS));
         } catch (const std::exception& e) {
             TRACE("Error in main loop: ", e.what());
-            break;
+            // Don't break on error, try to continue
+            std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_SLEEP_MS));
         }
     }
     

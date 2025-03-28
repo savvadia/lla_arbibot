@@ -68,7 +68,12 @@ json ApiBinance::makeHttpRequest(const std::string& endpoint, const std::string&
         throw std::runtime_error(std::string("curl_easy_perform() failed: ") + curl_easy_strerror(res));
     }
 
-    TRACE("Response: ", response);
+    // Truncate long responses for logging
+    std::string logResponse = response;
+    if (logResponse.length() > 500) {
+        logResponse = logResponse.substr(0, 497) + "...";
+    }
+    TRACE("Response: ", logResponse);
 
     if (response.empty()) {
         throw std::runtime_error("Empty response from server");
@@ -177,13 +182,31 @@ void ApiBinance::doRead() {
         [this](beast::error_code ec, std::size_t bytes_transferred) {
             if (ec) {
                 TRACE("Read error: ", ec.message());
+                // Try to reconnect on error
+                if (m_connected) {
+                    TRACE("Attempting to reconnect to Binance...");
+                    disconnect();
+                    connect();
+                }
                 return;
             }
 
             std::string message = beast::buffers_to_string(m_buffer.data());
             m_buffer.consume(m_buffer.size());
-            TRACE("Received message: ", message);
-            processMessage(message);
+            
+            // Truncate long messages for logging
+            std::string logMessage = message;
+            if (logMessage.length() > 500) {
+                logMessage = logMessage.substr(0, 497) + "...";
+            }
+            TRACE("Received message: ", logMessage);
+            
+            try {
+                processMessage(message);
+            } catch (const std::exception& e) {
+                TRACE("Error processing message: ", e.what());
+            }
+            
             doRead();
         });
 }
@@ -206,6 +229,9 @@ void ApiBinance::disconnect() {
         if (m_thread.joinable()) {
             m_thread.join();
         }
+
+        // Reset the IO context for potential reconnection
+        m_ioc.restart();
 
         // Now it's safe to close the WebSocket
         if (m_ws) {

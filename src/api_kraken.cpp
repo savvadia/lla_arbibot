@@ -69,7 +69,12 @@ json ApiKraken::makeHttpRequest(const std::string& endpoint, const std::string& 
         throw std::runtime_error(std::string("curl_easy_perform() failed: ") + curl_easy_strerror(res));
     }
 
-    TRACE("Response: ", response);
+    // Truncate long responses for logging
+    std::string logResponse = response;
+    if (logResponse.length() > 500) {
+        logResponse = logResponse.substr(0, 497) + "...";
+    }
+    TRACE("Response: ", logResponse);
 
     if (response.empty()) {
         throw std::runtime_error("Empty response from server");
@@ -183,7 +188,14 @@ void ApiKraken::doRead() {
 
             std::string message = boost::beast::buffers_to_string(m_buffer.data());
             m_buffer.consume(m_buffer.size());
-            TRACE("Received message: ", message);
+            
+            // Truncate long messages for logging
+            std::string logMessage = message;
+            if (logMessage.length() > 500) {
+                logMessage = logMessage.substr(0, 497) + "...";
+            }
+            TRACE("Received message: ", logMessage);
+            
             processMessage(message);
             doRead();
         });
@@ -287,8 +299,12 @@ void ApiKraken::processMessage(const std::string& message) {
     try {
         json data = json::parse(message);
         
-        // Log all messages for debugging
-        TRACE("Processing message: ", message);
+        // Truncated to 500 characters  
+        std::string logMessage = message;
+        if (logMessage.length() > 500) {
+            logMessage = logMessage.substr(0, 497) + "...";
+        }
+        TRACE("Processing message: ", logMessage);
         
         // Check if it's a subscription response
         if (data.is_object() && data.contains("event")) {
@@ -311,6 +327,12 @@ void ApiKraken::processMessage(const std::string& message) {
                     return;
                 }
 
+                auto& state = symbolStates[tradingPair];
+                if (!state.hasSnapshot) {
+                    TRACE("Skipping update for ", pair, " - no snapshot yet");
+                    return;
+                }
+
                 std::vector<PriceLevel> bids;
                 std::vector<PriceLevel> asks;
 
@@ -323,6 +345,9 @@ void ApiKraken::processMessage(const std::string& message) {
                             double quantity = std::stod(ask[1].get<std::string>());
                             if (quantity > 0) {
                                 asks.push_back({price, quantity});
+                            } else {
+                                // If quantity is 0, it's a delete - we'll pass it through with 0 quantity
+                                asks.push_back({price, 0});
                             }
                         }
                     }
@@ -337,6 +362,9 @@ void ApiKraken::processMessage(const std::string& message) {
                             double quantity = std::stod(bid[1].get<std::string>());
                             if (quantity > 0) {
                                 bids.push_back({price, quantity});
+                            } else {
+                                // If quantity is 0, it's a delete - we'll pass it through with 0 quantity
+                                bids.push_back({price, 0});
                             }
                         }
                     }
@@ -406,6 +434,8 @@ void ApiKraken::processOrderBookSnapshot(const json& data, TradingPair pair) {
         }
         
         const auto& orderBook = data["result"][symbol];
+        std::vector<PriceLevel> bids;
+        std::vector<PriceLevel> asks;
         
         // Process bids
         if (orderBook.contains("bids")) {
@@ -414,7 +444,7 @@ void ApiKraken::processOrderBookSnapshot(const json& data, TradingPair pair) {
                     double price = std::stod(bid[0].get<std::string>());
                     double quantity = std::stod(bid[1].get<std::string>());
                     if (quantity > 0) {
-                        m_orderBookManager.updateOrderBook(ExchangeId::KRAKEN, pair, price, quantity, true);
+                        bids.push_back({price, quantity});
                     }
                 }
             }
@@ -427,10 +457,16 @@ void ApiKraken::processOrderBookSnapshot(const json& data, TradingPair pair) {
                     double price = std::stod(ask[0].get<std::string>());
                     double quantity = std::stod(ask[1].get<std::string>());
                     if (quantity > 0) {
-                        m_orderBookManager.updateOrderBook(ExchangeId::KRAKEN, pair, price, quantity, false);
+                        asks.push_back({price, quantity});
                     }
                 }
             }
+        }
+
+        // Update the order book with all bids and asks at once
+        if (!bids.empty() || !asks.empty()) {
+            TRACE("Updating order book for ", symbol, " with ", bids.size(), " bids and ", asks.size(), " asks");
+            m_orderBookManager.updateOrderBook(ExchangeId::KRAKEN, pair, bids, asks);
         }
         
         TRACE("Processed order book snapshot for ", tradingPairToSymbol(pair));

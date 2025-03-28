@@ -52,8 +52,20 @@ public:
     void updateBids(const std::vector<PriceLevel>& bids);
     void updateAsks(const std::vector<PriceLevel>& asks);
     
-    const std::vector<PriceLevel>& getBids() const { return bids; }
-    const std::vector<PriceLevel>& getAsks() const { return asks; }
+    // Get a copy of the current state
+    std::pair<std::vector<PriceLevel>, std::vector<PriceLevel>> getState() const {
+        std::lock_guard<std::mutex> lock(mutex);
+        return {bids, asks};
+    }
+    
+    const std::vector<PriceLevel>& getBids() const { 
+        std::lock_guard<std::mutex> lock(mutex);
+        return bids; 
+    }
+    const std::vector<PriceLevel>& getAsks() const { 
+        std::lock_guard<std::mutex> lock(mutex);
+        return asks; 
+    }
 
     // For TRACE identification
     ExchangeId getExchangeId() const { return exchangeId; }

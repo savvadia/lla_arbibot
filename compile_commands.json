@@ -13,18 +13,6 @@
 },
 {
   "directory": "/Users/dianasavvatina/repo/lla_arbibot",
-  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/_deps/json-src/include -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/LlaArbibot.dir/src/tracer.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
-  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
-  "output": "CMakeFiles/LlaArbibot.dir/src/tracer.cpp.o"
-},
-{
-  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
-  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/_deps/json-src/include -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/LlaArbibot.dir/src/balance.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/balance.cpp",
-  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/balance.cpp",
-  "output": "CMakeFiles/LlaArbibot.dir/src/balance.cpp.o"
-},
-{
-  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
   "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/_deps/json-src/include -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/LlaArbibot.dir/src/timers.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/timers.cpp",
   "file": "/Users/dianasavvatina/repo/lla_arbibot/src/timers.cpp",
   "output": "CMakeFiles/LlaArbibot.dir/src/timers.cpp.o"
@@ -55,6 +43,18 @@
 },
 {
   "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/_deps/json-src/include -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/LlaArbibot.dir/src/balance.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/balance.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/balance.cpp",
+  "output": "CMakeFiles/LlaArbibot.dir/src/balance.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/_deps/json-src/include -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/LlaArbibot.dir/src/tracer.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
+  "output": "CMakeFiles/LlaArbibot.dir/src/tracer.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
   "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/_deps/json-src/include -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/LlaArbibot.dir/src/ex_mgr.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/ex_mgr.cpp",
   "file": "/Users/dianasavvatina/repo/lla_arbibot/src/ex_mgr.cpp",
   "output": "CMakeFiles/LlaArbibot.dir/src/ex_mgr.cpp.o"
@@ -64,6 +64,78 @@
   "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/_deps/json-src/include -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/LlaArbibot.dir/src/api_exchange.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/api_exchange.cpp",
   "file": "/Users/dianasavvatina/repo/lla_arbibot/src/api_exchange.cpp",
   "output": "CMakeFiles/LlaArbibot.dir/src/api_exchange.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/tests -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/api_test.dir/tests/api.test.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/tests/api.test.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/tests/api.test.cpp",
+  "output": "CMakeFiles/api_test.dir/tests/api.test.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/tests -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/api_test.dir/tests/mock_api.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/tests/mock_api.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/tests/mock_api.cpp",
+  "output": "CMakeFiles/api_test.dir/tests/mock_api.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/tests -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/api_test.dir/src/event_loop.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/event_loop.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/event_loop.cpp",
+  "output": "CMakeFiles/api_test.dir/src/event_loop.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/tests -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/api_test.dir/src/timers.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/timers.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/timers.cpp",
+  "output": "CMakeFiles/api_test.dir/src/timers.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/tests -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/api_test.dir/src/api_binance.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/api_binance.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/api_binance.cpp",
+  "output": "CMakeFiles/api_test.dir/src/api_binance.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/tests -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/api_test.dir/src/api_kraken.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/api_kraken.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/api_kraken.cpp",
+  "output": "CMakeFiles/api_test.dir/src/api_kraken.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/tests -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/api_test.dir/src/s_poplavki.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/s_poplavki.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/s_poplavki.cpp",
+  "output": "CMakeFiles/api_test.dir/src/s_poplavki.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/tests -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/api_test.dir/src/orderbook.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/orderbook.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/orderbook.cpp",
+  "output": "CMakeFiles/api_test.dir/src/orderbook.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/tests -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/api_test.dir/src/balance.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/balance.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/balance.cpp",
+  "output": "CMakeFiles/api_test.dir/src/balance.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/tests -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/api_test.dir/src/tracer.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
+  "output": "CMakeFiles/api_test.dir/src/tracer.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/tests -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/api_test.dir/src/ex_mgr.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/ex_mgr.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/ex_mgr.cpp",
+  "output": "CMakeFiles/api_test.dir/src/ex_mgr.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -I/Users/dianasavvatina/repo/lla_arbibot/tests -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -o CMakeFiles/api_test.dir/src/api_exchange.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/api_exchange.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/api_exchange.cpp",
+  "output": "CMakeFiles/api_test.dir/src/api_exchange.cpp.o"
 },
 {
   "directory": "/Users/dianasavvatina/repo/lla_arbibot/tests",

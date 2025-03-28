@@ -84,77 +84,58 @@ void StrategyPoplavki::setScanInterval(int ms) {
 }
 
 void StrategyPoplavki::updateOrderBookData(ExchangeId exchange, const OrderBook& orderBook) {
-    std::lock_guard<std::mutex> lock(dataMutex);
+    auto [bids, asks] = orderBook.getState();
     
-    OrderBookData& data = orderBookData[exchange];
-    data.bestBid = orderBook.getBestBid();
-    data.bestAsk = orderBook.getBestAsk();
-    data.bestBidQuantity = orderBook.getBestBidQuantity();
-    data.bestAskQuantity = orderBook.getBestAskQuantity();
+    OrderBookData data;
+    data.bestBid = bids.empty() ? 0.0 : bids[0].price;
+    data.bestAsk = asks.empty() ? 0.0 : asks[0].price;
+    data.bestBidQuantity = bids.empty() ? 0.0 : bids[0].quantity;
+    data.bestAskQuantity = asks.empty() ? 0.0 : asks[0].quantity;
     data.lastUpdate = std::chrono::steady_clock::now();
 
-    std::ostringstream oss;
-    oss << std::fixed << std::setprecision(2) << data.bestBid 
-        << " (" << std::setprecision(4) << data.bestBidQuantity << ") "
-        << "ask: " << std::setprecision(2) << data.bestAsk 
-        << " (" << std::setprecision(4) << data.bestAskQuantity << ")";
-    
-    TRACE("Updated order book for ", exchange, " bid: ", oss.str());
+    {
+        std::lock_guard<std::mutex> lock(dataMutex);
+        orderBookData[exchange] = data;
+    }
+
+    TRACE("Updated order book data for ", getExchange(exchange), 
+          " bid:", data.bestBid, "(", data.bestBidQuantity, ")"
+          " ask:", data.bestAsk, "(", data.bestAskQuantity, ")");
+}
+
+Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId sellExchange) {
+    std::lock_guard<std::mutex> lock(dataMutex);
+    const auto& buyData = orderBookData[buyExchange];
+    const auto& sellData = orderBookData[sellExchange];
+
+    if (buyData.bestAskQuantity  <= 0 || sellData.bestBidQuantity <= 0) {
+        TRACE("No liquidity: ", buyData.bestAskQuantity, "@", getExchange(buyExchange), " ", sellData.bestBidQuantity, "@", getExchange(sellExchange));
+        return Opportunity{buyExchange, sellExchange, 0.0, 0.0, 0.0};
+    }
+    if(buyData.bestAsk <= sellData.bestBid) {
+        TRACE("No arbitrage: ", buyData.bestAsk, "@", getExchange(buyExchange), " ", sellData.bestBid, "@", getExchange(sellExchange));
+        return Opportunity{buyExchange, sellExchange, 0.0, 0.0, 0.0};
+    }
+    double amount = std::min(buyData.bestAskQuantity, sellData.bestBidQuantity);
+    return Opportunity{buyExchange, sellExchange, amount, buyData.bestAsk, sellData.bestBid};
 }
 
 void StrategyPoplavki::scanOpportunities() {
-    std::lock_guard<std::mutex> lock(dataMutex);
+    TRACE("Starting opportunity scan...");
     
-    // Initialize data for all exchanges if not present
-    for (const auto& exchangeId : exchangeIds) {
-        if (orderBookData.find(exchangeId) == orderBookData.end()) {
-            TRACE("Initializing order book data for ", *exchangeManager.getExchange(exchangeId));
-            orderBookData[exchangeId] = OrderBookData{};
-        }
-    }
-
     // Check arbitrage between all pairs of exchanges
     for (size_t i = 0; i < exchangeIds.size(); ++i) {
         for (size_t j = i + 1; j < exchangeIds.size(); ++j) {
             ExchangeId exchange1 = exchangeIds[i];
             ExchangeId exchange2 = exchangeIds[j];
-            
-            const auto& data1 = orderBookData[exchange1];
-            const auto& data2 = orderBookData[exchange2];
 
-            // Check if we have valid data from both exchanges
-            if (data1.bestBid == 0 || data1.bestAsk == 0 || 
-                data2.bestBid == 0 || data2.bestAsk == 0) {
-                TRACE("No valid data for pair ", *exchangeManager.getExchange(exchange1), " - ", *exchangeManager.getExchange(exchange2));
-                continue;  // Skip this pair if no valid data
+            auto opportunity1 = calculateProfit(exchange1, exchange2);
+            if (opportunity1.amount > 0) {
+                TRACE("ARBITRAGE OPPORTUNITY: ", opportunity1);
             }
-
-            // Check exchange1 -> exchange2 arbitrage
-            if (data1.bestAsk < data2.bestBid) {
-                double amount = std::min(data1.bestAskQuantity, data2.bestBidQuantity);
-                double profit = calculateProfit(exchange1, exchange2, amount);
-                
-                if (profit > 0) {
-                    std::ostringstream oss;
-                    oss << std::fixed << std::setprecision(2) << data1.bestAsk 
-                        << " -> " << data2.bestBid << " amount " << amount 
-                        << " profit " << profit;
-                    TRACE("ARBITRAGE OPPORTUNITY: ", *exchangeManager.getExchange(exchange1), " -> ", *exchangeManager.getExchange(exchange2), ": ", oss.str());
-                }
-            }
-            
-            // Check exchange2 -> exchange1 arbitrage
-            if (data2.bestAsk < data1.bestBid) {
-                double amount = std::min(data2.bestAskQuantity, data1.bestBidQuantity);
-                double profit = calculateProfit(exchange2, exchange1, amount);
-                
-                if (profit > 0) {
-                    std::ostringstream oss;
-                    oss << std::fixed << std::setprecision(2) << data2.bestAsk 
-                        << " -> " << data1.bestBid << " amount " << amount 
-                        << " profit " << profit;
-                    TRACE("ARBITRAGE OPPORTUNITY: ", *exchangeManager.getExchange(exchange2), " -> ", *exchangeManager.getExchange(exchange1), ": ", oss.str());
-                }
+            auto opportunity2 = calculateProfit(exchange2, exchange1);
+            if (opportunity2.amount > 0) {
+                TRACE("ARBITRAGE OPPORTUNITY: ", opportunity2);
             }
         }
     }
@@ -173,12 +154,3 @@ void StrategyPoplavki::timerCallback(int id, void *data) {
     }
 }
 
-double StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId sellExchange, double amount) {
-    const auto& buyData = orderBookData[buyExchange];
-    const auto& sellData = orderBookData[sellExchange];
-    
-    double buyCost = amount * buyData.bestAsk;
-    double sellRevenue = amount * sellData.bestBid;
-    
-    return sellRevenue - buyCost;
-}
