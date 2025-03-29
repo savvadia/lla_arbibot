@@ -95,33 +95,58 @@ void StrategyPoplavki::updateOrderBookData(ExchangeId exchange, const OrderBook&
 
     {
         MUTEX_LOCK(dataMutex);
-        orderBookData[exchange] = data;
+        if (orderBookData.find(exchange) == orderBookData.end()) {
+            // check if anything has changed, excluding the lastUpdate
+            if (orderBookData[exchange].bestBid != data.bestBid ||
+                orderBookData[exchange].bestAsk != data.bestAsk ||
+                orderBookData[exchange].bestBidQuantity != data.bestBidQuantity ||
+                orderBookData[exchange].bestAskQuantity != data.bestAskQuantity) {
+                orderBookData[exchange] = data;
+                TRACE("Updated order book data for ", getExchange(exchange), 
+                    " bid:", data.bestBid, " (", data.bestBidQuantity, ")"
+                    " ask:", data.bestAsk, " (", data.bestAskQuantity, ")");
+            } else {
+                orderBookData[exchange].lastUpdate = data.lastUpdate;
+            }
+        } else {
+            orderBookData[exchange] = data;
+        }
     }
 
-    DEBUG("Updated order book data for ", getExchange(exchange), 
-          " bid:", data.bestBid, " (", data.bestBidQuantity, ")"
-          " ask:", data.bestAsk, " (", data.bestAskQuantity, ")");
 }
 
 Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId sellExchange) {
     MUTEX_LOCK(dataMutex);
     const auto& buyData = orderBookData[buyExchange];
     const auto& sellData = orderBookData[sellExchange];
+    static auto lastUpdate = std::chrono::steady_clock::now();
+    if (std::max(buyData.lastUpdate, sellData.lastUpdate) > lastUpdate) {
+        lastUpdate = std::max(buyData.lastUpdate, sellData.lastUpdate);
+    } else {
+        // no changes in the order book data, return 0 profit
+        return Opportunity{buyExchange, sellExchange, 0.0, 0.0, 0.0};
+    }
+    
+    TRACE("Calculating profit with buy:  ", std::chrono::duration_cast<std::chrono::nanoseconds>(buyData.lastUpdate.time_since_epoch()).count(), " ", buyExchange, " ", buyData);
+    TRACE("Calculating profit with sell: ", std::chrono::duration_cast<std::chrono::nanoseconds>(sellData.lastUpdate.time_since_epoch()).count(), " ", sellExchange, " ", sellData);
 
-    if (buyData.bestAskQuantity  <= 0 || sellData.bestBidQuantity <= 0) {
+    if (buyData.bestAskQuantity <= 0 || sellData.bestBidQuantity <= 0) {
         TRACE("No liquidity: ", buyData.bestAskQuantity, "@", getExchange(buyExchange), " ", sellData.bestBidQuantity, "@", getExchange(sellExchange));
         return Opportunity{buyExchange, sellExchange, 0.0, 0.0, 0.0};
     }
-    if(buyData.bestAsk <= sellData.bestBid) {
-        DEBUG("No arbitrage: ", buyData.bestAsk, "@", getExchange(buyExchange), " ", sellData.bestBid, "@", getExchange(sellExchange));
+
+    if (buyData.bestAsk >= sellData.bestBid) {
+        TRACE("No arbitrage: ", buyData.bestAsk, "@", getExchange(buyExchange), " ", sellData.bestBid, "@", getExchange(sellExchange));
         return Opportunity{buyExchange, sellExchange, 0.0, 0.0, 0.0};
     }
+
     double amount = std::min(buyData.bestAskQuantity, sellData.bestBidQuantity);
+    
     return Opportunity{buyExchange, sellExchange, amount, buyData.bestAsk, sellData.bestBid};
 }
 
 void StrategyPoplavki::scanOpportunities() {
-    TRACE("Starting opportunity scan...");
+    DEBUG("Starting opportunity scan...");
     
     // Check arbitrage between all pairs of exchanges
     for (size_t i = 0; i < exchangeIds.size(); ++i) {

@@ -194,12 +194,8 @@ void ApiBinance::doRead() {
             std::string message = beast::buffers_to_string(m_buffer.data());
             m_buffer.consume(m_buffer.size());
             
-            // Truncate long messages for logging
-            std::string logMessage = message;
-            if (logMessage.length() > 500) {
-                logMessage = logMessage.substr(0, 497) + "...";
-            }
-            TRACE("Received message: ", logMessage);
+            // Log the raw message for debugging
+            TRACE("Raw WebSocket message: ", message);
             
             try {
                 processMessage(message);
@@ -259,10 +255,15 @@ bool ApiBinance::subscribeOrderBook(TradingPair pair) {
     try {
         std::string symbol = tradingPairToSymbol(pair);
         std::stringstream ss;
-        ss << "{\"method\":\"SUBSCRIBE\",\"params\":[\"" << symbol << "@depth@100ms\"],\"id\":1}";
+        // Changed from @depth@100ms to @depth@100ms@1000 to get more frequent updates
+        ss << "{\"method\":\"SUBSCRIBE\",\"params\":[\"" << symbol << "@depth@100ms@1000\"],\"id\":1}";
         
         TRACE("Subscribing to Binance order book for ", symbol);
         doWrite(ss.str());
+        
+        // Store the subscription state
+        auto& state = symbolStates[pair];
+        state.subscribed = true;
         
         if (m_subscriptionCallback) {
             m_subscriptionCallback(true);
@@ -318,7 +319,26 @@ void ApiBinance::processMessage(const std::string& message) {
 
         // Check if it's an order book update
         if (data.contains("e") && data["e"] == "depthUpdate") {
-            TRACE("Processing order book update");
+            std::string symbol = data["s"].get<std::string>();
+            TradingPair pair = symbolToTradingPair(symbol);
+            if (pair == TradingPair::UNKNOWN) {
+                TRACE("Unknown trading pair in update: ", symbol);
+                return;
+            }
+
+            auto& state = symbolStates[pair];
+            if (!state.hasSnapshot) {
+                TRACE("Skipping update for ", symbol, " - no snapshot yet");
+                return;
+            }
+
+            // Check if this update is after our last snapshot
+            if (data.contains("u") && data["u"] <= state.lastUpdateId) {
+                TRACE("Skipping update for ", symbol, " - update ID ", data["u"], " is before or equal to last snapshot ID ", state.lastUpdateId);
+                return;
+            }
+
+            TRACE("Processing order book update for ", symbol);
             processOrderBookUpdate(data);
         }
     } catch (const std::exception& e) {
@@ -335,6 +355,7 @@ void ApiBinance::processOrderBookUpdate(const json& data) {
         std::string symbol = data["s"].get<std::string>();
         TradingPair pair = symbolToTradingPair(symbol);
         if (pair == TradingPair::UNKNOWN) {
+            TRACE("Unknown trading pair in update: ", symbol);
             return;
         }
 
@@ -343,22 +364,32 @@ void ApiBinance::processOrderBookUpdate(const json& data) {
 
         // Process bids
         for (const auto& bid : data["b"]) {
-            bids.push_back({
-                std::stod(bid[0].get<std::string>()),  // price
-                std::stod(bid[1].get<std::string>())   // quantity
-            });
+            double price = std::stod(bid[0].get<std::string>());
+            double quantity = std::stod(bid[1].get<std::string>());
+            if (quantity > 0) {
+                bids.push_back({price, quantity});
+            } else {
+                // If quantity is 0, it's a delete - we'll pass it through with 0 quantity
+                bids.push_back({price, 0});
+            }
         }
 
         // Process asks
         for (const auto& ask : data["a"]) {
-            asks.push_back({
-                std::stod(ask[0].get<std::string>()),  // price
-                std::stod(ask[1].get<std::string>())   // quantity
-            });
+            double price = std::stod(ask[0].get<std::string>());
+            double quantity = std::stod(ask[1].get<std::string>());
+            if (quantity > 0) {
+                asks.push_back({price, quantity});
+            } else {
+                // If quantity is 0, it's a delete - we'll pass it through with 0 quantity
+                asks.push_back({price, 0});
+            }
         }
 
-        TRACE("Updating order book for ", symbol, " with ", bids.size(), " bids and ", asks.size(), " asks");
-        m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
+        if (!bids.empty() || !asks.empty()) {
+            TRACE("Updating order book for ", symbol, " with ", bids.size(), " bids and ", asks.size(), " asks");
+            m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
+        }
     } catch (const std::exception& e) {
         TRACE("Error processing order book update: ", e.what());
     }
@@ -372,12 +403,15 @@ void ApiBinance::processOrderBookSnapshot(const json& data, TradingPair pair) {
         state.lastUpdateId = data["lastUpdateId"];
         state.hasSnapshot = true;
         
+        std::vector<PriceLevel> bids;
+        std::vector<PriceLevel> asks;
+        
         // Process bids
         for (const auto& bid : data["bids"]) {
             double price = std::stod(bid[0].get<std::string>());
             double quantity = std::stod(bid[1].get<std::string>());
             if (quantity > 0) {
-                m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, price, quantity, true);
+                bids.push_back({price, quantity});
             }
         }
         
@@ -386,8 +420,14 @@ void ApiBinance::processOrderBookSnapshot(const json& data, TradingPair pair) {
             double price = std::stod(ask[0].get<std::string>());
             double quantity = std::stod(ask[1].get<std::string>());
             if (quantity > 0) {
-                m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, price, quantity, false);
+                asks.push_back({price, quantity});
             }
+        }
+
+        // Update the order book with all bids and asks at once
+        if (!bids.empty() || !asks.empty()) {
+            TRACE("Updating order book for ", tradingPairToSymbol(pair), " with ", bids.size(), " bids and ", asks.size(), " asks");
+            m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
         }
         
         TRACE("Processed order book snapshot for ", tradingPairToSymbol(pair));
@@ -480,11 +520,13 @@ void ApiBinance::setSnapshotCallback(std::function<void(bool)> callback) {
 }
 
 void ApiBinance::doWrite(std::string message) {
+    TRACE("Sending WebSocket message: ", message);
     m_ws->async_write(net::buffer(message),
         [this](beast::error_code ec, std::size_t bytes_transferred) {
             if (ec) {
                 TRACE("Write error: ", ec.message());
                 return;
             }
+            TRACE("Successfully sent WebSocket message");
         });
 } 

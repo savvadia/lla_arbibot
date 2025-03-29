@@ -66,8 +66,9 @@ public:
 
 private:
     struct SymbolState {
-        uint64_t lastUpdateId{0};
-        bool hasSnapshot{false};
+        bool hasSnapshot = false;
+        bool subscribed = false;
+        int64_t lastUpdateId = 0;
     };
 
     // HTTP client methods

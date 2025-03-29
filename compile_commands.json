@@ -262,5 +262,23 @@
   "command": "/Library/Developer/CommandLineTools/usr/bin/c++ -DBOOST_SYSTEM_DYN_LINK -DBOOST_SYSTEM_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -I/Users/dianasavvatina/repo/lla_arbibot/src -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -Wno-ignored-attributes -o CMakeFiles/ApiTest.dir/__/src/tracer.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
   "file": "/Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
   "output": "tests/CMakeFiles/ApiTest.dir/__/src/tracer.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot/tests",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/dianasavvatina/repo/lla_arbibot/tests/../src -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -Wno-ignored-attributes -o CMakeFiles/OrderBookTest.dir/orderbook.test.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/tests/orderbook.test.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/tests/orderbook.test.cpp",
+  "output": "tests/CMakeFiles/OrderBookTest.dir/orderbook.test.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot/tests",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/dianasavvatina/repo/lla_arbibot/tests/../src -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -Wno-ignored-attributes -o CMakeFiles/OrderBookTest.dir/__/src/orderbook.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/orderbook.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/orderbook.cpp",
+  "output": "tests/CMakeFiles/OrderBookTest.dir/__/src/orderbook.cpp.o"
+},
+{
+  "directory": "/Users/dianasavvatina/repo/lla_arbibot/tests",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/dianasavvatina/repo/lla_arbibot/tests/../src -isystem /opt/homebrew/include  -Wall -O2 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.2.sdk -Wno-ignored-attributes -o CMakeFiles/OrderBookTest.dir/__/src/tracer.cpp.o -c /Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
+  "file": "/Users/dianasavvatina/repo/lla_arbibot/src/tracer.cpp",
+  "output": "tests/CMakeFiles/OrderBookTest.dir/__/src/tracer.cpp.o"
 }
 ]

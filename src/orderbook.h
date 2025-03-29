@@ -4,6 +4,7 @@
 #include <vector>
 #include <map>
 #include <mutex>
+#include <chrono>
 #include "tracer.h"
 #include "types.h"
 
@@ -48,18 +49,56 @@ public:
         return asks.empty() ? 0.0 : asks[0].quantity;
     }
 
+    // Get best prices and quantities atomically
+    struct BestPrices {
+        double bidPrice;
+        double askPrice;
+        double bidQuantity;
+        double askQuantity;
+    };
+
+    BestPrices getBestPrices() const {
+        MUTEX_LOCK(mutex);
+        return BestPrices{
+            bids.empty() ? 0.0 : bids[0].price,
+            asks.empty() ? 0.0 : asks[0].price,
+            bids.empty() ? 0.0 : bids[0].quantity,
+            asks.empty() ? 0.0 : asks[0].quantity
+        };
+    }
+
+    // Get last update timestamp
+    std::chrono::system_clock::time_point getLastUpdate() const {
+        MUTEX_LOCK(mutex);
+        return lastUpdate;
+    }
+
+    // Get order book data atomically
+    OrderBookData getOrderBookData() const {
+        MUTEX_LOCK(mutex);
+        return OrderBookData{
+            bids.empty() ? 0.0 : bids[0].price,
+            asks.empty() ? 0.0 : asks[0].price,
+            bids.empty() ? 0.0 : bids[0].quantity,
+            asks.empty() ? 0.0 : asks[0].quantity,
+            lastUpdate
+        };
+    }
     
-    // Get a copy of the current state
+    // Get a copy of the current state atomically
     std::pair<std::vector<PriceLevel>, std::vector<PriceLevel>> getState() const {
         MUTEX_LOCK(mutex);
         return {bids, asks};
     }
     
-    const std::vector<PriceLevel>& getBids() const { 
+    // Get a copy of current bids atomically
+    std::vector<PriceLevel> getBids() const { 
         MUTEX_LOCK(mutex);
         return bids; 
     }
-    const std::vector<PriceLevel>& getAsks() const { 
+
+    // Get a copy of current asks atomically
+    std::vector<PriceLevel> getAsks() const { 
         MUTEX_LOCK(mutex);
         return asks; 
     }
@@ -81,6 +120,10 @@ private:
     mutable std::mutex mutex;
     ExchangeId exchangeId;
     TradingPair pair;
+    std::chrono::system_clock::time_point lastUpdate = std::chrono::system_clock::now();
+    
+    // Helper function to check if best bid/ask changed
+    bool hasBestPricesChanged(bool isBid, double price, double quantity) const;
 };
 
 // Order book manager for all trading pairs

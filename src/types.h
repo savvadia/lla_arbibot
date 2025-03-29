@@ -2,6 +2,7 @@
 
 #include <string>
 #include <iostream>
+#include <chrono>
 
 enum class ExchangeId {
     UNKNOWN = 0,
@@ -75,4 +76,12 @@ inline const char* toString(OrderType type) {
 inline std::ostream& operator<<(std::ostream& os, OrderType type) {
     os << toString(type);
     return os;
-} 
+}
+
+struct OrderBookData {
+    double bestBid;
+    double bestAsk;
+    double bestBidQuantity;
+    double bestAskQuantity;
+    std::chrono::system_clock::time_point lastUpdate;
+}; 

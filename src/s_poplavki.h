@@ -67,13 +67,14 @@ public:
 
     double profit() const
     {
-        return amount * (sellPrice - buyPrice);
+        return (sellPrice - buyPrice) / buyPrice * 100;
     }
 
 private:
     void trace(std::ostream &os) const override
     {
-        os << "Opportunity: " << buyExchange << " -> " << sellExchange << " amount: " << amount << " profit: " << profit();
+        os << "Opportunity: " << buyExchange << " -> " << sellExchange << " amount: " << amount
+            << " (" << buyPrice << " -> " << sellPrice << ") profit: " << std::fixed << std::setprecision(3) << profit() << "%";
     }
 };
 
