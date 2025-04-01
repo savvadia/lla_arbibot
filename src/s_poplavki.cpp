@@ -53,13 +53,14 @@ StrategyPoplavki::StrategyPoplavki(const std::string& baseAsset,
     TRACE("Initializing with ", exchangeIds.size(), " exchanges");
     
     // Set up order book update callback
-    exchangeManager.getOrderBookManager().setUpdateCallback([this](ExchangeId exchangeId, TradingPair pair) {
-        updateOrderBookData(exchangeId);
-    });
+    // TODO: uncomment when Binance updates are fixed
+    // exchangeManager.getOrderBookManager().setUpdateCallback([this](ExchangeId exchangeId, TradingPair pair) {
+    //     updateOrderBookData(exchangeId);
+    // });
     
-    // Set up periodic scanning (3 seconds)
-    TRACE("Setting up periodic scanning with 1 second interval");
-    setScanInterval(1000);
+    // Set up periodic scanning
+    TRACE("Setting up periodic scanning with ", Config::STRATEGY_CHECK_TIMER_MS, "ms interval");
+    setScanInterval(Config::STRATEGY_CHECK_TIMER_MS);
 }
 
 StrategyPoplavki::~StrategyPoplavki() {

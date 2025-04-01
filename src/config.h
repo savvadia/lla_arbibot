@@ -5,7 +5,7 @@ namespace Config {
     constexpr int EVENT_LOOP_DELAY_MS = 500;  // Delay between event loop iterations
 
     // Strategy settings
-    constexpr int STRATEGY_CHECK_TIMER_MS = 3000;  // How often to check for opportunities
+    constexpr int STRATEGY_CHECK_TIMER_MS = 5000;  // How often to check for opportunities
 
     // Order book settings
     constexpr double MAX_ORDER_BOOK_AMOUNT = 100000.0;  // Maximum total amount to keep in order book

@@ -44,7 +44,7 @@ int main() {
     FastTraceLogger::setLoggingEnabled(TraceInstance::EVENT_LOOP, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::STRAT, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::BALANCE, true);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, true);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_EXCHANGE, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_KRAKEN, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_BINANCE, true);
