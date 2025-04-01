@@ -10,7 +10,7 @@
 #include "ex_mgr.h"
 #include "s_poplavki.h"
 #include "balance.h"
-
+#include "config.h"
 using namespace std;
 
 // Define TRACE macro for main
@@ -33,7 +33,6 @@ void signal_handler(int signum) {
 }
 
 int main() {
-    const int LOOP_SLEEP_MS = 500;
     const int SHUTDOWN_TIMEOUT_MS = 5000; // 5 seconds timeout for graceful shutdown
     TRACE("Starting LlaArbibot...");
     
@@ -90,16 +89,24 @@ int main() {
         return 1;
     }
 
-    // Get initial order book snapshots
+    // Get initial order book snapshots with timeout
     TRACE("Getting initial order book snapshots...");
-    if (!exchangeManager.getOrderBookSnapshots(TradingPair::BTC_USDT)) {
+    auto startTime = std::chrono::steady_clock::now();
+    bool snapshotsReceived = false;
+    
+    // no timeout
+    if (exchangeManager.getOrderBookSnapshots(TradingPair::BTC_USDT)) {
+            snapshotsReceived = true;
+    }
+    
+    if (!snapshotsReceived) {
         TRACE("Failed to get order book snapshots");
         return 1;
     }
     
     // Create strategy
     TRACE("Creating Poplavki strategy for BTC/USDT...");
-    StrategyPoplavki strategy("BTC", "USDT", timersMgr, exchangeManager, exchanges);
+    auto strategy = std::make_unique<StrategyPoplavki>("BTC", "USDT", timersMgr, exchangeManager, exchanges);
     
     // Create balance manager
     TRACE("Initializing Balance manager...");
@@ -111,21 +118,35 @@ int main() {
     
     // Set balances for strategy
     TRACE("Setting strategy balances...");
-    strategy.setBalances(balance.getBalances());
+    strategy->setBalances(balance.getBalances());
     
     TRACE("System initialization complete, starting main loop...");
     
     // Main event loop
     int loopCount = 0;
+    startTime = std::chrono::steady_clock::now();
     auto shutdownStartTime = std::chrono::steady_clock::now();
     
     while (g_running) {
         try {
+            // Check if we've exceeded the maximum execution time
+            if (Config::MAX_EXECUTION_TIME_MS > 0) {
+                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - startTime).count();
+                if (elapsed >= Config::MAX_EXECUTION_TIME_MS) {
+                    TRACE("Maximum execution time reached (", Config::MAX_EXECUTION_TIME_MS, "ms)");
+                    break;
+                }
+            }
+            
             // Process timers
             timersMgr.checkTimers();
             
+            // Process exchange messages
+            exchangeManager.processMessages();
+            
             // Execute strategy
-            strategy.execute();
+            strategy->execute();
             
             // Log loop count periodically
             if (++loopCount % 100 == 0) {
@@ -148,11 +169,11 @@ int main() {
             }
             
             // Sleep for a short time to prevent CPU spinning
-            std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_SLEEP_MS));
+            std::this_thread::sleep_for(std::chrono::milliseconds(Config::EVENT_LOOP_DELAY_MS));
         } catch (const std::exception& e) {
             TRACE("Error in main loop: ", e.what());
             // Don't break on error, try to continue
-            std::this_thread::sleep_for(std::chrono::milliseconds(LOOP_SLEEP_MS));
+            std::this_thread::sleep_for(std::chrono::milliseconds(Config::EVENT_LOOP_DELAY_MS));
         }
     }
     

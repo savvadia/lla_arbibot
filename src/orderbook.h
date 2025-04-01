@@ -5,8 +5,11 @@
 #include <map>
 #include <mutex>
 #include <chrono>
+#include <functional>
 #include "tracer.h"
 #include "types.h"
+#include <unordered_map>
+#include "config.h"
 
 struct PriceLevel {
     double price;
@@ -14,16 +17,43 @@ struct PriceLevel {
     PriceLevel(double p = 0.0, double q = 0.0) : price(p), quantity(q) {}
 };
 
+// Helper function to merge sorted lists while maintaining size limit
+void mergeSortedLists(std::vector<PriceLevel>& oldList, const std::vector<PriceLevel>& newList, 
+                     bool isBid, double& totalAmount, double limit = Config::MAX_ORDER_BOOK_AMOUNT);
+
 // Order book for a specific trading pair
 class OrderBook : public Traceable {
 public:
     OrderBook() : exchangeId(ExchangeId::UNKNOWN), pair(TradingPair::UNKNOWN) {}
     OrderBook(ExchangeId exchangeId, TradingPair pair) 
         : exchangeId(exchangeId), pair(pair) {}
+    
+    // Copy constructor
+    OrderBook(const OrderBook& other) 
+        : exchangeId(other.exchangeId), pair(other.pair), lastUpdate(other.lastUpdate) {
+        std::lock_guard<std::mutex> lock(other.mutex);
+        bids = other.bids;
+        asks = other.asks;
+    }
+    
+    // Assignment operator
+    OrderBook& operator=(const OrderBook& other) {
+        if (this != &other) {
+            std::lock_guard<std::mutex> lock(mutex);
+            std::lock_guard<std::mutex> otherLock(other.mutex);
+            exchangeId = other.exchangeId;
+            pair = other.pair;
+            bids = other.bids;
+            asks = other.asks;
+            lastUpdate = other.lastUpdate;
+        }
+        return *this;
+    }
+    
     ~OrderBook() = default;
 
-    // Update the order book with new price levels
-    void update(const std::vector<PriceLevel>& bids, const std::vector<PriceLevel>& asks);
+    // Update the order book with new price levels (assumes sorted input)
+    void update(const std::vector<PriceLevel>& newBids, const std::vector<PriceLevel>& newAsks);
 
     // Get best bid price
     double getBestBid() const {
@@ -35,6 +65,18 @@ public:
     double getBestAsk() const {
         MUTEX_LOCK(mutex);
         return asks.empty() ? 0.0 : asks[0].price;
+    }
+
+    // Get worst bid price (lowest)
+    double getWorstBid() const {
+        MUTEX_LOCK(mutex);
+        return bids.empty() ? 0.0 : bids.back().price;
+    }
+
+    // Get worst ask price (highest)
+    double getWorstAsk() const {
+        MUTEX_LOCK(mutex);
+        return asks.empty() ? 0.0 : asks.back().price;
     }
 
     // Get bid quantity at best price
@@ -49,12 +91,28 @@ public:
         return asks.empty() ? 0.0 : asks[0].quantity;
     }
 
+    // Get bid quantity at worst price
+    double getWorstBidQuantity() const {
+        MUTEX_LOCK(mutex);
+        return bids.empty() ? 0.0 : bids.back().quantity;
+    }
+
+    // Get ask quantity at worst price
+    double getWorstAskQuantity() const {
+        MUTEX_LOCK(mutex);
+        return asks.empty() ? 0.0 : asks.back().quantity;
+    }
+
     // Get best prices and quantities atomically
     struct BestPrices {
-        double bidPrice;
-        double askPrice;
-        double bidQuantity;
-        double askQuantity;
+        double bestBid;
+        double bestAsk;
+        double worstBid;
+        double worstAsk;
+        double bestBidQuantity;
+        double bestAskQuantity;
+        double worstBidQuantity;
+        double worstAskQuantity;
     };
 
     BestPrices getBestPrices() const {
@@ -62,8 +120,12 @@ public:
         return BestPrices{
             bids.empty() ? 0.0 : bids[0].price,
             asks.empty() ? 0.0 : asks[0].price,
+            bids.empty() ? 0.0 : bids.back().price,
+            asks.empty() ? 0.0 : asks.back().price,
             bids.empty() ? 0.0 : bids[0].quantity,
-            asks.empty() ? 0.0 : asks[0].quantity
+            asks.empty() ? 0.0 : asks[0].quantity,
+            bids.empty() ? 0.0 : bids.back().quantity,
+            asks.empty() ? 0.0 : asks.back().quantity
         };
     }
 
@@ -109,9 +171,17 @@ public:
     ExchangeId getExchangeId() const { return exchangeId; }
     TradingPair getTradingPair() const { return pair; }
 
+    // Helper function to check if best/worst prices changed
+    bool hasPricesChanged(const BestPrices& oldPrices, const BestPrices& newPrices) const;
+
 protected:
     void trace(std::ostream& os) const override {
-        os << "OrderBook(" << exchangeId << ", " << pair << ")";
+        MUTEX_LOCK(mutex);
+        os << exchangeId << " " << pair << " "
+           << std::fixed << std::setprecision(2)
+           << "bid:" << (bids.empty() ? 0.0 : bids[0].price) << "-" << (bids.empty() ? 0.0 : bids.back().price)
+           << " ask:" << (asks.empty() ? 0.0 : asks[0].price) << "-" << (asks.empty() ? 0.0 : asks.back().price)
+           << " " << std::chrono::duration_cast<std::chrono::microseconds>(lastUpdate.time_since_epoch()).count();
     }
 
 private:
@@ -121,9 +191,6 @@ private:
     ExchangeId exchangeId;
     TradingPair pair;
     std::chrono::system_clock::time_point lastUpdate = std::chrono::system_clock::now();
-    
-    // Helper function to check if best bid/ask changed
-    bool hasBestPricesChanged(bool isBid, double price, double quantity) const;
 };
 
 // Order book manager for all trading pairs
@@ -134,21 +201,27 @@ public:
 
     // Update order book for a trading pair
     void updateOrderBook(ExchangeId exchangeId, TradingPair pair, const std::vector<PriceLevel>& bids, const std::vector<PriceLevel>& asks);
-    void updateOrderBook(ExchangeId exchangeId, TradingPair pair, double price, double quantity, bool isBid);
 
-    // Get order book for a trading pair
-    OrderBook& getOrderBook(TradingPair pair);
+    // Get order book for a specific exchange and trading pair
+    OrderBook& getOrderBook(ExchangeId exchangeId, TradingPair pair);
+
+    // Get all order books for a trading pair
+    std::vector<std::reference_wrapper<OrderBook>> getOrderBooks(TradingPair pair);
+
+    // Get all order books for an exchange
+    std::vector<std::reference_wrapper<OrderBook>> getOrderBooks(ExchangeId exchangeId);
 
     // Set callback for order book updates
-    void setUpdateCallback(std::function<void(ExchangeId, TradingPair, const OrderBook&)> callback);
+    void setUpdateCallback(std::function<void(ExchangeId, TradingPair)> callback);
 
 protected:
     void trace(std::ostream& os) const override {
-        os << "OrderBookManager()";
+        os << "OrderBookMgr";
     }
 
 private:
-    std::map<TradingPair, OrderBook> orderBooks;
-    std::function<void(ExchangeId, TradingPair, const OrderBook&)> updateCallback;
+    // Map of exchange ID to map of trading pair to order book
+    std::unordered_map<ExchangeId, std::unordered_map<TradingPair, OrderBook>> orderBooks;
+    std::function<void(ExchangeId, TradingPair)> updateCallback;
     mutable std::mutex mutex;
 }; 

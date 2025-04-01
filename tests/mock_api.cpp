@@ -121,13 +121,7 @@ bool MockApi::getOrderBookSnapshot(TradingPair pair) {
         };
 
         std::cout << "[" << getTestTimestamp() << "] MockApi: Updating order book with snapshot data..." << std::endl;
-        for (const auto& bid : bids) {
-            m_orderBookManager.updateOrderBook(m_id, pair, bid.price, bid.quantity, true);
-        }
-
-        for (const auto& ask : asks) {
-            m_orderBookManager.updateOrderBook(m_id, pair, ask.price, ask.quantity, false);
-        }
+        m_orderBookManager.updateOrderBook(m_id, pair, bids, asks);
 
         if (m_snapshotCallback) {
             std::cout << "[" << getTestTimestamp() << "] MockApi: Calling snapshot callback with success" << std::endl;
@@ -214,60 +208,94 @@ std::string MockApi::tradingPairToSymbol(TradingPair pair) {
 
 void MockApi::simulateOrderBookUpdate(const std::vector<PriceLevel>& bids, const std::vector<PriceLevel>& asks) {
     std::cout << "[" << getTestTimestamp() << "] MockApi: Simulating order book update..." << std::endl;
-    if (!m_subscribed) {
-        std::cerr << "[" << getTestTimestamp() << "] MockApi: Not subscribed to order book updates" << std::endl;
-        return;
-    }
-
+    
+    // Create a mock update message
     json update = {
-        {"e", "depthUpdate"},
-        {"s", tradingPairToSymbol(TradingPair::BTC_USDT)},
-        {"b", json::array()},
-        {"a", json::array()}
+        {"type", "book"},
+        {"pair", "BTCUSDT"},
+        {"bids", json::array()},
+        {"asks", json::array()}
     };
 
+    // Add bids and asks to the message
     for (const auto& bid : bids) {
-        update["b"].push_back({std::to_string(bid.price), std::to_string(bid.quantity)});
+        update["bids"].push_back({std::to_string(bid.price), std::to_string(bid.quantity)});
     }
-
     for (const auto& ask : asks) {
-        update["a"].push_back({std::to_string(ask.price), std::to_string(ask.quantity)});
+        update["asks"].push_back({std::to_string(ask.price), std::to_string(ask.quantity)});
     }
 
-    std::cout << "[" << getTestTimestamp() << "] MockApi: Processing update message: " << update.dump() << std::endl;
+    // Process the mock message
     handleMockMessage(update.dump());
 }
 
 void MockApi::handleMockMessage(const std::string& msg) {
-    std::cout << "[" << getTestTimestamp() << "] MockApi: Processing message: " << msg << std::endl;
     try {
         json data = json::parse(msg);
+        
+        // Handle subscription response
         if (data.contains("event") && data["event"] == "subscribe") {
-            if (m_subscriptionCallback) {
-                std::cout << "[" << getTestTimestamp() << "] MockApi: Calling subscription callback with success" << std::endl;
-                m_subscriptionCallback(true);
+            if (data.contains("status") && data["status"] == "success") {
+                std::cout << "[" << getTestTimestamp() << "] MockApi: Subscription successful" << std::endl;
+                m_subscribed = true;
+                if (m_subscriptionCallback) {
+                    m_subscriptionCallback(true);
+                }
+            } else {
+                std::cout << "[" << getTestTimestamp() << "] MockApi: Subscription failed" << std::endl;
+                if (m_subscriptionCallback) {
+                    m_subscriptionCallback(false);
+                }
             }
-        } else if (data.contains("e") && data["e"] == "depthUpdate") {
-            std::string symbol = data["s"];
-            TradingPair pair = symbolToTradingPair(symbol);
-            
+            return;
+        }
+
+        // Handle order book update
+        if (data.contains("type") && data["type"] == "book") {
+            TradingPair pair = symbolToTradingPair(data["pair"]);
+            if (pair == TradingPair::UNKNOWN) {
+                std::cerr << "[" << getTestTimestamp() << "] MockApi: Unknown trading pair" << std::endl;
+                return;
+            }
+
+            std::vector<PriceLevel> bids;
+            std::vector<PriceLevel> asks;
+
             // Process bids
-            for (const auto& bid : data["b"]) {
-                double price = std::stod(bid[0].get<std::string>());
-                double quantity = std::stod(bid[1].get<std::string>());
-                std::cout << "[" << getTestTimestamp() << "] MockApi: Updating bid: price=" << price << ", quantity=" << quantity << std::endl;
-                m_orderBookManager.updateOrderBook(m_id, pair, price, quantity, true);
+            if (data.contains("bids")) {
+                for (const auto& bid : data["bids"]) {
+                    double price = std::stod(bid[0].get<std::string>());
+                    double quantity = std::stod(bid[1].get<std::string>());
+                    bids.push_back({price, quantity});
+                }
             }
-            
+
             // Process asks
-            for (const auto& ask : data["a"]) {
-                double price = std::stod(ask[0].get<std::string>());
-                double quantity = std::stod(ask[1].get<std::string>());
-                std::cout << "[" << getTestTimestamp() << "] MockApi: Updating ask: price=" << price << ", quantity=" << quantity << std::endl;
-                m_orderBookManager.updateOrderBook(m_id, pair, price, quantity, false);
+            if (data.contains("asks")) {
+                for (const auto& ask : data["asks"]) {
+                    double price = std::stod(ask[0].get<std::string>());
+                    double quantity = std::stod(ask[1].get<std::string>());
+                    asks.push_back({price, quantity});
+                }
+            }
+
+            if (!bids.empty() || !asks.empty()) {
+                m_orderBookManager.updateOrderBook(m_id, pair, bids, asks);
             }
         }
     } catch (const std::exception& e) {
         std::cerr << "[" << getTestTimestamp() << "] MockApi: Error processing message: " << e.what() << std::endl;
     }
+}
+
+void MockApi::processMessages() {
+    // All messages are processed asynchronously via callbacks in tests
+}
+
+void MockApi::setOrderCallback(std::function<void(bool)> callback) {
+    m_orderCallback = callback;
+}
+
+void MockApi::setBalanceCallback(std::function<void(bool)> callback) {
+    m_balanceCallback = callback;
 } 

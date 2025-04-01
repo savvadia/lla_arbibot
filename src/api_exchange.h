@@ -24,6 +24,9 @@ public:
     // Get order book snapshot for a trading pair
     virtual bool getOrderBookSnapshot(TradingPair pair) = 0;
 
+    // Process incoming messages
+    virtual void processMessages() = 0;
+
     // Order management
     virtual bool placeOrder(TradingPair pair, OrderType type, double price, double quantity) = 0;
     virtual bool cancelOrder(const std::string& orderId) = 0;
@@ -41,6 +44,8 @@ public:
     // Callback setters
     virtual void setSubscriptionCallback(std::function<void(bool)> callback) = 0;
     virtual void setSnapshotCallback(std::function<void(bool)> callback) = 0;
+    virtual void setOrderCallback(std::function<void(bool)> callback) = 0;
+    virtual void setBalanceCallback(std::function<void(bool)> callback) = 0;
 
     // operator<<
     friend std::ostream& operator<<(std::ostream& os, const ApiExchange& api) {

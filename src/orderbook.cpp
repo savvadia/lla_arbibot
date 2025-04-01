@@ -8,216 +8,241 @@
 #define TRACE(...) TRACE_THIS(TraceInstance::ORDERBOOK, __VA_ARGS__)
 #define DEBUG(...) DEBUG_THIS(TraceInstance::ORDERBOOK, __VA_ARGS__)
 
-bool OrderBook::hasBestPricesChanged(bool isBid, double price, double quantity) const {
-    // Note: This method should only be called while holding the mutex
-    if (isBid) {
-        if (bids.empty()) return quantity > 0;
-        if (quantity <= 0 && price == bids[0].price) return true;
-        return price > bids[0].price || (price == bids[0].price && quantity != bids[0].quantity);
-    } else {
-        if (asks.empty()) return quantity > 0;
-        if (quantity <= 0 && price == asks[0].price) return true;
-        return price < asks[0].price || (price == asks[0].price && quantity != asks[0].quantity);
+bool OrderBook::hasPricesChanged(const BestPrices& oldPrices, const BestPrices& newPrices) const {
+    return oldPrices.bestBid != newPrices.bestBid ||
+           oldPrices.bestAsk != newPrices.bestAsk ||
+           oldPrices.worstBid != newPrices.worstBid ||
+           oldPrices.worstAsk != newPrices.worstAsk;
+}
+
+// Helper function to merge sorted lists while maintaining size limit
+void mergeSortedLists(std::vector<PriceLevel>& oldList, const std::vector<PriceLevel>& newList, 
+                     bool isBid, double& totalAmount, double limit) {
+    std::vector<PriceLevel> result;
+    result.reserve(oldList.size() + newList.size());
+    
+    // Handle empty lists
+    if (oldList.empty()) {
+        for (auto it = newList.rbegin(); it != newList.rend() && totalAmount < limit; ++it) {
+            if (it->quantity > 0) {
+                result.push_back(*it);
+                totalAmount += it->price * it->quantity;
+            }
+        }
+        std::reverse(result.begin(), result.end());
+        oldList = std::move(result);
+        return;
     }
+    
+    if (newList.empty()) {
+        for (auto it = oldList.rbegin(); it != oldList.rend() && totalAmount < limit; ++it) {
+            result.push_back(*it);
+            totalAmount += it->price * it->quantity;
+        }
+        std::reverse(result.begin(), result.end());
+        oldList = std::move(result);
+        return;
+    }
+    
+    auto oldIt = oldList.rbegin();  // Start from best prices
+    auto newIt = newList.rbegin();  // Start from best prices
+    
+    while (oldIt != oldList.rend() && newIt != newList.rend()) {
+        if (isBid ? (newIt->price > oldIt->price) : (newIt->price < oldIt->price)) {
+            // New price is better, add it
+            result.push_back(*newIt);
+            totalAmount += newIt->price * newIt->quantity;
+            ++newIt;
+        } else if (newIt->price == oldIt->price) {
+            // Same price, update quantity
+            if (newIt->quantity > 0) {
+                result.push_back(*newIt);
+                totalAmount += newIt->price * newIt->quantity;
+            }
+            ++newIt;
+            ++oldIt;
+        } else {
+            // Old price is better, keep it
+            result.push_back(*oldIt);
+            totalAmount += oldIt->price * oldIt->quantity;
+            ++oldIt;
+        }
+        
+        // Check if we've reached the limit
+        if (totalAmount >= limit) {
+            break;
+        }
+    }
+    
+    // Add remaining elements from old list if we haven't reached the limit
+    while (oldIt != oldList.rend() && totalAmount < limit) {
+        result.push_back(*oldIt);
+        totalAmount += oldIt->price * oldIt->quantity;
+        ++oldIt;
+    }
+    
+    // Add remaining elements from new list if we haven't reached the limit
+    while (newIt != newList.rend() && totalAmount < limit) {
+        if (newIt->quantity > 0) {
+            result.push_back(*newIt);
+            totalAmount += newIt->price * newIt->quantity;
+        }
+        ++newIt;
+    }
+    
+    // Reverse to maintain order (best prices at end)
+    std::reverse(result.begin(), result.end());
+    oldList = std::move(result);
 }
 
 void OrderBook::update(const std::vector<PriceLevel>& newBids, const std::vector<PriceLevel>& newAsks) {
-    bool bestPricesChanged = false;
-    double oldBestBid = 0.0, oldBestAsk = 0.0;
-    double oldBestBidQty = 0.0, oldBestAskQty = 0.0;
+    BestPrices oldPrices = getBestPrices();
+    bool pricesChanged = false;
     
     {
-        MUTEX_LOCK(mutex);
         
-        // Store old best prices for comparison
-        if (!bids.empty()) {
-            oldBestBid = bids[0].price;
-            oldBestBidQty = bids[0].quantity;
-        }
-        if (!asks.empty()) {
-            oldBestAsk = asks[0].price;
-            oldBestAskQty = asks[0].quantity;
-        }
-    
-        // Process bids
-        for (const auto& bid : newBids) {
-            auto it = std::lower_bound(bids.begin(), bids.end(), bid.price,
-                [](const PriceLevel& level, double p) { return level.price > p; });
-                
-            if (it != bids.end() && it->price == bid.price) {
-                if (bid.quantity > 0) {
-                    it->quantity = bid.quantity;  // Update quantity
-                } else {
-                    bids.erase(it);  // Remove price level
-                }
-            } else if (bid.quantity > 0) {
-                bids.insert(it, bid);  // Add new price level
-            }
-        }
-        
-        // Process asks
-        for (const auto& ask : newAsks) {
-            auto it = std::lower_bound(asks.begin(), asks.end(), ask.price,
-                [](const PriceLevel& level, double p) { return level.price < p; });
-                
-            if (it != asks.end() && it->price == ask.price) {
-                if (ask.quantity > 0) {
-                    it->quantity = ask.quantity;  // Update quantity
-                } else {
-                    asks.erase(it);  // Remove price level
-                }
-            } else if (ask.quantity > 0) {
-                asks.insert(it, ask);  // Add new price level
-            }
-        }
-        
-        // Sort and clean up empty levels
-        bids.erase(std::remove_if(bids.begin(), bids.end(), 
-            [](const PriceLevel& level) { return level.quantity <= 0; }), bids.end());
-        asks.erase(std::remove_if(asks.begin(), asks.end(), 
-            [](const PriceLevel& level) { return level.quantity <= 0; }), asks.end());
+        // If we receive a large number of levels, treat it as a snapshot
+        if (newBids.size() > 100 || newAsks.size() > 100) {
+            MUTEX_LOCK(mutex);
+            // For snapshots, accumulate levels until we reach MAX_ORDER_BOOK_AMOUNT
+            bids.clear();
+            asks.clear();
             
-        // Check if best prices changed
-        if (!bids.empty() && (oldBestBid != bids[0].price || oldBestBidQty != bids[0].quantity)) {
-            bestPricesChanged = true;
-        }
-        if (!asks.empty() && (oldBestAsk != asks[0].price || oldBestAskQty != asks[0].quantity)) {
-            bestPricesChanged = true;
-        }
-        
-        // Update lastUpdate only if best prices changed
-        if (bestPricesChanged) {
-            lastUpdate = std::chrono::system_clock::now();
+            // Process bids (descending order)
+            double totalBidAmount = 0.0;
+            for (auto it = newBids.rbegin(); it != newBids.rend() && totalBidAmount < Config::MAX_ORDER_BOOK_AMOUNT; ++it) {
+                if (it->quantity > 0) {
+                    bids.push_back(*it);
+                    totalBidAmount += it->price * it->quantity;
+                }
+            }
+            
+            // Process asks (ascending order)
+            double totalAskAmount = 0.0;
+            for (auto it = newAsks.begin(); it != newAsks.end() && totalAskAmount < Config::MAX_ORDER_BOOK_AMOUNT; ++it) {
+                if (it->quantity > 0) {
+                    asks.push_back(*it);
+                    totalAskAmount += it->price * it->quantity;
+                }
+            }
+            
+            pricesChanged = true;
+        } else {
+            {
+                MUTEX_LOCK(mutex);
+
+                // For updates, merge with existing levels
+                double totalBidAmount = 0.0;
+                mergeSortedLists(bids, newBids, true, totalBidAmount, Config::MAX_ORDER_BOOK_AMOUNT);
+                
+                double totalAskAmount = 0.0;
+                mergeSortedLists(asks, newAsks, false, totalAskAmount, Config::MAX_ORDER_BOOK_AMOUNT);
+            }
+            // Check if prices changed
+            BestPrices newPrices = getBestPrices();
+            pricesChanged = hasPricesChanged(oldPrices, newPrices);
         }
     }
-
-    std::ostringstream oss;
-    oss << "bid: " << std::fixed << std::setprecision(2) << getBestBid() 
-        << " (" << std::setprecision(4) << getBestBidQuantity() << ") "
-        << "ask: " << std::setprecision(2) << getBestAsk() 
-        << " (" << std::setprecision(4) << getBestAskQuantity() << ")";
     
-    DEBUG("Updated with ", newBids.size(), " bid updates and ", newAsks.size(), " ask updates: ", oss.str());
+    // Update lastUpdate only if prices changed
+    if (pricesChanged) {
+        {
+            MUTEX_LOCK(mutex);
+            lastUpdate = std::chrono::system_clock::now();
+        }
+        TRACE("Order book updated");
+    }
 }
-
 void OrderBook::updatePriceLevel(bool isBid, double price, double quantity) {
-    if (price <= 0.0) return;  // Ignore invalid prices
-    if (quantity < 0.0) return;  // Ignore negative quantities
-    
-    bool bestPricesChanged = false;
-    double oldBestPrice = 0.0, oldBestQty = 0.0;
-    
-    {
-        MUTEX_LOCK(mutex);
-        auto& levels = isBid ? bids : asks;
-        
-        // Store old best price for comparison
-        if (!levels.empty()) {
-            oldBestPrice = levels[0].price;
-            oldBestQty = levels[0].quantity;
-        }
-        
-        // Find the position to insert/update using binary search
-        auto it = std::lower_bound(levels.begin(), levels.end(), price,
-            [isBid](const PriceLevel& level, double p) { 
-                return isBid ? level.price > p : level.price < p;
-            });
-        
-        // Update or insert the price level
-        if (it != levels.end() && std::abs(it->price - price) < 1e-10) {
-            if (quantity > 0) {
-                it->quantity = quantity;  // Update quantity
-            } else {
-                levels.erase(it);  // Remove price level
-            }
-        } else if (quantity > 0) {
-            levels.insert(it, PriceLevel(price, quantity));  // Add new price level at sorted position
-        }
-        
-        // Clean up empty levels
-        levels.erase(std::remove_if(levels.begin(), levels.end(), 
-            [](const PriceLevel& level) { return level.quantity <= 0; }), levels.end());
-            
-        // Check if best price changed
-        if (!levels.empty()) {
-            if (std::abs(oldBestPrice - levels[0].price) >= 1e-10 || 
-                std::abs(oldBestQty - levels[0].quantity) >= 1e-10) {
-                bestPricesChanged = true;
-            }
-        } else if (oldBestPrice != 0.0 || oldBestQty != 0.0) {
-            bestPricesChanged = true;  // All levels were removed
-        }
-        
-        // Update lastUpdate only if best prices changed
-        if (bestPricesChanged) {
-            lastUpdate = std::chrono::system_clock::now();
-        }
+    std::vector<PriceLevel> newBids, newAsks;
+    if (isBid) {
+        newBids = {{price, quantity}};
+    } else {
+        newAsks = {{price, quantity}};
     }
-
-    DEBUG("Updated price level ", isBid ? "bid" : "ask", " to ", price, " with quantity ", quantity);
+    update(newBids, newAsks);
 }
 
 OrderBookManager::OrderBookManager() {
+    // Initialize order books for each exchange and trading pair
+    for (const auto& exchangeId : {ExchangeId::BINANCE, ExchangeId::KRAKEN}) {
+        for (const auto& pair : {TradingPair::BTC_USDT, TradingPair::ETH_USDT}) {
+            orderBooks[exchangeId][pair] = OrderBook(exchangeId, pair);
+        }
+    }
 }
 
 void OrderBookManager::updateOrderBook(ExchangeId exchangeId, TradingPair pair, const std::vector<PriceLevel>& bids, const std::vector<PriceLevel>& asks) {
-    OrderBook* book = nullptr;
+    bool changed = false;
     {
         MUTEX_LOCK(mutex);
-        if (orderBooks.find(pair) == orderBooks.end()) {
-            orderBooks.try_emplace(pair, exchangeId, pair);
-        }
-        book = &orderBooks[pair];
-    }
     
-    if (book) {
-        book->update(bids, asks);
+        auto& book = orderBooks[exchangeId][pair];
+        std::chrono::system_clock::time_point lastUpdate = book.getLastUpdate();
         
-        // Call callback outside the lock
-        if (updateCallback) {
-            updateCallback(exchangeId, pair, *book);
+        // Log current state before update
+        auto [oldBids, oldAsks] = book.getState();
+        DEBUG("Before update - Exchange: ", exchangeId, " Pair: ", pair, " book: ", book);
+        
+        // Update the order book
+        book.update(bids, asks);
+
+        // Only trigger callback if the lastUpdate timestamp changed
+        if (book.getLastUpdate() > lastUpdate) {
+            changed = true;
+            // Log new state after update
+            DEBUG("After update - Exchange: ", exchangeId, " Pair: ", pair, " book: ", book);
         }
+    }
+
+    if (changed) {        
+        if (updateCallback) {
+            DEBUG("Calling update callback for exchange: ", exchangeId, " pair: ", pair);
+            updateCallback(exchangeId, pair);
+        } else {
+            TRACE("No update callback set for exchange: ", exchangeId, " pair: ", pair);
+        }
+    } else {
+        DEBUG("Update skipped - no changes detected for exchange: ", exchangeId, " pair: ", pair);
     }
 }
 
-void OrderBookManager::updateOrderBook(ExchangeId exchangeId, TradingPair pair, double price, double quantity, bool isBid) {
-    OrderBook* book = nullptr;
-    {
-        MUTEX_LOCK(mutex);
-        if (orderBooks.find(pair) == orderBooks.end()) {
-            orderBooks.try_emplace(pair, exchangeId, pair);
-        }
-        book = &orderBooks[pair];
-    }
-    
-    if (book) {
-        book->updatePriceLevel(isBid, price, quantity);
-        
-        // Call callback outside the lock
-        if (updateCallback) {
-            updateCallback(exchangeId, pair, *book);
-        }
-    }
-}
-
-OrderBook& OrderBookManager::getOrderBook(TradingPair pair) {
+OrderBook& OrderBookManager::getOrderBook(ExchangeId exchangeId, TradingPair pair) {
     MUTEX_LOCK(mutex);
-    return orderBooks[pair];
+    return orderBooks[exchangeId][pair];
 }
 
-void OrderBookManager::setUpdateCallback(std::function<void(ExchangeId, TradingPair, const OrderBook&)> callback) {
-    updateCallback = callback;
+std::vector<std::reference_wrapper<OrderBook>> OrderBookManager::getOrderBooks(TradingPair pair) {
+    MUTEX_LOCK(mutex);
+    std::vector<std::reference_wrapper<OrderBook>> books;
     
-    std::vector<std::pair<ExchangeId, std::pair<TradingPair, const OrderBook*>>> books;
-    {
-        MUTEX_LOCK(mutex);
-        for (const auto& [pair, book] : orderBooks) {
-            books.push_back({book.getExchangeId(), {pair, &book}});
+    // Get all order books for the given trading pair across exchanges
+    for (auto& [exchangeId, exchangeBooks] : orderBooks) {
+        auto it = exchangeBooks.find(pair);
+        if (it != exchangeBooks.end()) {
+            books.push_back(std::ref(it->second));
         }
     }
     
-    // Call callbacks outside the lock
-    for (const auto& [exchangeId, pairAndBook] : books) {
-        updateCallback(exchangeId, pairAndBook.first, *pairAndBook.second);
+    return books;
+}
+
+std::vector<std::reference_wrapper<OrderBook>> OrderBookManager::getOrderBooks(ExchangeId exchangeId) {
+    MUTEX_LOCK(mutex);
+    std::vector<std::reference_wrapper<OrderBook>> books;
+    
+    // Get all order books for the given exchange
+    auto it = orderBooks.find(exchangeId);
+    if (it != orderBooks.end()) {
+        for (auto& [pair, book] : it->second) {
+            books.push_back(std::ref(book));
+        }
     }
+    
+    return books;
+}
+
+void OrderBookManager::setUpdateCallback(std::function<void(ExchangeId, TradingPair)> callback) {
+    MUTEX_LOCK(mutex);
+    updateCallback = callback;
 } 

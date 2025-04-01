@@ -35,6 +35,10 @@ Thumbs.db
 *.out
 *.app
 LlaArbibot
+BalanceTest
+EventLoopTest
+OrderBookTest
+TimersTest
 
 # Ignore test binaries
 tests/*Test

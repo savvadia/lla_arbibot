@@ -255,8 +255,7 @@ bool ApiBinance::subscribeOrderBook(TradingPair pair) {
     try {
         std::string symbol = tradingPairToSymbol(pair);
         std::stringstream ss;
-        // Changed from @depth@100ms to @depth@100ms@1000 to get more frequent updates
-        ss << "{\"method\":\"SUBSCRIBE\",\"params\":[\"" << symbol << "@depth@100ms@1000\"],\"id\":1}";
+        ss << "{\"method\":\"SUBSCRIBE\",\"params\":[\"" << symbol << "@depth@100ms@100\"],\"id\":1}";
         
         TRACE("Subscribing to Binance order book for ", symbol);
         doWrite(ss.str());
@@ -359,6 +358,18 @@ void ApiBinance::processOrderBookUpdate(const json& data) {
             return;
         }
 
+        auto& state = symbolStates[pair];
+        if (!state.hasSnapshot) {
+            TRACE("Skipping update for ", symbol, " - no snapshot yet");
+            return;
+        }
+
+        // Check if this update is after our last snapshot
+        if (data.contains("u") && data["u"] <= state.lastUpdateId) {
+            TRACE("Skipping update for ", symbol, " - update ID ", data["u"], " is before or equal to last snapshot ID ", state.lastUpdateId);
+            return;
+        }
+
         std::vector<PriceLevel> bids;
         std::vector<PriceLevel> asks;
 
@@ -386,8 +397,37 @@ void ApiBinance::processOrderBookUpdate(const json& data) {
             }
         }
 
+        // Skip updates that would clear the entire order book
+        if (bids.empty() && asks.empty()) {
+            TRACE("Skipping empty update for ", symbol);
+            return;
+        }
+
+        // Check if this update would clear all price levels
+        bool allZeroBids = true;
+        bool allZeroAsks = true;
+        for (const auto& bid : bids) {
+            if (bid.quantity > 0) {
+                allZeroBids = false;
+                break;
+            }
+        }
+        for (const auto& ask : asks) {
+            if (ask.quantity > 0) {
+                allZeroAsks = false;
+                break;
+            }
+        }
+
+        if (allZeroBids && allZeroAsks) {
+            TRACE("Skipping update that would clear all price levels for ", symbol);
+            return;
+        }
+
         if (!bids.empty() || !asks.empty()) {
             TRACE("Updating order book for ", symbol, " with ", bids.size(), " bids and ", asks.size(), " asks");
+            TRACE("First bid: ", (bids.empty() ? "none" : std::to_string(bids[0].price) + "@" + std::to_string(bids[0].quantity)));
+            TRACE("First ask: ", (asks.empty() ? "none" : std::to_string(asks[0].price) + "@" + std::to_string(asks[0].quantity)));
             m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
         }
     } catch (const std::exception& e) {
@@ -519,6 +559,14 @@ void ApiBinance::setSnapshotCallback(std::function<void(bool)> callback) {
     m_snapshotCallback = callback;
 }
 
+void ApiBinance::setOrderCallback(std::function<void(bool)> callback) {
+    m_orderCallback = callback;
+}
+
+void ApiBinance::setBalanceCallback(std::function<void(bool)> callback) {
+    m_balanceCallback = callback;
+}
+
 void ApiBinance::doWrite(std::string message) {
     TRACE("Sending WebSocket message: ", message);
     m_ws->async_write(net::buffer(message),
@@ -529,4 +577,8 @@ void ApiBinance::doWrite(std::string message) {
             }
             TRACE("Successfully sent WebSocket message");
         });
+}
+
+void ApiBinance::processMessages() {
+    // All messages are processed asynchronously via WebSocket callbacks
 } 

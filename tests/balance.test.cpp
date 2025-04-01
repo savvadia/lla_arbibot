@@ -41,26 +41,38 @@ TEST_F(BalanceTest, GetBalance) {
     EXPECT_DOUBLE_EQ(balance.get("kraken", "BTC"), 0.01);
 }
 
-TEST(BalanceTest, BasicOperations) {
-    Balance balance;
-    
-    // Test increasing balance
-    balance.inc("kraken", "BTC", 0.005);
-    EXPECT_DOUBLE_EQ(balance.get("kraken", "BTC"), 0.005);
-    
-    // Test increasing balance again
-    balance.inc("kraken", "BTC", 0.01);
-    EXPECT_DOUBLE_EQ(balance.get("kraken", "BTC"), 0.015);
-    
-    // Test decreasing balance
-    balance.dec("binance", "USDT", 50.0);
-    EXPECT_DOUBLE_EQ(balance.get("binance", "USDT"), -50.0);
-    
-    // Test decreasing balance again
-    balance.dec("binance", "USDT", 100.0);
-    EXPECT_DOUBLE_EQ(balance.get("binance", "USDT"), -150.0);
-    
-    // Test decreasing balance from positive
-    balance.dec("kraken", "BTC", 0.005);
+// Test basic balance operations
+TEST_F(BalanceTest, BasicOperations) {
+    // Test initial state
     EXPECT_DOUBLE_EQ(balance.get("kraken", "BTC"), 0.01);
+    EXPECT_DOUBLE_EQ(balance.get("kraken", "USDT"), 100.0);
+    EXPECT_DOUBLE_EQ(balance.get("binance", "BTC"), 0.02);
+    EXPECT_DOUBLE_EQ(balance.get("binance", "USDT"), 200.0);
+    
+    // Test increasing balances
+    balance.inc("kraken", "BTC", 0.005);
+    balance.inc("kraken", "USDT", 50.0);
+    balance.inc("binance", "BTC", 0.01);
+    balance.inc("binance", "USDT", 100.0);
+    
+    EXPECT_DOUBLE_EQ(balance.get("kraken", "BTC"), 0.015);
+    EXPECT_DOUBLE_EQ(balance.get("kraken", "USDT"), 150.0);
+    EXPECT_DOUBLE_EQ(balance.get("binance", "BTC"), 0.03);
+    EXPECT_DOUBLE_EQ(balance.get("binance", "USDT"), 300.0);
+    
+    // Test decreasing balances
+    balance.dec("kraken", "BTC", 0.005);
+    balance.dec("kraken", "USDT", 25.0);
+    balance.dec("binance", "BTC", 0.01);
+    balance.dec("binance", "USDT", 50.0);
+    
+    EXPECT_DOUBLE_EQ(balance.get("kraken", "BTC"), 0.01);
+    EXPECT_DOUBLE_EQ(balance.get("kraken", "USDT"), 125.0);
+    EXPECT_DOUBLE_EQ(balance.get("binance", "BTC"), 0.02);
+    EXPECT_DOUBLE_EQ(balance.get("binance", "USDT"), 250.0);
+    
+    // Test non-existent currency
+    EXPECT_DOUBLE_EQ(balance.get("kraken", "XRP"), 0.0);
+    balance.dec("kraken", "XRP", 1.0);
+    EXPECT_DOUBLE_EQ(balance.get("kraken", "XRP"), 0.0);
 }

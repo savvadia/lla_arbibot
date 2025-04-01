@@ -30,21 +30,6 @@ FetchContent_MakeAvailable(json)
 
 # Add source files
 set(SOURCES
-    src/main.cpp
-    src/event_loop.cpp
-    src/timers.cpp
-    src/api_binance.cpp
-    src/api_kraken.cpp
-    src/s_poplavki.cpp
-    src/orderbook.cpp
-    src/balance.cpp
-    src/tracer.cpp
-    src/ex_mgr.cpp
-    src/api_exchange.cpp
-)
-
-# Add test source files (excluding main.cpp)
-set(TEST_SOURCES
     src/event_loop.cpp
     src/timers.cpp
     src/api_binance.cpp
@@ -71,11 +56,11 @@ set(HEADERS
     src/types.h
 )
 
-# Create executable
-add_executable(LlaArbibot ${SOURCES} ${HEADERS})
+# Create library from source files
+add_library(lla_arbibot_lib STATIC ${SOURCES} ${HEADERS})
 
 # Add include directories
-target_include_directories(LlaArbibot PRIVATE
+target_include_directories(lla_arbibot_lib PUBLIC
     ${CMAKE_SOURCE_DIR}/src
     ${Boost_INCLUDE_DIRS}
     ${CURL_INCLUDE_DIRS}
@@ -85,7 +70,7 @@ target_include_directories(LlaArbibot PRIVATE
 )
 
 # Link libraries
-target_link_libraries(LlaArbibot PRIVATE
+target_link_libraries(lla_arbibot_lib PUBLIC
     ${Boost_LIBRARIES}
     ${CURL_LIBRARIES}
     ${OPENSSL_LIBRARIES}
@@ -93,36 +78,40 @@ target_link_libraries(LlaArbibot PRIVATE
     nlohmann_json::nlohmann_json
 )
 
-# Add test executable
+# Create main executable
+add_executable(LlaArbibot src/main.cpp)
+target_link_libraries(LlaArbibot PRIVATE lla_arbibot_lib)
+
+# Add test executables
 add_executable(api_test 
     tests/api.test.cpp 
     tests/mock_api.cpp
-    ${TEST_SOURCES} 
-    ${HEADERS}
 )
+target_link_libraries(api_test PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
 
-# Include directories for tests
-target_include_directories(api_test PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/tests
-    ${Boost_INCLUDE_DIRS}
-    ${CURL_INCLUDE_DIRS}
-    ${GTEST_INCLUDE_DIRS}
-    ${OPENSSL_INCLUDE_DIR}
+add_executable(BalanceTest 
+    tests/balance.test.cpp
 )
+target_link_libraries(BalanceTest PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
 
-# Link libraries for tests
-target_link_libraries(api_test PRIVATE
-    ${Boost_LIBRARIES}
-    ${CURL_LIBRARIES}
-    ${OPENSSL_LIBRARIES}
-    pthread
-    GTest::GTest
-    GTest::Main
+add_executable(OrderBookTest 
+    tests/orderbook.test.cpp
 )
+target_link_libraries(OrderBookTest PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
 
-# Enable testing
-enable_testing()
+add_executable(TimersTest 
+    tests/timers.test.cpp
+)
+target_link_libraries(TimersTest PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
 
-# Add subdirectories for tests
-add_subdirectory(tests)
+add_executable(EventLoopTest 
+    tests/event_loop.test.cpp
+)
+target_link_libraries(EventLoopTest PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
+
+# Add tests to CTest
+add_test(NAME ApiTest COMMAND api_test)
+add_test(NAME BalanceTest COMMAND BalanceTest)
+add_test(NAME OrderBookTest COMMAND OrderBookTest)
+add_test(NAME TimersTest COMMAND TimersTest)
+add_test(NAME EventLoopTest COMMAND EventLoopTest)

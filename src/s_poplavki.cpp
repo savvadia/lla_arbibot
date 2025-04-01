@@ -1,12 +1,14 @@
 #include <iostream>
 #include <string>
-#include "balance.h"
-#include "timers.h"
-#include "s_poplavki.h"
 #include <thread>
 #include <iomanip>
 #include <algorithm>
 #include <sstream>
+
+#include "config.h"
+#include "balance.h"
+#include "timers.h"
+#include "s_poplavki.h"
 #include "tracer.h"
 #include "types.h"
 
@@ -15,29 +17,25 @@ using namespace std;
 // Define TRACE macro for StrategyPoplavki class
 #define TRACE(...) TRACE_THIS(TraceInstance::STRAT, __VA_ARGS__)
 #define DEBUG(...) DEBUG_THIS(TraceInstance::STRAT, __VA_ARGS__)
-Strategy::Strategy(std::string name, std::string coin, std::string stableCoin, TimersMgr &timersMgr) : name(name), coin(coin), stableCoin(stableCoin), timersMgr(timersMgr)
-{
+
+Strategy::Strategy(std::string name, std::string coin, std::string stableCoin, TimersMgr &timersMgr) 
+    : name(name), coin(coin), stableCoin(stableCoin), timersMgr(timersMgr) {
     balances = {};
 }
 
-void Strategy::setBalances(BalanceData balances)
-{
+void Strategy::setBalances(BalanceData balances) {
     this->balances = balances;
     // validate that balances contain only the coins we need
-    for (const auto &exchange : balances)
-    {
-        for (const auto &coin : exchange.second)
-        {
-            if (coin.first != this->coin && coin.first != this->stableCoin)
-            {
+    for (const auto &exchange : balances) {
+        for (const auto &coin : exchange.second) {
+            if (coin.first != this->coin && coin.first != this->stableCoin) {
                 throw std::invalid_argument("Invalid coin in balances: " + coin.first + ", expected: " + this->coin + " or " + this->stableCoin);
             }
         }
     }
 }
 
-std::string Strategy::getName() const
-{
+std::string Strategy::getName() const {
     return name;
 }
 
@@ -55,8 +53,8 @@ StrategyPoplavki::StrategyPoplavki(const std::string& baseAsset,
     TRACE("Initializing with ", exchangeIds.size(), " exchanges");
     
     // Set up order book update callback
-    exchangeManager.getOrderBookManager().setUpdateCallback([this](ExchangeId exchangeId, TradingPair pair, const OrderBook& orderBook) {
-        updateOrderBookData(exchangeId, orderBook);
+    exchangeManager.getOrderBookManager().setUpdateCallback([this](ExchangeId exchangeId, TradingPair pair) {
+        updateOrderBookData(exchangeId);
     });
     
     // Set up periodic scanning (3 seconds)
@@ -83,84 +81,54 @@ void StrategyPoplavki::setScanInterval(int ms) {
     TRACE("Set up timer with ID ", timerId, " for scanning in ", ms, "ms");
 }
 
-void StrategyPoplavki::updateOrderBookData(ExchangeId exchange, const OrderBook& orderBook) {
-    auto [bids, asks] = orderBook.getState();
-    
-    OrderBookData data;
-    data.bestBid = bids.empty() ? 0.0 : bids[0].price;
-    data.bestAsk = asks.empty() ? 0.0 : asks[0].price;
-    data.bestBidQuantity = bids.empty() ? 0.0 : bids[0].quantity;
-    data.bestAskQuantity = asks.empty() ? 0.0 : asks[0].quantity;
-    data.lastUpdate = std::chrono::steady_clock::now();
-
-    {
-        MUTEX_LOCK(dataMutex);
-        if (orderBookData.find(exchange) == orderBookData.end()) {
-            // check if anything has changed, excluding the lastUpdate
-            if (orderBookData[exchange].bestBid != data.bestBid ||
-                orderBookData[exchange].bestAsk != data.bestAsk ||
-                orderBookData[exchange].bestBidQuantity != data.bestBidQuantity ||
-                orderBookData[exchange].bestAskQuantity != data.bestAskQuantity) {
-                orderBookData[exchange] = data;
-                TRACE("Updated order book data for ", getExchange(exchange), 
-                    " bid:", data.bestBid, " (", data.bestBidQuantity, ")"
-                    " ask:", data.bestAsk, " (", data.bestAskQuantity, ")");
-            } else {
-                orderBookData[exchange].lastUpdate = data.lastUpdate;
-            }
-        } else {
-            orderBookData[exchange] = data;
-        }
-    }
-
+void StrategyPoplavki::updateOrderBookData(ExchangeId exchange) {
+    TRACE("Received order book update from exchange: ", exchange);
+    scanOpportunities();
 }
 
 Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId sellExchange) {
-    MUTEX_LOCK(dataMutex);
-    const auto& buyData = orderBookData[buyExchange];
-    const auto& sellData = orderBookData[sellExchange];
-    static auto lastUpdate = std::chrono::steady_clock::now();
-    if (std::max(buyData.lastUpdate, sellData.lastUpdate) > lastUpdate) {
-        lastUpdate = std::max(buyData.lastUpdate, sellData.lastUpdate);
-    } else {
-        // no changes in the order book data, return 0 profit
-        return Opportunity{buyExchange, sellExchange, 0.0, 0.0, 0.0};
-    }
+    auto& orderBookManager = exchangeManager.getOrderBookManager();
+    auto buyBook = orderBookManager.getOrderBook(buyExchange, TradingPair::BTC_USDT);
+    auto sellBook = orderBookManager.getOrderBook(sellExchange, TradingPair::BTC_USDT);
+
+    double buyPrice = buyBook.getBestAsk();
+    double sellPrice = sellBook.getBestBid();
+    double profit = sellPrice - buyPrice;
+    double profitPercent = (profit / buyPrice) * 100;
+    double amount  = std::min(buyBook.getBestAskQuantity(), sellBook.getBestBidQuantity());
+
+
+    std::stringstream ss;
+    ss << buyExchange << "( " << std::chrono::duration_cast<std::chrono::microseconds>(buyBook.getLastUpdate().time_since_epoch()).count() << ") -> "
+       << sellExchange << "( " << std::chrono::duration_cast<std::chrono::microseconds>(sellBook.getLastUpdate().time_since_epoch()).count() << ") "
+       << std::fixed << std::setprecision(2) << buyPrice << " -> " << sellPrice
+       << " = " << profit << " (" << std::fixed << std::setprecision(4) << profitPercent << "%)";
     
-    TRACE("Calculating profit with buy:  ", std::chrono::duration_cast<std::chrono::nanoseconds>(buyData.lastUpdate.time_since_epoch()).count(), " ", buyExchange, " ", buyData);
-    TRACE("Calculating profit with sell: ", std::chrono::duration_cast<std::chrono::nanoseconds>(sellData.lastUpdate.time_since_epoch()).count(), " ", sellExchange, " ", sellData);
+    TRACE("Calculating profit for ", ss.str());
 
-    if (buyData.bestAskQuantity <= 0 || sellData.bestBidQuantity <= 0) {
-        TRACE("No liquidity: ", buyData.bestAskQuantity, "@", getExchange(buyExchange), " ", sellData.bestBidQuantity, "@", getExchange(sellExchange));
-        return Opportunity{buyExchange, sellExchange, 0.0, 0.0, 0.0};
+    if (buyPrice > 0 && sellPrice > 0 && amount > 0 && buyPrice < sellPrice) {
+        return Opportunity(buyExchange, sellExchange, amount, buyPrice, sellPrice);
     }
 
-    if (buyData.bestAsk >= sellData.bestBid) {
-        TRACE("No arbitrage: ", buyData.bestAsk, "@", getExchange(buyExchange), " ", sellData.bestBid, "@", getExchange(sellExchange));
-        return Opportunity{buyExchange, sellExchange, 0.0, 0.0, 0.0};
-    }
-
-    double amount = std::min(buyData.bestAskQuantity, sellData.bestBidQuantity);
-    
-    return Opportunity{buyExchange, sellExchange, amount, buyData.bestAsk, sellData.bestBid};
+    return Opportunity(buyExchange, sellExchange, 0.0, 0.0, 0.0);
 }
 
 void StrategyPoplavki::scanOpportunities() {
     DEBUG("Starting opportunity scan...");
     
-    // Check arbitrage between all pairs of exchanges
     for (size_t i = 0; i < exchangeIds.size(); ++i) {
         for (size_t j = i + 1; j < exchangeIds.size(); ++j) {
-            ExchangeId exchange1 = exchangeIds[i];
-            ExchangeId exchange2 = exchangeIds[j];
-
-            auto opportunity1 = calculateProfit(exchange1, exchange2);
-            if (opportunity1.amount > 0) {
-                TRACE("ARBITRAGE OPPORTUNITY: ", opportunity1);
+            // Try both directions
+            Opportunity opp1 = calculateProfit(exchangeIds[i], exchangeIds[j]);
+            if (opp1.amount > 0) {
+                TRACE("Found opportunity: ", opp1);
+                // TODO: Execute opportunity
             }
-            auto opportunity2 = calculateProfit(exchange2, exchange1);
-            if (opportunity2.amount > 0) {
-                TRACE("ARBITRAGE OPPORTUNITY: ", opportunity2);
+
+            Opportunity opp2 = calculateProfit(exchangeIds[j], exchangeIds[i]);
+            if (opp2.amount > 0) {
+                TRACE("Found opportunity: ", opp2);
+                // TODO: Execute opportunity
             }
         }
     }
@@ -172,9 +140,6 @@ void StrategyPoplavki::execute() {
 
 void StrategyPoplavki::timerCallback(int id, void *data) {
     auto* strategy = static_cast<StrategyPoplavki*>(data);
-    if (strategy) {
-        strategy->scanOpportunities();
-        strategy->setScanInterval(1000);
-    }
+    strategy->scanOpportunities();
 }
 

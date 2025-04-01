@@ -41,6 +41,9 @@ public:
     // Get current order book snapshot
     bool getOrderBookSnapshot(TradingPair pair) override;
 
+    // Process incoming messages
+    void processMessages() override;
+
     // Order management
     bool placeOrder(TradingPair pair, OrderType type, double price, double quantity) override;
     bool cancelOrder(const std::string& orderId) override;
@@ -53,6 +56,8 @@ public:
     // Callback setters
     void setSubscriptionCallback(std::function<void(bool)> callback) override;
     void setSnapshotCallback(std::function<void(bool)> callback) override;
+    void setOrderCallback(std::function<void(bool)> callback) override;
+    void setBalanceCallback(std::function<void(bool)> callback) override;
 
 private:
     struct SymbolState {
@@ -82,6 +87,8 @@ private:
     std::function<void(bool)> m_subscriptionCallback;
     std::function<void()> m_updateCallback;
     std::function<void(bool)> m_snapshotCallback;
+    std::function<void(bool)> m_orderCallback;
+    std::function<void(bool)> m_balanceCallback;
     
     net::io_context m_ioc;
     ssl::context m_ctx{ssl::context::tlsv12_client};

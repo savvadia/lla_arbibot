@@ -565,4 +565,16 @@ void ApiKraken::doWrite(std::string message) {
                 return;
             }
         });
+}
+
+void ApiKraken::processMessages() {
+    // All messages are processed asynchronously via WebSocket callbacks
+}
+
+void ApiKraken::setOrderCallback(std::function<void(bool)> callback) {
+    m_orderCallback = callback;
+}
+
+void ApiKraken::setBalanceCallback(std::function<void(bool)> callback) {
+    m_balanceCallback = callback;
 } 

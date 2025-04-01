@@ -106,24 +106,6 @@ protected:
 
 private:
     // Exchange data
-    struct OrderBookData : public Traceable
-    {
-        double bestBid = 0.0;
-        double bestAsk = 0.0;
-        double bestBidQuantity = 0.0;
-        double bestAskQuantity = 0.0;
-        std::chrono::steady_clock::time_point lastUpdate;
-
-    protected:
-        void trace(std::ostream &os) const override
-        {
-            os << std::fixed << std::setprecision(2)
-               << "bid:" << bestBid << "(" << std::setprecision(4) << bestBidQuantity << ")"
-               << " ask:" << bestAsk << "(" << std::setprecision(4) << bestAskQuantity << ")";
-        }
-    };
-
-    // Core components
     std::string baseAsset;
     std::string quoteAsset;
     ExchangeManager &exchangeManager;
@@ -133,11 +115,10 @@ private:
 
     // Order book data
     std::mutex dataMutex;
-    std::map<ExchangeId, OrderBookData> orderBookData;
     int timerId = -1; // Store the timer identifier
 
     // Helper methods
-    void updateOrderBookData(ExchangeId exchange, const OrderBook &orderBook);
+    void updateOrderBookData(ExchangeId exchange);
     Opportunity calculateProfit(ExchangeId buyExchange, ExchangeId sellExchange);
 
     // For TRACE identification

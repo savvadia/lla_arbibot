@@ -35,6 +35,9 @@ public:
     // Get order book snapshots for all exchanges
     bool getOrderBookSnapshots(TradingPair pair);
 
+    // Process messages for all exchanges
+    void processMessages();
+
     // For TRACE identification
     const std::vector<ExchangeId>& getExchangeIds() const { return exchangeIds; }
 

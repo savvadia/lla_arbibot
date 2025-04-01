@@ -27,6 +27,9 @@ public:
     // Get current order book snapshot
     bool getOrderBookSnapshot(TradingPair pair) override;
 
+    // Process incoming messages
+    void processMessages() override;
+
     // Order management
     bool placeOrder(TradingPair pair, OrderType type, double price, double amount) override;
     bool cancelOrder(const std::string& orderId) override;
@@ -39,6 +42,8 @@ public:
     // Callback setters
     void setSubscriptionCallback(std::function<void(bool)> callback) override;
     void setSnapshotCallback(std::function<void(bool)> callback) override;
+    void setOrderCallback(std::function<void(bool)> callback) override;
+    void setBalanceCallback(std::function<void(bool)> callback) override;
 
     // Test helper methods
     void simulateOrderBookUpdate(const std::vector<PriceLevel>& bids, const std::vector<PriceLevel>& asks);
@@ -61,6 +66,8 @@ private:
     std::function<void(bool)> m_subscriptionCallback;
     std::function<void()> m_updateCallback;
     std::function<void(bool)> m_snapshotCallback;
+    std::function<void(bool)> m_orderCallback;
+    std::function<void(bool)> m_balanceCallback;
     
     // Mock WebSocket state
     bool m_subscribed{false};

@@ -95,4 +95,12 @@ bool ExchangeManager::getOrderBookSnapshots(TradingPair pair) {
     }
     
     return true;
+}
+
+void ExchangeManager::processMessages() {
+    for (const auto& exchangeId : exchangeIds) {
+        if (auto* exchange = exchanges[exchangeId].get()) {
+            exchange->processMessages();
+        }
+    }
 } 

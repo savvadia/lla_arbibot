@@ -124,24 +124,21 @@ TEST_F(OrderBookTest, ConcurrentUpdates) {
 // Test OrderBookManager
 TEST_F(OrderBookTest, OrderBookManager) {
     OrderBookManager manager;
-    
-    // Test callback registration
     bool callbackCalled = false;
-    manager.setUpdateCallback([&callbackCalled](ExchangeId, TradingPair, const OrderBook&) {
+    
+    // Set callback
+    manager.setUpdateCallback([&callbackCalled](ExchangeId, TradingPair) {
         callbackCalled = true;
     });
     
-    // Test order book updates
-    manager.updateOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT, testBids, testAsks);
-    EXPECT_TRUE(callbackCalled);
-    
-    // Test single price level updates
-    callbackCalled = false;
-    manager.updateOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT, 50000.0, 1.0, true);
+    // Update order book
+    std::vector<PriceLevel> bids = {{50000.0, 1.0}};
+    std::vector<PriceLevel> asks;
+    manager.updateOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT, bids, asks);
     EXPECT_TRUE(callbackCalled);
     
     // Test order book retrieval
-    auto& book = manager.getOrderBook(TradingPair::BTC_USDT);
+    auto& book = manager.getOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT);
     EXPECT_EQ(book.getExchangeId(), ExchangeId::BINANCE);
     EXPECT_EQ(book.getTradingPair(), TradingPair::BTC_USDT);
 }
@@ -184,8 +181,9 @@ TEST_F(OrderBookTest, StateConsistency) {
 TEST_F(OrderBookTest, SpreadCalculation) {
     OrderBook book(ExchangeId::BINANCE, TradingPair::BTC_USDT);
     
-    book.updatePriceLevel(true, 50000.0, 1.0);  // Best bid
-    book.updatePriceLevel(false, 50100.0, 1.0); // Best ask
+    std::vector<PriceLevel> bids = {{50000.0, 1.0}};  // Best bid
+    std::vector<PriceLevel> asks = {{50100.0, 1.0}}; // Best ask
+    book.update(bids, asks);
     
     double spread = book.getBestAsk() - book.getBestBid();
     EXPECT_EQ(spread, 100.0);
@@ -196,14 +194,17 @@ TEST_F(OrderBookTest, OrderBookDepth) {
     OrderBook book(ExchangeId::BINANCE, TradingPair::BTC_USDT);
     
     // Add multiple price levels
+    std::vector<PriceLevel> bids;
+    std::vector<PriceLevel> asks;
     for (int i = 0; i < 10; ++i) {
-        book.updatePriceLevel(true, 50000.0 - i * 100.0, 1.0);
-        book.updatePriceLevel(false, 50100.0 + i * 100.0, 1.0);
+        bids.push_back({50000.0 - i * 100.0, 1.0});
+        asks.push_back({50100.0 + i * 100.0, 1.0});
     }
+    book.update(bids, asks);
     
-    auto [bids, asks] = book.getState();
-    EXPECT_EQ(bids.size(), 10);
-    EXPECT_EQ(asks.size(), 10);
+    auto [currentBids, currentAsks] = book.getState();
+    EXPECT_EQ(currentBids.size(), 10);
+    EXPECT_EQ(currentAsks.size(), 10);
 }
 
 // Test lastUpdate timestamp behavior
@@ -324,7 +325,7 @@ TEST_F(OrderBookTest, OrderBookManagerConcurrency) {
     std::atomic<int> callbackCount{0};
     
     // Set callback that counts invocations
-    manager.setUpdateCallback([&callbackCount](ExchangeId, TradingPair, const OrderBook&) {
+    manager.setUpdateCallback([&callbackCount](ExchangeId, TradingPair) {
         callbackCount++;
     });
     
@@ -337,10 +338,7 @@ TEST_F(OrderBookTest, OrderBookManagerConcurrency) {
                     std::vector<PriceLevel>{{50000.0 + i, 1.0}}, 
                     std::vector<PriceLevel>{{50100.0 + i, 1.0}});
                 
-                // Add some random delay to increase chance of race conditions
-                if (j % 10 == 0) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
         });
     }
@@ -351,41 +349,202 @@ TEST_F(OrderBookTest, OrderBookManagerConcurrency) {
     }
     
     // Verify final state
-    auto& book = manager.getOrderBook(TradingPair::BTC_USDT);
+    auto& book = manager.getOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT);
     EXPECT_GT(book.getBestBid(), 0.0);
     EXPECT_GT(book.getBestAsk(), 0.0);
     EXPECT_EQ(callbackCount.load(), 500); // 5 threads * 100 updates each
 }
 
-// Test OrderBookManager edge cases
+// Test edge cases for OrderBookManager
 TEST_F(OrderBookTest, OrderBookManagerEdgeCases) {
     OrderBookManager manager;
-    std::atomic<int> callbackCount{0};
     
-    // Set callback that counts invocations
-    manager.setUpdateCallback([&callbackCount](ExchangeId, TradingPair, const OrderBook&) {
-        callbackCount++;
-    });
+    // Test very small quantity
+    std::vector<PriceLevel> bids = {{50000.0, 1e-8}};
+    std::vector<PriceLevel> asks;
+    manager.updateOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT, bids, asks);
+    auto& book1 = manager.getOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT);
+    EXPECT_EQ(book1.getBestBidQuantity(), 1e-8);
     
-    // Test multiple trading pairs
-    manager.updateOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT, testBids, testAsks);
-    manager.updateOrderBook(ExchangeId::KRAKEN, TradingPair::ETH_USDT, testBids, testAsks);
+    // Test very high price
+    bids = {{1000000.0, 1.0}};
+    manager.updateOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT, bids, asks);
+    auto& book2 = manager.getOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT);
+    EXPECT_EQ(book2.getBestBid(), 1000000.0);
     
-    auto& btcBook = manager.getOrderBook(TradingPair::BTC_USDT);
-    auto& ethBook = manager.getOrderBook(TradingPair::ETH_USDT);
+    // Test zero price
+    bids = {{0.0, 1.0}};
+    manager.updateOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT, bids, asks);
+    auto& book3 = manager.getOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT);
+    EXPECT_EQ(book3.getBestBid(), 0.0);
+}
+
+// Test multi-exchange order book management
+TEST_F(OrderBookTest, OrderBookManagerMultiExchange) {
+    OrderBookManager manager;
     
-    EXPECT_EQ(btcBook.getTradingPair(), TradingPair::BTC_USDT);
-    EXPECT_EQ(ethBook.getTradingPair(), TradingPair::ETH_USDT);
+    // Update order books for different exchanges
+    std::vector<PriceLevel> bids = {{50000.0, 1.0}};
+    std::vector<PriceLevel> asks;
+    manager.updateOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT, bids, asks);
     
-    // Multiple updates to same pair
-    manager.updateOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT, testBids, testAsks);
-    manager.updateOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT, testBids, testAsks);
+    bids = {{50100.0, 1.0}};
+    manager.updateOrderBook(ExchangeId::KRAKEN, TradingPair::BTC_USDT, bids, asks);
     
-    // Multiple updates to different pairs
-    manager.updateOrderBook(ExchangeId::KRAKEN, TradingPair::ETH_USDT, testBids, testAsks);
-    manager.updateOrderBook(ExchangeId::KRAKEN, TradingPair::ETH_USDT, testBids, testAsks);
+    // Verify order books are independent
+    auto& binanceBook = manager.getOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT);
+    auto& krakenBook = manager.getOrderBook(ExchangeId::KRAKEN, TradingPair::BTC_USDT);
     
-    EXPECT_EQ(callbackCount.load(), 6);  // 2 initial + 2 BTC + 2 ETH updates
+    EXPECT_EQ(binanceBook.getBestBid(), 50000.0);
+    EXPECT_EQ(krakenBook.getBestBid(), 50100.0);
+}
+
+// Test multi-pair order book management
+TEST_F(OrderBookTest, OrderBookManagerMultiPair) {
+    OrderBookManager manager;
+    
+    // Update order books for different pairs
+    std::vector<PriceLevel> bids = {{50000.0, 1.0}};
+    std::vector<PriceLevel> asks;
+    manager.updateOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT, bids, asks);
+    
+    bids = {{3000.0, 1.0}};
+    manager.updateOrderBook(ExchangeId::BINANCE, TradingPair::ETH_USDT, bids, asks);
+    
+    // Verify order books are independent
+    auto& btcBook = manager.getOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT);
+    auto& ethBook = manager.getOrderBook(ExchangeId::BINANCE, TradingPair::ETH_USDT);
+    
+    EXPECT_EQ(btcBook.getBestBid(), 50000.0);
+    EXPECT_EQ(ethBook.getBestBid(), 3000.0);
+}
+
+// Helper function to create a test price level
+PriceLevel makePriceLevel(double price, double quantity) {
+    return PriceLevel{price, quantity};
+}
+
+// Helper function to check if a list is sorted correctly
+bool isSorted(const std::vector<PriceLevel>& list, bool isBid) {
+    if (list.empty()) return true;
+    
+    for (size_t i = 1; i < list.size(); ++i) {
+        if (isBid) {
+            if (list[i-1].price <= list[i].price) return false;
+        } else {
+            if (list[i-1].price >= list[i].price) return false;
+        }
+    }
+    return true;
+}
+
+TEST(OrderBookTest, MergeEmptyLists) {
+    std::vector<PriceLevel> oldList;
+    std::vector<PriceLevel> newList;
+    double totalAmount = 0.0;
+    
+    mergeSortedLists(oldList, newList, true, totalAmount);
+    EXPECT_TRUE(oldList.empty());
+    EXPECT_EQ(totalAmount, 0.0);
+}
+
+TEST(OrderBookTest, MergeEmptyOldList) {
+    std::vector<PriceLevel> oldList;
+    std::vector<PriceLevel> newList = {
+        makePriceLevel(100.0, 1.0),
+        makePriceLevel(99.0, 2.0),
+        makePriceLevel(98.0, 3.0)
+    };
+    double totalAmount = 0.0;
+    
+    mergeSortedLists(oldList, newList, true, totalAmount);
+    EXPECT_EQ(oldList.size(), 3);
+    EXPECT_TRUE(isSorted(oldList, true));
+    EXPECT_EQ(totalAmount, 100.0 + 99.0*2.0 + 98.0*3.0);
+}
+
+TEST(OrderBookTest, MergeEmptyNewList) {
+    std::vector<PriceLevel> oldList = {
+        makePriceLevel(100.0, 1.0),
+        makePriceLevel(99.0, 2.0),
+        makePriceLevel(98.0, 3.0)
+    };
+    std::vector<PriceLevel> newList;
+    double totalAmount = 0.0;
+    
+    mergeSortedLists(oldList, newList, true, totalAmount);
+    EXPECT_EQ(oldList.size(), 3);
+    EXPECT_TRUE(isSorted(oldList, true));
+    EXPECT_EQ(totalAmount, 100.0 + 99.0*2.0 + 98.0*3.0);
+}
+
+TEST(OrderBookTest, MergeWithUpdates) {
+    std::vector<PriceLevel> oldList = {
+        makePriceLevel(100.0, 1.0),
+        makePriceLevel(99.0, 2.0),
+        makePriceLevel(98.0, 3.0)
+    };
+    std::vector<PriceLevel> newList = {
+        makePriceLevel(101.0, 1.5),  // New best bid
+        makePriceLevel(99.0, 3.0),   // Update existing price
+        makePriceLevel(97.0, 4.0)    // New worst bid
+    };
+    double totalAmount = 0.0;
+    
+    mergeSortedLists(oldList, newList, true, totalAmount);
+    EXPECT_EQ(oldList.size(), 4);
+    EXPECT_TRUE(isSorted(oldList, true));
+    
+    // Check specific updates
+    EXPECT_EQ(oldList[3].price, 101.0);  // Best bid
+    EXPECT_EQ(oldList[3].quantity, 1.5);
+    EXPECT_EQ(oldList[1].price, 99.0);   // Updated price
+    EXPECT_EQ(oldList[1].quantity, 3.0);
+    EXPECT_EQ(oldList[0].price, 97.0);   // Worst bid
+    EXPECT_EQ(oldList[0].quantity, 4.0);
+}
+
+TEST(OrderBookTest, MergeWithZeroQuantities) {
+    std::vector<PriceLevel> oldList = {
+        makePriceLevel(100.0, 1.0),
+        makePriceLevel(99.0, 2.0),
+        makePriceLevel(98.0, 3.0)
+    };
+    std::vector<PriceLevel> newList = {
+        makePriceLevel(99.0, 0.0),   // Remove price level
+        makePriceLevel(97.0, 4.0)    // New price level
+    };
+    double totalAmount = 0.0;
+    
+    mergeSortedLists(oldList, newList, true, totalAmount);
+    EXPECT_EQ(oldList.size(), 3);  // One removed, one added
+    EXPECT_TRUE(isSorted(oldList, true));
+    
+    // Check that price level 99.0 was removed
+    for (const auto& level : oldList) {
+        EXPECT_NE(level.price, 99.0);
+    }
+}
+
+TEST(OrderBookTest, MergeWithSizeLimit) {
+    std::vector<PriceLevel> oldList = {
+        makePriceLevel(100.0, 1.0),
+        makePriceLevel(99.0, 2.0),
+        makePriceLevel(98.0, 3.0)
+    };
+    std::vector<PriceLevel> newList = {
+        makePriceLevel(101.0, 1.5),
+        makePriceLevel(99.0, 3.0),
+        makePriceLevel(97.0, 4.0)
+    };
+    double totalAmount = 0.0;
+    
+    // Use a small limit for testing
+    const double testLimit = 200.0;  // This will keep only the best prices
+    
+    mergeSortedLists(oldList, newList, true, totalAmount, testLimit);
+    EXPECT_LE(totalAmount, testLimit);
+    EXPECT_TRUE(isSorted(oldList, true));
 }
 
 int main(int argc, char **argv) {
