@@ -97,14 +97,11 @@ Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId
     double profitPercent = (profit / buyPrice) * 100;
     double amount  = std::min(buyBook.getBestAskQuantity(), sellBook.getBestBidQuantity());
 
-
-    std::stringstream ss;
-    ss << buyExchange << "( " << std::chrono::duration_cast<std::chrono::microseconds>(buyBook.getLastUpdate().time_since_epoch()).count() << ") -> "
-       << sellExchange << "( " << std::chrono::duration_cast<std::chrono::microseconds>(sellBook.getLastUpdate().time_since_epoch()).count() << ") "
-       << std::fixed << std::setprecision(2) << buyPrice << " -> " << sellPrice
-       << " = " << profit << " (" << std::fixed << std::setprecision(4) << profitPercent << "%)";
-    
-    TRACE("Calculating profit for ", ss.str());
+    TRACE("Calculating profit for ", 
+        buyExchange, "(", buyBook.getLastUpdate(), ") -> ",
+        sellExchange, "(", sellBook.getLastUpdate(), ") ",
+        buyPrice, " -> ", sellPrice,
+        " = ", profit, " (", profitPercent, "%)");
 
     if (buyPrice > 0 && sellPrice > 0 && amount > 0 && buyPrice < sellPrice) {
         return Opportunity(buyExchange, sellExchange, amount, buyPrice, sellPrice);

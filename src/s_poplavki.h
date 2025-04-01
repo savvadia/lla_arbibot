@@ -74,7 +74,7 @@ private:
     void trace(std::ostream &os) const override
     {
         os << "Opportunity: " << buyExchange << " -> " << sellExchange << " amount: " << amount
-            << " (" << buyPrice << " -> " << sellPrice << ") profit: " << std::fixed << std::setprecision(3) << profit() << "%";
+            << " (" << buyPrice << " -> " << sellPrice << ") profit: " << profit() << "%";
     }
 };
 

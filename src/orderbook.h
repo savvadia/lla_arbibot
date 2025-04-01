@@ -6,6 +6,7 @@
 #include <mutex>
 #include <chrono>
 #include <functional>
+#include <cassert>
 #include "tracer.h"
 #include "types.h"
 #include <unordered_map>
@@ -17,10 +18,6 @@ struct PriceLevel {
     PriceLevel(double p = 0.0, double q = 0.0) : price(p), quantity(q) {}
 };
 
-// Helper function to merge sorted lists while maintaining size limit
-void mergeSortedLists(std::vector<PriceLevel>& oldList, const std::vector<PriceLevel>& newList, 
-                     bool isBid, double& totalAmount, double limit = Config::MAX_ORDER_BOOK_AMOUNT);
-
 // Order book for a specific trading pair
 class OrderBook : public Traceable {
 public:
@@ -31,7 +28,7 @@ public:
     // Copy constructor
     OrderBook(const OrderBook& other) 
         : exchangeId(other.exchangeId), pair(other.pair), lastUpdate(other.lastUpdate) {
-        std::lock_guard<std::mutex> lock(other.mutex);
+        MUTEX_LOCK(other.mutex);
         bids = other.bids;
         asks = other.asks;
     }
@@ -39,8 +36,8 @@ public:
     // Assignment operator
     OrderBook& operator=(const OrderBook& other) {
         if (this != &other) {
-            std::lock_guard<std::mutex> lock(mutex);
-            std::lock_guard<std::mutex> otherLock(other.mutex);
+            MUTEX_LOCK(mutex);
+            MUTEX_LOCK(other.mutex);
             exchangeId = other.exchangeId;
             pair = other.pair;
             bids = other.bids;
@@ -53,7 +50,7 @@ public:
     ~OrderBook() = default;
 
     // Update the order book with new price levels (assumes sorted input)
-    void update(const std::vector<PriceLevel>& newBids, const std::vector<PriceLevel>& newAsks);
+    void update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>& newAsks);
 
     // Get best bid price
     double getBestBid() const {
@@ -104,7 +101,7 @@ public:
     }
 
     // Get best prices and quantities atomically
-    struct BestPrices {
+    struct BestPrices: public Traceable {
         double bestBid;
         double bestAsk;
         double worstBid;
@@ -113,11 +110,18 @@ public:
         double bestAskQuantity;
         double worstBidQuantity;
         double worstAskQuantity;
+
+        BestPrices(double bestBid, double bestAsk, double worstBid, double worstAsk, double bestBidQuantity, double bestAskQuantity, double worstBidQuantity, double worstAskQuantity)
+            : bestBid(bestBid), bestAsk(bestAsk), worstBid(worstBid), worstAsk(worstAsk), bestBidQuantity(bestBidQuantity), bestAskQuantity(bestAskQuantity), worstBidQuantity(worstBidQuantity), worstAskQuantity(worstAskQuantity) {}
+
+        void trace(std::ostream& os) const override {
+            os << "bp: bids: " << worstBid << "-" << bestBid << " " << bestAsk << "-" << worstAsk << " " << bestBidQuantity << " " << bestAskQuantity << " " << worstBidQuantity << " " << worstAskQuantity;
+        }
     };
 
     BestPrices getBestPrices() const {
         MUTEX_LOCK(mutex);
-        return BestPrices{
+        BestPrices bp =  BestPrices(
             bids.empty() ? 0.0 : bids[0].price,
             asks.empty() ? 0.0 : asks[0].price,
             bids.empty() ? 0.0 : bids.back().price,
@@ -125,8 +129,8 @@ public:
             bids.empty() ? 0.0 : bids[0].quantity,
             asks.empty() ? 0.0 : asks[0].quantity,
             bids.empty() ? 0.0 : bids.back().quantity,
-            asks.empty() ? 0.0 : asks.back().quantity
-        };
+            asks.empty() ? 0.0 : asks.back().quantity);
+        return bp;
     }
 
     // Get last update timestamp
@@ -150,6 +154,9 @@ public:
     // Get a copy of the current state atomically
     std::pair<std::vector<PriceLevel>, std::vector<PriceLevel>> getState() const {
         MUTEX_LOCK(mutex);
+        // assert that bids and asks are sorted
+        assert(isSorted(bids, true));
+        assert(isSorted(asks, false));
         return {bids, asks};
     }
     
@@ -165,8 +172,6 @@ public:
         return asks; 
     }
 
-    void updatePriceLevel(bool isBid, double price, double quantity);
-
     // For TRACE identification
     ExchangeId getExchangeId() const { return exchangeId; }
     TradingPair getTradingPair() const { return pair; }
@@ -174,14 +179,27 @@ public:
     // Helper function to check if best/worst prices changed
     bool hasPricesChanged(const BestPrices& oldPrices, const BestPrices& newPrices) const;
 
+    static bool isSorted(const std::vector<PriceLevel>& list, bool isBid);
+    static void sortList(std::vector<PriceLevel>& list, bool isBid);
+
+    void mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<PriceLevel>& newList, 
+                     bool isBid, double& totalAmount, double limit = Config::MAX_ORDER_BOOK_AMOUNT);
+
 protected:
     void trace(std::ostream& os) const override {
-        MUTEX_LOCK(mutex);
-        os << exchangeId << " " << pair << " "
-           << std::fixed << std::setprecision(2)
-           << "bid:" << (bids.empty() ? 0.0 : bids[0].price) << "-" << (bids.empty() ? 0.0 : bids.back().price)
-           << " ask:" << (asks.empty() ? 0.0 : asks[0].price) << "-" << (asks.empty() ? 0.0 : asks.back().price)
-           << " " << std::chrono::duration_cast<std::chrono::microseconds>(lastUpdate.time_since_epoch()).count();
+        os << exchangeId << " " << pair <<
+            " bids/asks: " << bids.size() << "/" << asks.size() << " " <<
+            getBestPrices() << " lastUpdate: " << lastUpdate;
+    }
+    std::string traceBidsAsks(std::vector<PriceLevel>& list) const {
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(3);
+        ss << "[";
+        for(const auto& entry : list) {
+            ss << entry.price << "/" << entry.quantity << " ";
+        }
+        ss << "]";
+        return ss.str();
     }
 
 private:
@@ -191,6 +209,9 @@ private:
     ExchangeId exchangeId;
     TradingPair pair;
     std::chrono::system_clock::time_point lastUpdate = std::chrono::system_clock::now();
+
+    void pushElement(std::vector<PriceLevel>& result,
+                    std::vector<PriceLevel>::iterator& it, double& totalAmount, int scenario);
 };
 
 // Order book manager for all trading pairs
@@ -200,7 +221,7 @@ public:
     ~OrderBookManager() = default;
 
     // Update order book for a trading pair
-    void updateOrderBook(ExchangeId exchangeId, TradingPair pair, const std::vector<PriceLevel>& bids, const std::vector<PriceLevel>& asks);
+    void updateOrderBook(ExchangeId exchangeId, TradingPair pair, std::vector<PriceLevel>& bids, std::vector<PriceLevel>& asks);
 
     // Get order book for a specific exchange and trading pair
     OrderBook& getOrderBook(ExchangeId exchangeId, TradingPair pair);

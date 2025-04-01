@@ -7,100 +7,166 @@
 
 #define TRACE(...) TRACE_THIS(TraceInstance::ORDERBOOK, __VA_ARGS__)
 #define DEBUG(...) DEBUG_THIS(TraceInstance::ORDERBOOK, __VA_ARGS__)
+#define NOTICE(...) DEBUG_BASE(TraceInstance::ORDERBOOK, __VA_ARGS__)
 
 bool OrderBook::hasPricesChanged(const BestPrices& oldPrices, const BestPrices& newPrices) const {
-    return oldPrices.bestBid != newPrices.bestBid ||
-           oldPrices.bestAsk != newPrices.bestAsk ||
-           oldPrices.worstBid != newPrices.worstBid ||
-           oldPrices.worstAsk != newPrices.worstAsk;
+    if(oldPrices.bestBid != newPrices.bestBid) {
+        NOTICE("changed bestBid: ", oldPrices.bestBid, "->", newPrices.bestBid);
+        return true;
+    }
+    if(oldPrices.bestAsk != newPrices.bestAsk) {
+        NOTICE("changed bestAsk: ", oldPrices.bestAsk, "->", newPrices.bestAsk);
+        return true;
+    }
+    if(oldPrices.worstBid != newPrices.worstBid) {
+        NOTICE("changed worstBid: ", oldPrices.worstBid, "->", newPrices.worstBid);
+        return true;
+    }
+    if(oldPrices.worstAsk != newPrices.worstAsk) {
+        NOTICE("changed worstAsk: ", oldPrices.worstAsk, "->", newPrices.worstAsk);
+        return true;
+    }
+    return false;
+}
+
+bool OrderBook::isSorted(const std::vector<PriceLevel>& list, bool isBid) {
+    if (list.empty()) return true;
+    if (isBid) {
+        // sort in descending order
+        return std::is_sorted(list.begin(), list.end(), [](const PriceLevel& a, const PriceLevel& b) { return a.price > b.price; });
+    } else {
+        // sort in ascending order
+        return std::is_sorted(list.begin(), list.end(), [](const PriceLevel& a, const PriceLevel& b) { return a.price < b.price; });
+    }
+}
+
+void OrderBook::sortList(std::vector<PriceLevel>& list, bool isBid) {
+    if (!OrderBook::isSorted(list, isBid)) {
+        if (isBid) {
+            // sort bids in descending order
+            std::sort(list.begin(), list.end(), [](const PriceLevel& a, const PriceLevel& b) { return a.price > b.price; });
+        } else {
+            // sort asks in ascending order
+            std::sort(list.begin(), list.end(), [](const PriceLevel& a, const PriceLevel& b) { return a.price < b.price; });
+        }
+    }
+}
+
+void OrderBook::pushElement(std::vector<PriceLevel>& result, std::vector<PriceLevel>::iterator& it, double& totalAmount, int scenario) {
+    NOTICE("Pushing element - Price: ", it->price, " Quantity: ", it->quantity, " Scenario: ", scenario);
+    if(it->price > 0 && it->quantity > 0) {
+        result.push_back(*it);
+        totalAmount += it->price * it->quantity;
+    }
+    it++;
 }
 
 // Helper function to merge sorted lists while maintaining size limit
-void mergeSortedLists(std::vector<PriceLevel>& oldList, const std::vector<PriceLevel>& newList, 
+void OrderBook::mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<PriceLevel>& newList, 
                      bool isBid, double& totalAmount, double limit) {
+
+    if(newList.empty()) {
+        NOTICE("New list is empty for ", isBid ? "bid" : "ask", ", returning");
+        return;
+    }
+
+    MUTEX_LOCK(mutex);
+
     std::vector<PriceLevel> result;
     result.reserve(oldList.size() + newList.size());
-    
-    // Handle empty lists
-    if (oldList.empty()) {
-        for (auto it = newList.rbegin(); it != newList.rend() && totalAmount < limit; ++it) {
-            if (it->quantity > 0) {
-                result.push_back(*it);
-                totalAmount += it->price * it->quantity;
-            }
-        }
-        std::reverse(result.begin(), result.end());
-        oldList = std::move(result);
-        return;
-    }
-    
-    if (newList.empty()) {
-        for (auto it = oldList.rbegin(); it != oldList.rend() && totalAmount < limit; ++it) {
-            result.push_back(*it);
-            totalAmount += it->price * it->quantity;
-        }
-        std::reverse(result.begin(), result.end());
-        oldList = std::move(result);
-        return;
-    }
-    
-    auto oldIt = oldList.rbegin();  // Start from best prices
-    auto newIt = newList.rbegin();  // Start from best prices
-    
-    while (oldIt != oldList.rend() && newIt != newList.rend()) {
-        if (isBid ? (newIt->price > oldIt->price) : (newIt->price < oldIt->price)) {
-            // New price is better, add it
-            result.push_back(*newIt);
-            totalAmount += newIt->price * newIt->quantity;
-            ++newIt;
-        } else if (newIt->price == oldIt->price) {
-            // Same price, update quantity
-            if (newIt->quantity > 0) {
-                result.push_back(*newIt);
-                totalAmount += newIt->price * newIt->quantity;
-            }
-            ++newIt;
-            ++oldIt;
-        } else {
-            // Old price is better, keep it
-            result.push_back(*oldIt);
-            totalAmount += oldIt->price * oldIt->quantity;
-            ++oldIt;
-        }
-        
-        // Check if we've reached the limit
-        if (totalAmount >= limit) {
+    totalAmount = 0.0;  // Reset total amount
+
+    // Sort both lists before merging
+    OrderBook::sortList(oldList, isBid);
+    OrderBook::sortList(newList, isBid);
+
+    auto ito=oldList.begin();
+    auto itn=newList.begin();
+    while((ito != oldList.end() || itn != newList.end())) {
+        int scenario = 0;
+        bool pushOld = false;
+        bool pushNew = false;
+
+        NOTICE("Merging - Old it: ", 
+            ito == oldList.end() ? "x" : "",
+            ito != oldList.end() ? ito->price : 0.0, "/",
+            ito != oldList.end() ? ito->quantity : 0.0,
+            " New it: ", 
+            itn == newList.end() ? "x" : "",
+            itn != newList.end() ? itn->price : 0.0, "/",
+            itn != newList.end() ? itn->quantity : 0.0);
+
+        if(totalAmount > limit) {
+            NOTICE("Total amount limit reached. skipping the test");
             break;
         }
-    }
-    
-    // Add remaining elements from old list if we haven't reached the limit
-    while (oldIt != oldList.rend() && totalAmount < limit) {
-        result.push_back(*oldIt);
-        totalAmount += oldIt->price * oldIt->quantity;
-        ++oldIt;
-    }
-    
-    // Add remaining elements from new list if we haven't reached the limit
-    while (newIt != newList.rend() && totalAmount < limit) {
-        if (newIt->quantity > 0) {
-            result.push_back(*newIt);
-            totalAmount += newIt->price * newIt->quantity;
+        if(itn != newList.end() && (itn->price < 0.0 || itn->quantity < 0.0)) {
+            NOTICE("New list has negative price or quantity, skipping: ", itn->price, " ", itn->quantity);
+            itn++;
+            continue;
         }
-        ++newIt;
+        if(ito != oldList.end() && ito->price == 0.0) {
+            NOTICE("Old list has zero price, skipping: ", ito->price, " ", ito->quantity);
+            ito++;
+            continue;
+        }
+
+        if(ito == oldList.end()) {
+            pushNew = true;
+            scenario = 1;
+        } else if(itn == newList.end()) {
+            pushOld = true;
+            scenario = 2;
+        } else if(ito->price == itn->price) {
+            if(itn->quantity > 0) {
+                pushNew = true;
+                scenario = 3;
+            } else {
+                NOTICE("Dropping old list level as new quantity is 0: ", itn->price);
+                scenario = 4;
+            }
+            ito++; // in both cases we need to move to the old list element
+        } else if (isBid) {
+            if(ito->price > itn->price) { // highest goes first. smaller will be checked on next iteration
+                pushOld = true;
+                scenario = 5;
+            } else {
+                pushNew = true;
+                scenario = 6;
+            }
+        } else {
+            if(ito->price < itn->price) { // lowest goes first. bigger will be checked on next iteration
+                pushOld = true;
+                scenario = 7;
+            } else {
+                pushNew = true;
+                scenario = 8;
+            }
+        }
+
+        if(pushOld) {
+            pushElement(result, ito, totalAmount, scenario);
+        } else if(pushNew) {
+            pushElement(result, itn, totalAmount, scenario);
+        } else {
+            NOTICE("Pushing - Scenario: ", scenario, " Push old: ", pushOld, " Push new: ", pushNew);
+        }
     }
-    
-    // Reverse to maintain order (best prices at end)
-    std::reverse(result.begin(), result.end());
+
+    // Sort the result list
+    OrderBook::sortList(result, isBid);
+
     oldList = std::move(result);
+    TRACE_BASE(TraceInstance::ORDERBOOK, "merged size: ", oldList.size(), " amount: ", totalAmount, " ",
+        isBid ? "bids" : "asks", " ", traceBidsAsks(oldList));
 }
 
-void OrderBook::update(const std::vector<PriceLevel>& newBids, const std::vector<PriceLevel>& newAsks) {
+void OrderBook::update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>& newAsks) {
     BestPrices oldPrices = getBestPrices();
     bool pricesChanged = false;
+    TRACE("OrderBook update - Bids: ", newBids.size(), " Asks: ", newAsks.size());
     
     {
-        
         // If we receive a large number of levels, treat it as a snapshot
         if (newBids.size() > 100 || newAsks.size() > 100) {
             MUTEX_LOCK(mutex);
@@ -110,34 +176,41 @@ void OrderBook::update(const std::vector<PriceLevel>& newBids, const std::vector
             
             // Process bids (descending order)
             double totalBidAmount = 0.0;
-            for (auto it = newBids.rbegin(); it != newBids.rend() && totalBidAmount < Config::MAX_ORDER_BOOK_AMOUNT; ++it) {
-                if (it->quantity > 0) {
-                    bids.push_back(*it);
-                    totalBidAmount += it->price * it->quantity;
+            for (const auto& bid : newBids) {
+                if (bid.quantity > 0 && bid.price > 0) {  // Reject zero or negative prices
+                    bids.push_back(bid);
+                    totalBidAmount += bid.price * bid.quantity;
+                    if (totalBidAmount >= Config::MAX_ORDER_BOOK_AMOUNT) break;
                 }
             }
+            // Sort bids in descending order
+            OrderBook::sortList(bids, true);
             
             // Process asks (ascending order)
             double totalAskAmount = 0.0;
-            for (auto it = newAsks.begin(); it != newAsks.end() && totalAskAmount < Config::MAX_ORDER_BOOK_AMOUNT; ++it) {
-                if (it->quantity > 0) {
-                    asks.push_back(*it);
-                    totalAskAmount += it->price * it->quantity;
+            for (const auto& ask : newAsks) {
+                if (ask.quantity > 0 && ask.price > 0) {  // Reject zero or negative prices
+                    asks.push_back(ask);
+                    totalAskAmount += ask.price * ask.quantity;
+                    if (totalAskAmount >= Config::MAX_ORDER_BOOK_AMOUNT) break;
                 }
             }
+            // Sort asks in ascending order
+            std::sort(asks.begin(), asks.end(), 
+                     [](const PriceLevel& a, const PriceLevel& b) { return a.price < b.price; });
             
             pricesChanged = true;
         } else {
-            {
-                MUTEX_LOCK(mutex);
+            // we don't need MUTEX here and merge requests below will need it
 
-                // For updates, merge with existing levels
-                double totalBidAmount = 0.0;
-                mergeSortedLists(bids, newBids, true, totalBidAmount, Config::MAX_ORDER_BOOK_AMOUNT);
-                
-                double totalAskAmount = 0.0;
-                mergeSortedLists(asks, newAsks, false, totalAskAmount, Config::MAX_ORDER_BOOK_AMOUNT);
-            }
+            // For updates, merge with existing levels
+            double totalBidAmount = 0.0;
+            mergeSortedLists(bids, newBids, true, totalBidAmount, Config::MAX_ORDER_BOOK_AMOUNT);
+            
+            double totalAskAmount = 0.0;
+            mergeSortedLists(asks, newAsks, false, totalAskAmount, Config::MAX_ORDER_BOOK_AMOUNT);
+
+            DEBUG("After merge - Bids size: ", bids.size(), " ask size: ", asks.size());
             // Check if prices changed
             BestPrices newPrices = getBestPrices();
             pricesChanged = hasPricesChanged(oldPrices, newPrices);
@@ -153,15 +226,6 @@ void OrderBook::update(const std::vector<PriceLevel>& newBids, const std::vector
         TRACE("Order book updated");
     }
 }
-void OrderBook::updatePriceLevel(bool isBid, double price, double quantity) {
-    std::vector<PriceLevel> newBids, newAsks;
-    if (isBid) {
-        newBids = {{price, quantity}};
-    } else {
-        newAsks = {{price, quantity}};
-    }
-    update(newBids, newAsks);
-}
 
 OrderBookManager::OrderBookManager() {
     // Initialize order books for each exchange and trading pair
@@ -172,7 +236,7 @@ OrderBookManager::OrderBookManager() {
     }
 }
 
-void OrderBookManager::updateOrderBook(ExchangeId exchangeId, TradingPair pair, const std::vector<PriceLevel>& bids, const std::vector<PriceLevel>& asks) {
+void OrderBookManager::updateOrderBook(ExchangeId exchangeId, TradingPair pair, std::vector<PriceLevel>& bids, std::vector<PriceLevel>& asks) {
     bool changed = false;
     {
         MUTEX_LOCK(mutex);
@@ -180,30 +244,22 @@ void OrderBookManager::updateOrderBook(ExchangeId exchangeId, TradingPair pair, 
         auto& book = orderBooks[exchangeId][pair];
         std::chrono::system_clock::time_point lastUpdate = book.getLastUpdate();
         
-        // Log current state before update
-        auto [oldBids, oldAsks] = book.getState();
-        DEBUG("Before update - Exchange: ", exchangeId, " Pair: ", pair, " book: ", book);
-        
         // Update the order book
         book.update(bids, asks);
-
         // Only trigger callback if the lastUpdate timestamp changed
         if (book.getLastUpdate() > lastUpdate) {
             changed = true;
-            // Log new state after update
-            DEBUG("After update - Exchange: ", exchangeId, " Pair: ", pair, " book: ", book);
         }
+
+        NOTICE("Update order book - Exchange: ", exchangeId, " Pair: ", pair, " calling callback: ", changed, " last update: ", lastUpdate, " new update: ", book.getLastUpdate());
+
     }
 
     if (changed) {        
         if (updateCallback) {
             DEBUG("Calling update callback for exchange: ", exchangeId, " pair: ", pair);
             updateCallback(exchangeId, pair);
-        } else {
-            TRACE("No update callback set for exchange: ", exchangeId, " pair: ", pair);
         }
-    } else {
-        DEBUG("Update skipped - no changes detected for exchange: ", exchangeId, " pair: ", pair);
     }
 }
 

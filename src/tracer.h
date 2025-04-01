@@ -18,7 +18,6 @@ enum class TraceInstance {
     TIMER,
     BALANCE,
     EVENT_LOOP,
-    BOOK,
     EX_MGR,
     STRAT,
     ORDERBOOK,
@@ -33,6 +32,12 @@ enum class TraceInstance {
 
 // Convert enum to string for logging purposes
 std::string_view traceTypeToStr(TraceInstance type);
+
+template <typename Clock, typename Duration>
+std::ostream& operator<<(std::ostream& os, const std::chrono::time_point<Clock, Duration>& tp) {
+    os << std::chrono::duration_cast<std::chrono::microseconds>(tp.time_since_epoch()).count();
+    return os;
+}
 
 // Base class for traceable objects
 class Traceable {
@@ -75,6 +80,7 @@ public:
         auto now = std::chrono::system_clock::now();
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
         auto time = std::chrono::system_clock::to_time_t(now);
+
         oss << std::put_time(std::localtime(&time), "%H:%M:%S") << "." << std::setw(3) << std::setfill('0') << ms.count();
         
         oss << " " << level;
@@ -84,6 +90,8 @@ public:
             << std::left << std::setw(3) << line
             << " [" << traceTypeToStr(type) << "] ";
 
+        oss << std::fixed << std::setprecision(3);
+        
         // Print instance if it exists
         if (instance) {
             oss << " [" << *instance << "]";
@@ -176,13 +184,15 @@ public:
     #define DEBUG_BASE(_type, ...) ((void)0)
 #endif
 
+#define CONCATENATE_DETAIL(x, y) x##y
+#define UNIQUE_LOCK_NAME(_base, _line) CONCATENATE_DETAIL(_base, _line)
 #if 0
 #define MUTEX_LOCK(_mutex) \
     std::cout<<__FILE__<<":"<<__LINE__<<" locking "<<#_mutex<<std::endl; \
-    std::lock_guard<std::mutex> lock(_mutex);
+    std::lock_guard<std::mutex> UNIQUE_LOCK_NAME(lock_, __LINE__)(_mutex);
 #else
 #define MUTEX_LOCK(_mutex) \
-    std::lock_guard<std::mutex> lock(_mutex);
+    std::lock_guard<std::mutex> UNIQUE_LOCK_NAME(lock_, __LINE__)(_mutex);
 #endif
 
 #endif // TRACER_H

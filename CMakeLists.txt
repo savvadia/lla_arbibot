@@ -12,6 +12,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Define the compiler flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O2")
 
+# Set output directories
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
 # Find required packages
 find_package(CURL REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system thread)
@@ -101,17 +106,25 @@ target_link_libraries(OrderBookTest PRIVATE lla_arbibot_lib GTest::GTest GTest::
 
 add_executable(TimersTest 
     tests/timers.test.cpp
+    tests/timers_perf.test.cpp
 )
 target_link_libraries(TimersTest PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
 
-add_executable(EventLoopTest 
+add_executable(EventLoopTest
     tests/event_loop.test.cpp
 )
 target_link_libraries(EventLoopTest PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
 
-# Add tests to CTest
-add_test(NAME ApiTest COMMAND api_test)
+# Register tests with CTest
+add_test(NAME api_test COMMAND api_test)
 add_test(NAME BalanceTest COMMAND BalanceTest)
 add_test(NAME OrderBookTest COMMAND OrderBookTest)
 add_test(NAME TimersTest COMMAND TimersTest)
 add_test(NAME EventLoopTest COMMAND EventLoopTest)
+
+# Suppress warnings for ignored attributes
+target_compile_options(api_test PRIVATE -Wno-ignored-attributes)
+target_compile_options(BalanceTest PRIVATE -Wno-ignored-attributes)
+target_compile_options(OrderBookTest PRIVATE -Wno-ignored-attributes)
+target_compile_options(TimersTest PRIVATE -Wno-ignored-attributes)
+target_compile_options(EventLoopTest PRIVATE -Wno-ignored-attributes)

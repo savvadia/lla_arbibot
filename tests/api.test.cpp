@@ -118,15 +118,15 @@ TEST_F(ApiTest, OrderBookUpdateTest) {
     
     // Simulate an order book update
     std::vector<PriceLevel> bids = {
-        {50000.0, 1.0},
-        {49999.0, 2.0},
-        {49998.0, 3.0}
+        {500.0, 1.0},
+        {499.0, 2.0},
+        {498.0, 3.0}
     };
     
     std::vector<PriceLevel> asks = {
-        {50001.0, 1.0},
-        {50002.0, 2.0},
-        {50003.0, 3.0}
+        {501.0, 1.0},
+        {502.0, 2.0},
+        {503.0, 3.0}
     };
     
     std::cout << "[" << getTestTimestamp() << "] TEST: Simulating order book update..." << std::endl;
