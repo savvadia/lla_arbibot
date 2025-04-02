@@ -60,7 +60,7 @@ StrategyPoplavki::StrategyPoplavki(const std::string& baseAsset,
     
     // Set up periodic scanning
     TRACE("Setting up periodic scanning with ", Config::STRATEGY_CHECK_TIMER_MS, "ms interval");
-    setScanInterval(Config::STRATEGY_CHECK_TIMER_MS);
+    startTimerToScan(Config::STRATEGY_CHECK_TIMER_MS);
 }
 
 StrategyPoplavki::~StrategyPoplavki() {
@@ -73,7 +73,7 @@ void StrategyPoplavki::onExchangeUpdate(ExchangeId exchange) {
     scanOpportunities();
 }
 
-void StrategyPoplavki::setScanInterval(int ms) {
+void StrategyPoplavki::startTimerToScan(int ms) {
     // Remove existing timer if any
     timersMgr.stopTimer(timerId);
     
@@ -112,7 +112,7 @@ Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId
 }
 
 void StrategyPoplavki::scanOpportunities() {
-    DEBUG("Starting opportunity scan...");
+    TRACE("Starting opportunity scan...");
     
     for (size_t i = 0; i < exchangeIds.size(); ++i) {
         for (size_t j = i + 1; j < exchangeIds.size(); ++j) {
@@ -133,11 +133,15 @@ void StrategyPoplavki::scanOpportunities() {
 }
 
 void StrategyPoplavki::execute() {
+    TRACE("Executing strategy...");
     scanOpportunities();
 }
 
 void StrategyPoplavki::timerCallback(int id, void *data) {
     auto* strategy = static_cast<StrategyPoplavki*>(data);
+    strategy->startTimerToScan(Config::STRATEGY_CHECK_TIMER_MS);
+
+    TRACE_OBJ("INFO: ", strategy, TraceInstance::STRAT, "Timer callback for strategy: ", strategy->getName());
     strategy->scanOpportunities();
 }
 

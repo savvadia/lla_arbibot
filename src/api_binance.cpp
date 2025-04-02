@@ -125,6 +125,26 @@ ApiBinance::~ApiBinance() {
     disconnect();
 }
 
+void ApiBinance::doPing() {
+    if (!m_connected) {
+        TRACE("Ping: Not connected to Binance");
+        return;
+    }
+    
+    try {
+        // Subscribe to all tickers as heartbeat
+        json heartbeat = {
+            {"method", "SUBSCRIBE"},
+            {"params", {"!ticker@arr"}},
+            {"id", 2}
+        };
+        TRACE("Subscribing to Binance heartbeat with message: ", heartbeat.dump());
+        doWrite(heartbeat.dump());
+    } catch (const std::exception& e) {
+        TRACE("Error subscribing to heartbeat: ", e.what());
+    }
+}
+
 bool ApiBinance::connect() {
     if (m_connected) {
         TRACE("Already connected to Binance");
@@ -132,6 +152,11 @@ bool ApiBinance::connect() {
     }
 
     try {
+        // Reset IO context if it was stopped
+        if (m_ioc.stopped()) {
+            m_ioc.restart();
+        }
+
         // Set up SSL context
         m_ctx.set_verify_mode(ssl::verify_peer);
         m_ctx.set_default_verify_paths();
@@ -158,18 +183,25 @@ bool ApiBinance::connect() {
         m_ws->next_layer().handshake(ssl::stream_base::client);
 
         // Perform the websocket handshake
-        m_ws->handshake(m_host, "/ws");
+        m_ws->handshake(m_host, "/ws/stream");
 
         m_connected = true;
 
         // Start the IO context in a separate thread for reading
         m_work = std::make_unique<net::executor_work_guard<net::io_context::executor_type>>(m_ioc.get_executor());
-        m_thread = std::thread([this]() { m_ioc.run(); });
+        m_thread = std::thread([this]() { 
+            TRACE("Starting IO context thread");
+            m_ioc.run();
+            TRACE("IO context thread finished");
+        });
 
         // Start reading
         doRead();
 
-        TRACE("Successfully connected to Binance");
+        // Subscribe to heartbeat
+        doPing();
+
+        TRACE("Successfully connected to Binance WebSocket at ", m_host, ":", m_port);
         return true;
     } catch (const std::exception& e) {
         TRACE("Error in connect: ", e.what());
@@ -194,113 +226,29 @@ void ApiBinance::doRead() {
             std::string message = beast::buffers_to_string(m_buffer.data());
             m_buffer.consume(m_buffer.size());
             
-            // Log the raw message for debugging
-            TRACE("Raw WebSocket message: ", message);
+            TRACE("Raw WebSocket message from Binance: ", message.substr(0, 300));
             
             try {
+                json data = json::parse(message);
+                // Handle both array and single object messages
+                if (data.is_array()) {
+                    if (!data.empty() && data[0].contains("e")) {
+                        TRACE("Parsed WebSocket message type: ", data[0]["e"].get<std::string>());
+                    } else {
+                        TRACE("Parsed WebSocket message type: array");
+                    }
+                } else if (data.contains("e")) {
+                    TRACE("Parsed WebSocket message type: ", data["e"].get<std::string>());
+                } else {
+                    TRACE("Parsed WebSocket message type: unknown");
+                }
                 processMessage(message);
             } catch (const std::exception& e) {
-                TRACE("Error processing message: ", e.what());
+                TRACE("Error processing message: ", e.what(), " message: ", message.substr(0, 300));
             }
             
             doRead();
         });
-}
-
-void ApiBinance::disconnect() {
-    if (!m_connected) {
-        return;
-    }
-
-    try {
-        // First, stop the IO context to prevent new operations
-        if (m_work) {
-            m_work.reset();
-        }
-
-        // Stop the IO context
-        m_ioc.stop();
-
-        // Wait for the IO thread to finish
-        if (m_thread.joinable()) {
-            m_thread.join();
-        }
-
-        // Reset the IO context for potential reconnection
-        m_ioc.restart();
-
-        // Now it's safe to close the WebSocket
-        if (m_ws) {
-            boost::beast::error_code ec;
-            m_ws->close(websocket::close_code::normal, ec);
-            if (ec) {
-                TRACE("Warning: Error during WebSocket close: ", ec.message());
-            }
-            m_ws.reset();
-        }
-
-        m_connected = false;
-        TRACE("Disconnected from Binance");
-    } catch (const std::exception& e) {
-        TRACE("Warning: Error in disconnect: ", e.what());
-    }
-}
-
-bool ApiBinance::subscribeOrderBook(TradingPair pair) {
-    if (!m_connected) {
-        TRACE("Not connected to Binance");
-        return false;
-    }
-
-    try {
-        std::string symbol = tradingPairToSymbol(pair);
-        std::stringstream ss;
-        ss << "{\"method\":\"SUBSCRIBE\",\"params\":[\"" << symbol << "@depth@100ms@100\"],\"id\":1}";
-        
-        TRACE("Subscribing to Binance order book for ", symbol);
-        doWrite(ss.str());
-        
-        // Store the subscription state
-        auto& state = symbolStates[pair];
-        state.subscribed = true;
-        
-        if (m_subscriptionCallback) {
-            m_subscriptionCallback(true);
-        }
-        
-        return true;
-    } catch (const std::exception& e) {
-        TRACE("Error subscribing to order book: ", e.what());
-        if (m_subscriptionCallback) {
-            m_subscriptionCallback(false);
-        }
-        return false;
-    }
-}
-
-bool ApiBinance::getOrderBookSnapshot(TradingPair pair) {
-    if (!m_connected) {
-        TRACE("Not connected to Binance");
-        return false;
-    }
-
-    try {
-        std::string symbol = tradingPairToSymbol(pair);
-        std::string endpoint = "/depth";
-        std::string params = "symbol=" + symbol + "&limit=1000";
-        
-        TRACE("Getting order book snapshot for ", symbol);
-        json response = makeHttpRequest(endpoint, params);
-        processOrderBookSnapshot(response, pair);
-        
-        return true;
-    } catch (const std::exception& e) {
-        TRACE("Error getting order book snapshot: ", e.what());
-        if (m_snapshotCallback) {
-            m_snapshotCallback(false);
-        }
-        return false;
-    }
 }
 
 void ApiBinance::processMessage(const std::string& message) {
@@ -308,11 +256,23 @@ void ApiBinance::processMessage(const std::string& message) {
         json data = json::parse(message);
         
         // Log all messages for debugging
-        TRACE("Processing message: ", message);
+        TRACE("Processing Binance message: ", message.substr(0, 300));
         
         // Check if it's a subscription response
         if (data.contains("result") && data["result"] == nullptr) {
-            TRACE("Subscription successful");
+            TRACE("Binance subscription successful");
+            return;
+        }
+
+        // Handle array messages (like ticker arrays)
+        if (data.is_array()) {
+            if (!data.empty() && data[0].contains("e")) {
+                std::string eventType = data[0]["e"].get<std::string>();
+                if (eventType == "24hrTicker") {
+                    TRACE("Received ticker array from Binance");
+                    return;
+                }
+            }
             return;
         }
 
@@ -321,27 +281,35 @@ void ApiBinance::processMessage(const std::string& message) {
             std::string symbol = data["s"].get<std::string>();
             TradingPair pair = symbolToTradingPair(symbol);
             if (pair == TradingPair::UNKNOWN) {
-                TRACE("Unknown trading pair in update: ", symbol);
+                TRACE("Unknown trading pair in Binance update: ", symbol);
                 return;
             }
 
             auto& state = symbolStates[pair];
+            TRACE("Processing Binance update for ", symbol, " - subscribed=", state.subscribed, " hasSnapshot=", state.hasSnapshot);
+            
             if (!state.hasSnapshot) {
-                TRACE("Skipping update for ", symbol, " - no snapshot yet");
+                TRACE("Skipping Binance update for ", symbol, " - no snapshot yet");
                 return;
             }
 
             // Check if this update is after our last snapshot
-            if (data.contains("u") && data["u"] <= state.lastUpdateId) {
-                TRACE("Skipping update for ", symbol, " - update ID ", data["u"], " is before or equal to last snapshot ID ", state.lastUpdateId);
-                return;
+            if (data.contains("u")) {
+                int64_t updateId = data["u"];
+                if (updateId <= state.lastUpdateId) {
+                    TRACE("Skipping update for ", symbol, " - update ID ", updateId, " is before or equal to last snapshot ID ", state.lastUpdateId);
+                    return;
+                }
+                TRACE("Processing update for ", symbol, " - update ID ", updateId, " is after last snapshot ID ", state.lastUpdateId);
             }
 
-            TRACE("Processing order book update for ", symbol);
+            TRACE("Processing Binance order book update for ", symbol);
             processOrderBookUpdate(data);
+        } else if (data.contains("e")) {
+            TRACE("Received non-orderbook event: ", data["e"].get<std::string>());
         }
     } catch (const std::exception& e) {
-        TRACE("Error processing message: ", e.what());
+        TRACE("Error processing Binance message: ", e.what());
     }
 }
 
@@ -365,9 +333,13 @@ void ApiBinance::processOrderBookUpdate(const json& data) {
         }
 
         // Check if this update is after our last snapshot
-        if (data.contains("u") && data["u"] <= state.lastUpdateId) {
-            TRACE("Skipping update for ", symbol, " - update ID ", data["u"], " is before or equal to last snapshot ID ", state.lastUpdateId);
-            return;
+        if (data.contains("u")) {
+            int64_t updateId = data["u"];
+            if (updateId <= state.lastUpdateId) {
+                TRACE("Skipping update for ", symbol, " - update ID ", updateId, " is before or equal to last snapshot ID ", state.lastUpdateId);
+                return;
+            }
+            TRACE("Processing update for ", symbol, " - update ID ", updateId, " is after last snapshot ID ", state.lastUpdateId);
         }
 
         std::vector<PriceLevel> bids;
@@ -470,7 +442,8 @@ void ApiBinance::processOrderBookSnapshot(const json& data, TradingPair pair) {
             m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
         }
         
-        TRACE("Processed order book snapshot for ", tradingPairToSymbol(pair));
+        TRACE("Processed order book snapshot for ", tradingPairToSymbol(pair),
+            " last update: ", m_orderBookManager.getOrderBook(ExchangeId::BINANCE, pair).getLastUpdate());
         if (m_snapshotCallback) {
             m_snapshotCallback(true);
         }
@@ -570,15 +543,114 @@ void ApiBinance::setBalanceCallback(std::function<void(bool)> callback) {
 void ApiBinance::doWrite(std::string message) {
     TRACE("Sending WebSocket message: ", message);
     m_ws->async_write(net::buffer(message),
-        [this](beast::error_code ec, std::size_t bytes_transferred) {
+        [this, message](beast::error_code ec, std::size_t bytes_transferred) {
             if (ec) {
-                TRACE("Write error: ", ec.message());
+                TRACE("Write error: ", ec.message(), " for message: ", message);
                 return;
             }
-            TRACE("Successfully sent WebSocket message");
+            TRACE("Successfully sent WebSocket message: ", message);
         });
 }
 
 void ApiBinance::processMessages() {
     // All messages are processed asynchronously via WebSocket callbacks
+}
+
+void ApiBinance::disconnect() {
+    if (!m_connected) {
+        return;
+    }
+
+    try {
+        // First, stop the IO context to prevent new operations
+        if (m_work) {
+            m_work.reset();
+        }
+
+        // Stop the IO context
+        m_ioc.stop();
+
+        // Wait for the IO thread to finish
+        if (m_thread.joinable()) {
+            m_thread.join();
+        }
+
+        // Reset the IO context for potential reconnection
+        m_ioc.restart();
+
+        // Now it's safe to close the WebSocket
+        if (m_ws) {
+            boost::beast::error_code ec;
+            m_ws->close(websocket::close_code::normal, ec);
+            if (ec) {
+                TRACE("Warning: Error during WebSocket close: ", ec.message());
+            }
+            m_ws.reset();
+        }
+
+        m_connected = false;
+        TRACE("Disconnected from Binance");
+    } catch (const std::exception& e) {
+        TRACE("Warning: Error in disconnect: ", e.what());
+    }
+}
+
+bool ApiBinance::subscribeOrderBook(TradingPair pair) {
+    if (!m_connected) {
+        TRACE("Not connected to Binance");
+        return false;
+    }
+
+    try {
+        std::string symbol = tradingPairToSymbol(pair);
+        std::stringstream ss;
+        // Use the exact format from Binance's documentation
+        ss << "{\"method\":\"SUBSCRIBE\",\"params\":[\"" << symbol << "@depth@100ms\"],\"id\":1}";
+        
+        TRACE("Subscribing to Binance order book for ", symbol, " with message: ", ss.str());
+        doWrite(ss.str());
+        
+        // Store the subscription state
+        auto& state = symbolStates[pair];
+        state.subscribed = true;
+        
+        TRACE("Subscription state for ", symbol, ": subscribed=", state.subscribed, " hasSnapshot=", state.hasSnapshot);
+        
+        if (m_subscriptionCallback) {
+            m_subscriptionCallback(true);
+        }
+        
+        return true;
+    } catch (const std::exception& e) {
+        TRACE("Error subscribing to order book: ", e.what());
+        if (m_subscriptionCallback) {
+            m_subscriptionCallback(false);
+        }
+        return false;
+    }
+}
+
+bool ApiBinance::getOrderBookSnapshot(TradingPair pair) {
+    if (!m_connected) {
+        TRACE("Not connected to Binance");
+        return false;
+    }
+
+    try {
+        std::string symbol = tradingPairToSymbol(pair);
+        std::string endpoint = "/depth";
+        std::string params = "symbol=" + symbol + "&limit=1000";
+        
+        TRACE("Getting order book snapshot for ", symbol);
+        json response = makeHttpRequest(endpoint, params);
+        processOrderBookSnapshot(response, pair);
+        
+        return true;
+    } catch (const std::exception& e) {
+        TRACE("Error getting order book snapshot: ", e.what());
+        if (m_snapshotCallback) {
+            m_snapshotCallback(false);
+        }
+        return false;
+    }
 } 

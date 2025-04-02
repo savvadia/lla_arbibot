@@ -38,7 +38,7 @@ public:
 
     // Optional methods for periodic scanning
     virtual void scanOpportunities() {}
-    virtual void setScanInterval(int ms) {}
+    virtual void startTimerToScan(int ms) {}
 
     virtual ~Strategy() = default;
     std::string getName() const;
@@ -93,7 +93,7 @@ public:
 
     // Scanning
     void scanOpportunities() override;
-    void setScanInterval(int ms) override;
+    void startTimerToScan(int ms) override;
 
     static void timerCallback(int id, void *data);
     void execute() override;

@@ -82,10 +82,11 @@ private:
 
     // WebSocket callbacks
     void doRead();
+    void doWrite(std::string message);
+    void doPing();
     void processMessage(const std::string& message);
     void processOrderBookUpdate(const json& data);
     void processOrderBookSnapshot(const json& data, TradingPair pair);
-    void doWrite(std::string message);
 
     // Internal symbol conversion methods
     TradingPair symbolToTradingPair(const std::string& symbol) const;

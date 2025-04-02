@@ -146,7 +146,8 @@ int main() {
             exchangeManager.processMessages();
             
             // Execute strategy
-            strategy->execute();
+            // TODO: check if we need it. scan is done either on timer or on exchange update
+            // strategy->execute();
             
             // Log loop count periodically
             if (++loopCount % 100 == 0) {
