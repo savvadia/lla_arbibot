@@ -14,16 +14,13 @@ brew install websocketpp
 brew install nlohmann_json
 ```
 
-### 1. Install Nix  
-Ensure you have Nix installed on your system. If not, follow the instructions at [https://nixos.org/download.html](https://nixos.org/download.html).
+# Clean build from scratch:
 
-### 2. Enter Nix Shell  
-Run the following command to enter the development environment:  
-```sh
-nix-shell
+```
+rm -rf build && mkdir build && cd build && cmake -B . -S .. && make -j
 ```
 
-### 3. Build and run
+# run
 
 ```sh
 make clean

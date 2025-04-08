@@ -1,7 +1,25 @@
-cmake_minimum_required(VERSION 3.10)
+# set limits due to nlohmann/json needs to be updated
+cmake_minimum_required(VERSION 3.31)
+set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0")
+
+# Set CMake policies for newer CMake version
+cmake_policy(SET CMP0167 NEW) # Use the new FindBoost module
+cmake_policy(SET CMP0135 NEW) # Use the new FetchContent behavior
+cmake_policy(SET CMP0091 NEW) # Enable new MSVC runtime library behavior
 
 # Enable compilation database for IDE support
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Set the SDK version explicitly
+set(CMAKE_OSX_SYSROOT "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk" CACHE PATH "SDK path")
+
+# Set the deployment target
+set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0" CACHE STRING "Minimum OS X deployment version")
+
+# Set curl paths explicitly
+set(CURL_ROOT "/opt/homebrew/opt/curl")
+set(CURL_INCLUDE_DIR "${CURL_ROOT}/include")
+set(CURL_LIBRARY "${CURL_ROOT}/lib/libcurl.dylib")
 
 project(LlaArbibot)
 
@@ -26,11 +44,14 @@ find_package(OpenSSL REQUIRED)
 # Include FetchContent module
 include(FetchContent)
 
-# Fetch nlohmann/json
+# Fetch nlohmann/json with specific version and options
 FetchContent_Declare(
     json
-    URL https://github.com/nlohmann/json/archive/refs/tags/v3.11.2.tar.gz
+    URL https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.tar.gz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
+
+# Make json available
 FetchContent_MakeAvailable(json)
 
 # Add source files

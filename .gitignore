@@ -42,3 +42,7 @@ TimersTest
 
 # Ignore test binaries
 tests/*Test
+
+# ignore cache files
+.cache/
+_deps/
