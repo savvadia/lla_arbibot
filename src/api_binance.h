@@ -15,12 +15,9 @@
 #include <boost/asio/strand.hpp>
 #include <nlohmann/json.hpp>
 #include <map>
-#include <atomic>
-#include <algorithm>
 #include <curl/curl.h>
 
 namespace beast = boost::beast;
-namespace http = beast::http;
 namespace websocket = beast::websocket;
 namespace net = boost::asio;
 namespace ssl = boost::asio::ssl;
@@ -37,7 +34,7 @@ public:
     void disconnect() override;
 
     // Subscribe to order book updates for a trading pair
-    bool subscribeOrderBook(TradingPair pair) override;
+    bool subscribeOrderBook(std::vector<TradingPair> pairs) override;
 
     // Get current order book snapshot
     bool getOrderBookSnapshot(TradingPair pair) override;

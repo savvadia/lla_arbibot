@@ -1,6 +1,5 @@
 #include "api_kraken.h"
 #include "orderbook.h"
-#include "trading_pair_format.h"
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -270,24 +269,28 @@ void ApiKraken::disconnect() {
     }
 }
 
-bool ApiKraken::subscribeOrderBook(TradingPair pair) {
+bool ApiKraken::subscribeOrderBook(std::vector<TradingPair> pairs) {
     if (!m_connected) {
         TRACE("Not connected to Kraken");
         return false;
     }
 
+    std::vector<std::string> symbols;
+    for (const auto& pair : pairs) {
+        symbols.push_back(tradingPairToSymbol(pair));
+    }
+
     try {
-        std::string symbol = tradingPairToSymbol(pair);
         json subscription = {
             {"event", "subscribe"},
             {"subscription", {
                 {"name", "book"},
                 {"depth", 100}
             }},
-            {"pair", {symbol}}
+            {"pair", symbols}
         };
 
-        TRACE("Subscribing to Kraken order book for ", symbol);
+        TRACE("Subscribing to Kraken order book: ", subscription.dump());
         doWrite(subscription.dump());
         if (m_subscriptionCallback) {
             m_subscriptionCallback(true);

@@ -31,7 +31,7 @@ public:
     void disconnectAll();
     
     // Subscribe to order book for all exchanges
-    bool subscribeAllOrderBooks(TradingPair pair);
+    bool subscribeAllOrderBooks(std::vector<TradingPair> pairs);
     
     // Get order book snapshots for all exchanges
     bool getOrderBookSnapshots(TradingPair pair);

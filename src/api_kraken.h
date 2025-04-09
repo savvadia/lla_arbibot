@@ -36,7 +36,7 @@ public:
     void disconnect() override;
 
     // Subscribe to order book updates for a trading pair
-    bool subscribeOrderBook(TradingPair pair) override;
+    bool subscribeOrderBook(std::vector<TradingPair> pairs) override;
 
     // Get current order book snapshot
     bool getOrderBookSnapshot(TradingPair pair) override;

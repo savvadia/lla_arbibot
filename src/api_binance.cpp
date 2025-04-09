@@ -640,26 +640,35 @@ void ApiBinance::disconnect() {
     }
 }
 
-bool ApiBinance::subscribeOrderBook(TradingPair pair) {
+bool ApiBinance::subscribeOrderBook(std::vector<TradingPair> pairs) {
     if (!m_connected) {
         TRACE("Not connected to Binance");
         return false;
     }
 
     try {
-        std::string symbol = tradingPairToSymbol(pair);
-        std::stringstream ss;
-        // Use the exact format from Binance's documentation
-        ss << "{\"method\":\"SUBSCRIBE\",\"params\":[\"" << symbol << "@depth@100ms\"],\"id\":1}";
-        
-        TRACE("Subscribing to Binance order book for ", symbol, " with message: ", ss.str());
-        doWrite(ss.str());
-        
+        json message;
+        message["id"] = 1;
+        message["method"] = "SUBSCRIBE";
+        message["params"] = json::array();
+        for (const auto& pair : pairs) {
+            std::string symbol = toLower(tradingPairToSymbol(pair));
+            message["params"].emplace_back(symbol + "@depth10");
+        }
+
+        std::string messageStr = message.dump();
+
+        TRACE("Subscribing to Binance order book with message: ", messageStr);
+        doWrite(messageStr);  
+
         // Store the subscription state
-        auto& state = symbolStates[pair];
-        state.subscribed = true;
+        for (const auto& pair : pairs) {
+            auto& state = symbolStates[pair];
+            std::string symbol = tradingPairToSymbol(pair);    
+            state.subscribed = true;
+            TRACE("Subscription state for ", symbol, ": subscribed=", state.subscribed, " hasSnapshot=", state.hasSnapshot);
+        }
         
-        TRACE("Subscription state for ", symbol, ": subscribed=", state.subscribed, " hasSnapshot=", state.hasSnapshot);
         
         if (m_subscriptionCallback) {
             m_subscriptionCallback(true);
@@ -684,7 +693,7 @@ bool ApiBinance::getOrderBookSnapshot(TradingPair pair) {
     try {
         std::string symbol = tradingPairToSymbol(pair);
         std::string endpoint = "/depth";
-        std::string params = "symbol=" + symbol + "&limit=1000";
+        std::string params = "symbol=" + symbol + "&limit=10";
         
         TRACE("Getting order book snapshot for ", symbol);
         json response = makeHttpRequest(endpoint, params);

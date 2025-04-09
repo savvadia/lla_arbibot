@@ -70,12 +70,12 @@ void ExchangeManager::disconnectAll() {
   }
 }
 
-bool ExchangeManager::subscribeAllOrderBooks(TradingPair pair) {
+bool ExchangeManager::subscribeAllOrderBooks(std::vector<TradingPair> pairs) {
   for (const auto &[exchangeId, api] : exchanges) {
     std::string exchangeName =
         (exchangeId == ExchangeId::BINANCE) ? "BINANCE" : "KRAKEN";
     TRACE("subscribing to order book for ", exchangeName);
-    if (!api->subscribeOrderBook(pair)) {
+    if (!api->subscribeOrderBook(pairs)) {
       TRACE("failed to subscribe to order book for ", exchangeName);
       return false;
     }

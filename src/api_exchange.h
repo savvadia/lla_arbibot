@@ -29,7 +29,7 @@ public:
     virtual void disconnect() = 0;
 
     // Subscribe to order book updates for a trading pair
-    virtual bool subscribeOrderBook(TradingPair pair) = 0;
+    virtual bool subscribeOrderBook(std::vector<TradingPair> pairs) = 0;
 
     // Get order book snapshot for a trading pair
     virtual bool getOrderBookSnapshot(TradingPair pair) = 0;

@@ -86,7 +86,7 @@ int main() {
 
     // Subscribe to order books
     TRACE("Subscribing to order books...");
-    if (!exchangeManager.subscribeAllOrderBooks(TradingPair::BTC_USDT)) {
+    if (!exchangeManager.subscribeAllOrderBooks({TradingPair::BTC_USDT, TradingPair::ETH_USDT})) {
         TRACE("Failed to subscribe to order books");
         return 1;
     }

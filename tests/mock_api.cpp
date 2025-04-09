@@ -54,15 +54,23 @@ void MockApi::disconnect() {
     std::cout << "[" << getTestTimestamp() << "] MockApi: Disconnected successfully" << std::endl;
 }
 
-bool MockApi::subscribeOrderBook(TradingPair pair) {
-    std::cout << "[" << getTestTimestamp() << "] MockApi: Starting subscribe to order book for " << toString(pair) << "..." << std::endl;
+bool MockApi::subscribeOrderBook(std::vector<TradingPair> pairs) {
+    std::string symbols = "";
+    for (const auto& pair : pairs) {
+        symbols += tradingPairToSymbol(pair) + ",";
+    }
+
+    std::cout << "[" << getTestTimestamp() << "] MockApi: Starting subscribe to order book for " << symbols << "..." << std::endl;
     if (!m_connected) {
         std::cerr << "[" << getTestTimestamp() << "] MockApi: Not connected" << std::endl;
         return false;
     }
 
     try {
-        std::string symbol = tradingPairToSymbol(pair);
+        std::vector<std::string> symbols;
+        for (const auto& pair : pairs) {
+            symbols.push_back(tradingPairToSymbol(pair));
+        }
         
         // Simulate subscription delay
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -71,7 +79,7 @@ bool MockApi::subscribeOrderBook(TradingPair pair) {
         json response = {
             {"event", "subscribe"},
             {"status", "success"},
-            {"pair", symbol},
+            {"pair", symbols},
             {"subscription", {
                 {"name", "book"}
             }}

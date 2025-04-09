@@ -71,7 +71,7 @@ TEST_F(ApiTest, SubscribeOrderBookTest) {
     std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for connection..." << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     std::cout << "[" << getTestTimestamp() << "] TEST: Subscribing to order book..." << std::endl;
-    EXPECT_TRUE(mockApi->subscribeOrderBook(TradingPair::BTC_USDT));
+    EXPECT_TRUE(mockApi->subscribeOrderBook({TradingPair::BTC_USDT, TradingPair::ETH_USDT}));
     
     std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for callback..." << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -111,7 +111,7 @@ TEST_F(ApiTest, OrderBookUpdateTest) {
     
     // Subscribe to order book updates
     std::cout << "[" << getTestTimestamp() << "] TEST: Subscribing to order book..." << std::endl;
-    EXPECT_TRUE(mockApi->subscribeOrderBook(TradingPair::BTC_USDT));
+    EXPECT_TRUE(mockApi->subscribeOrderBook({TradingPair::BTC_USDT, TradingPair::ETH_USDT}));
     std::cout << "[" << getTestTimestamp() << "] TEST: Waiting for subscription..." << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
