@@ -1,4 +1,5 @@
-#pragma once
+#ifndef TYPES_H
+#define TYPES_H
 
 #include <string>
 #include <iostream>
@@ -85,3 +86,5 @@ struct OrderBookData {
     double bestAskQuantity;
     std::chrono::system_clock::time_point lastUpdate;
 }; 
+
+#endif // TYPES_H

@@ -3,6 +3,7 @@
 #include "api_exchange.h"
 #include "orderbook.h"
 #include "trading_pair_format.h"
+#include "timers.h"
 #include <string>
 #include <functional>
 #include <memory>
@@ -28,7 +29,7 @@ using json = nlohmann::json;
 
 class ApiBinance : public ApiExchange {
 public:
-    ApiBinance(OrderBookManager& orderBookManager);
+    ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode = true);
     ~ApiBinance() override;
 
     // Initialize WebSocket connection
@@ -40,6 +41,9 @@ public:
 
     // Get current order book snapshot
     bool getOrderBookSnapshot(TradingPair pair) override;
+
+    // Process messages for all exchanges
+    void processMessages() override;
 
     // Order management
     bool placeOrder(TradingPair pair, OrderType type, double price, double quantity) override;
@@ -66,33 +70,37 @@ public:
         }
     }
 
-    // New method for processing messages
-    void processMessages() override;
+protected:
+    // Override the cooldown method for Binance-specific rate limiting
+    void cooldown(int httpCode, const std::string& response, const std::string& endpoint = "") override;
 
 private:
     struct SymbolState {
-        bool hasSnapshot = false;
-        bool subscribed = false;
-        int64_t lastUpdateId = 0;
+        bool subscribed{false};
+        bool hasSnapshot{false};
+        int64_t lastUpdateId{0};
+        bool hasProcessedFirstUpdate{false};  // Track if we've processed the first update after snapshot
     };
 
     // HTTP client methods
     json makeHttpRequest(const std::string& endpoint, const std::string& params = "", const std::string& method = "GET");
     static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp);
+    static size_t HeaderCallback(void* contents, size_t size, size_t nmemb, std::string* userp);
 
     // WebSocket callbacks
     void doRead();
-    void doWrite(std::string message);
-    void doPing();
     void processMessage(const std::string& message);
     void processOrderBookUpdate(const json& data);
     void processOrderBookSnapshot(const json& data, TradingPair pair);
+    void doWrite(std::string message);
+
+    // User data stream methods
+    void doPing();
 
     // Internal symbol conversion methods
     TradingPair symbolToTradingPair(const std::string& symbol) const;
     std::string tradingPairToSymbol(TradingPair pair) const;
 
-    OrderBookManager& m_orderBookManager;
     std::map<TradingPair, std::string> m_symbolMap;
     bool m_connected;
     

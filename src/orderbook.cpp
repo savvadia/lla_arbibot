@@ -149,7 +149,7 @@ void OrderBook::mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<P
         } else if(pushNew) {
             pushElement(result, itn, totalAmount, scenario);
         } else {
-            NOTICE("Pushing - Scenario: ", scenario, " Push old: ", pushOld, " Push new: ", pushNew);
+            NOTICE(exchangeId, "Pushing - Scenario: ", scenario, " Push old: ", pushOld, " Push new: ", pushNew);
         }
     }
 
@@ -157,7 +157,7 @@ void OrderBook::mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<P
     OrderBook::sortList(result, isBid);
 
     oldList = std::move(result);
-    TRACE_BASE(TraceInstance::ORDERBOOK, "merged size: ", oldList.size(), " amount: ", totalAmount, " ",
+    TRACE_BASE(TraceInstance::ORDERBOOK, exchangeId, " merged size: ", oldList.size(), " amount: ", totalAmount, " ",
         isBid ? "bids" : "asks", " ", traceBidsAsks(oldList));
 }
 

@@ -3,6 +3,8 @@
 /obj/
 /build/
 /out/
+.cache/
+_deps/
 
 
 # Cmake files
@@ -41,8 +43,4 @@ OrderBookTest
 TimersTest
 
 # Ignore test binaries
-tests/*Test
-
-# ignore cache files
-.cache/
-_deps/
+*Test

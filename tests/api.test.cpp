@@ -1,22 +1,20 @@
 #include <gtest/gtest.h>
-#include "../src/api_exchange.h"
-#include "../src/api_binance.h"
-#include "../src/api_kraken.h"
 #include "mock_api.h"
 #include "test_utils.h"
 #include <memory>
 #include <chrono>
 #include <thread>
 #include <iostream>
-#include <iomanip>
+#include "test_utils.h"
 
 class ApiTest : public ::testing::Test {
 protected:
     void SetUp() override {
         std::cout << "\n[" << getTestTimestamp() << "] TEST: Setting up test..." << std::endl;
         orderBookManager = std::make_shared<OrderBookManager>();
+        timersMgr = std::make_shared<TimersMgr>();
         std::cout << "[" << getTestTimestamp() << "] TEST: Creating MockApi..." << std::endl;
-        mockApi = std::make_unique<MockApi>(*orderBookManager, "Binance");
+        mockApi = std::make_unique<MockApi>(*orderBookManager, *timersMgr, "Binance");
         std::cout << "[" << getTestTimestamp() << "] TEST: Test setup completed" << std::endl;
     }
 
@@ -29,6 +27,7 @@ protected:
     }
 
     std::shared_ptr<OrderBookManager> orderBookManager;
+    std::shared_ptr<TimersMgr> timersMgr;
     std::unique_ptr<MockApi> mockApi;
 };
 

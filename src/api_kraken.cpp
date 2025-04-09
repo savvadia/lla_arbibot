@@ -18,7 +18,6 @@
 using json = nlohmann::json;
 using tcp = boost::asio::ip::tcp;
 namespace websocket = boost::beast::websocket;
-namespace http = boost::beast::http;
 namespace ssl = boost::asio::ssl;
 
 constexpr const char* REST_ENDPOINT = "https://api.kraken.com/0/public";
@@ -32,8 +31,23 @@ size_t ApiKraken::WriteCallback(void* contents, size_t size, size_t nmemb, std::
     return realsize;
 }
 
+// Header callback function for CURL
+static size_t HeaderCallback(char* buffer, size_t size, size_t nmemb, void* userdata) {
+    size_t totalSize = size * nmemb;
+    std::string* headers = static_cast<std::string*>(userdata);
+    headers->append(buffer, totalSize);
+    return totalSize;
+}
+
 // Make HTTP request to Kraken API
 json ApiKraken::makeHttpRequest(const std::string& endpoint, const std::string& params, const std::string& method) {
+    // Check if we're in a cooldown period
+    if (isInCooldown()) {
+        int remainingSeconds = getRemainingCooldownSeconds();
+        TRACE("Kraken API in cooldown for ", remainingSeconds, " more seconds. Skipping request to ", endpoint);
+        throw std::runtime_error("API in cooldown period");
+    }
+
     if (!curl) {
         throw std::runtime_error("CURL not initialized");
     }
@@ -46,10 +60,14 @@ json ApiKraken::makeHttpRequest(const std::string& endpoint, const std::string& 
     TRACE("Making HTTP ", method, " request to: ", url);
 
     std::string response;
+    std::string headers;
+    long httpCode = 0;
     
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &headers);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
     
@@ -67,6 +85,21 @@ json ApiKraken::makeHttpRequest(const std::string& endpoint, const std::string& 
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         throw std::runtime_error(std::string("curl_easy_perform() failed: ") + curl_easy_strerror(res));
+    }
+
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
+    
+    // Check for rate limit headers
+    if (!headers.empty()) {
+        // Parse rate limit headers if they exist
+        // Kraken doesn't use standard rate limit headers, but we can check for any custom headers
+        // This is a placeholder for future implementation if Kraken adds rate limit headers
+    }
+    
+    // Handle HTTP errors
+    if (httpCode >= 400) {
+        handleHttpError(httpCode, response, endpoint);
+        throw std::runtime_error("HTTP request failed with code " + std::to_string(httpCode));
     }
 
     // Truncate long responses for logging
@@ -102,8 +135,8 @@ std::string ApiKraken::tradingPairToSymbol(TradingPair pair) const {
     throw std::runtime_error("Unsupported trading pair");
 }
 
-ApiKraken::ApiKraken(OrderBookManager& orderBookManager)
-    : m_orderBookManager(orderBookManager)
+ApiKraken::ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode)
+    : ApiExchange(orderBookManager, timersMgr, testMode)
     , m_connected(false)
     , curl(nullptr) {
 
@@ -578,3 +611,11 @@ void ApiKraken::setOrderCallback(std::function<void(bool)> callback) {
 void ApiKraken::setBalanceCallback(std::function<void(bool)> callback) {
     m_balanceCallback = callback;
 } 
+
+// Implement the cooldown method for Kraken-specific rate limiting
+void ApiKraken::cooldown(int httpCode, const std::string& response, const std::string& endpoint) {
+    // Only call base class cooldown if there's an actual error
+    if (httpCode > 0) {
+        ApiExchange::cooldown(httpCode, response, endpoint);
+    }
+}

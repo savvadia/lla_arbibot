@@ -2,6 +2,7 @@
 
 #include "api_exchange.h"
 #include "orderbook.h"
+#include "timers.h"
 #include <string>
 #include <functional>
 #include <memory>
@@ -21,14 +22,13 @@
 using json = nlohmann::json;
 using tcp = boost::asio::ip::tcp;
 namespace websocket = boost::beast::websocket;
-namespace http = boost::beast::http;
 namespace ssl = boost::asio::ssl;
 namespace net = boost::asio;
 namespace beast = boost::beast;
 
 class ApiKraken : public ApiExchange {
 public:
-    ApiKraken(OrderBookManager& orderBookManager);
+    ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode = true);
     ~ApiKraken() override;
 
     // Initialize WebSocket connection
@@ -59,15 +59,30 @@ public:
     void setOrderCallback(std::function<void(bool)> callback) override;
     void setBalanceCallback(std::function<void(bool)> callback) override;
 
+    // Static method for string conversion (used for tracing)
+    static std::string tradingPairToString(TradingPair pair) {
+        switch (pair) {
+            case TradingPair::BTC_USDT: return "XBT/USD";
+            case TradingPair::ETH_USDT: return "ETH/USD";
+            case TradingPair::XTZ_USDT: return "XTZ/USD";
+            default: return "UNKNOWN";
+        }
+    }
+
+protected:
+    // Override the cooldown method for Kraken-specific rate limiting
+    void cooldown(int httpCode, const std::string& response, const std::string& endpoint = "") override;
+
 private:
     struct SymbolState {
-        bool hasSnapshot = false;
+        bool subscribed{false};
+        bool hasSnapshot{false};
     };
 
     // HTTP client callback
     static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp);
     json makeHttpRequest(const std::string& endpoint, const std::string& params = "", const std::string& method = "GET");
-
+    
     // WebSocket callbacks
     void doRead();
     void processMessage(const std::string& message);
@@ -79,7 +94,6 @@ private:
     TradingPair symbolToTradingPair(const std::string& symbol) const;
     std::string tradingPairToSymbol(TradingPair pair) const;
 
-    OrderBookManager& m_orderBookManager;
     std::map<TradingPair, std::string> m_symbolMap;
     bool m_connected;
     

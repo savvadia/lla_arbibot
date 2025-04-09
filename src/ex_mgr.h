@@ -3,6 +3,7 @@
 #include "types.h"
 #include "api_exchange.h"
 #include "orderbook.h"
+#include "timers.h"
 #include <vector>
 #include <memory>
 #include <map>
@@ -11,7 +12,7 @@
 
 class ExchangeManager : public Traceable {
 public:
-    ExchangeManager();
+    ExchangeManager(TimersMgr& timersMgr, OrderBookManager& orderBookManager);
     ~ExchangeManager();
 
     // Initialize and connect to exchanges
@@ -21,7 +22,7 @@ public:
     ApiExchange* getExchange(ExchangeId id) const;
     
     // Get order book manager
-    OrderBookManager& getOrderBookManager() { return orderBookManager; }
+    OrderBookManager& getOrderBookManager() { return m_orderBookManager; }
     
     // Connect to all exchanges
     bool connectAll();
@@ -49,7 +50,8 @@ protected:
     }
 
 private:
-    OrderBookManager orderBookManager;
     std::map<ExchangeId, std::unique_ptr<ApiExchange>> exchanges;
     std::vector<ExchangeId> exchangeIds;
+    TimersMgr& m_timersMgr;
+    OrderBookManager& m_orderBookManager;
 }; 

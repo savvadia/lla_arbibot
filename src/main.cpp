@@ -11,6 +11,7 @@
 #include "s_poplavki.h"
 #include "balance.h"
 #include "config.h"
+#include "event_loop.h"
 using namespace std;
 
 // Define TRACE macro for main
@@ -59,10 +60,11 @@ int main() {
     // Create timer manager
     TRACE("Initializing TimersMgr...");
     TimersMgr timersMgr;
+    OrderBookManager orderBookManager;
     
     // Create exchange manager
     TRACE("Initializing ExchangeManager...");
-    ExchangeManager exchangeManager;
+    ExchangeManager exchangeManager(timersMgr, orderBookManager);
     
     // Define exchanges to use
     vector<ExchangeId> exchanges = {ExchangeId::KRAKEN, ExchangeId::BINANCE};

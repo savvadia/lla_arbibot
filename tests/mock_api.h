@@ -2,19 +2,16 @@
 
 #include "../src/api_exchange.h"
 #include "../src/orderbook.h"
+#include "../src/timers.h"
 #include <string>
 #include <functional>
-#include <memory>
-#include <thread>
-#include <nlohmann/json.hpp>
 #include <map>
-#include "test_utils.h"
 
 using json = nlohmann::json;
 
 class MockApi : public ApiExchange {
 public:
-    MockApi(OrderBookManager& orderBookManager, const std::string& name);
+    MockApi(OrderBookManager& orderBookManager, TimersMgr& timersMgr, const std::string& name, bool testMode = true);
     ~MockApi() override;
 
     // Initialize WebSocket connection
@@ -48,6 +45,8 @@ public:
     // Test helper methods
     void simulateOrderBookUpdate(const std::vector<PriceLevel>& bids, const std::vector<PriceLevel>& asks);
 
+protected:
+
 private:
     // Internal symbol conversion methods
     TradingPair symbolToTradingPair(const std::string& symbol) const;
@@ -58,7 +57,6 @@ private:
 
     std::string m_name;
     ExchangeId m_id;
-    OrderBookManager& m_orderBookManager;
     std::map<TradingPair, std::string> m_symbolMap;
     bool m_connected{false};
     

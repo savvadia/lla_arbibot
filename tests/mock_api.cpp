@@ -1,15 +1,14 @@
 #include "mock_api.h"
 #include <iostream>
 #include <chrono>
-#include <iomanip>
-#include <sstream>
-#include <mutex>
-#include <condition_variable>
+#include "test_utils.h"
+#include <thread>
+#include <nlohmann/json.hpp>
 
-MockApi::MockApi(OrderBookManager& orderBookManager, const std::string& name)
-    : m_name(name)
-    , m_id(name == "Binance" ? ExchangeId::BINANCE : ExchangeId::KRAKEN)
-    , m_orderBookManager(orderBookManager) {
+MockApi::MockApi(OrderBookManager& orderBookManager, TimersMgr& timersMgr, const std::string& name, bool testMode)
+    : ApiExchange(orderBookManager, timersMgr,  testMode)
+    , m_name(name)
+    , m_id(name == "Binance" ? ExchangeId::BINANCE : ExchangeId::KRAKEN) {
     
     std::cout << "[" << getTestTimestamp() << "] MockApi: Creating " << m_name << " API..." << std::endl << std::flush;
     
@@ -37,6 +36,7 @@ bool MockApi::connect() {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     m_connected = true;
     std::cout << "[" << getTestTimestamp() << "] MockApi: Connected successfully" << std::endl;
+    
     return true;
 }
 
@@ -298,4 +298,4 @@ void MockApi::setOrderCallback(std::function<void(bool)> callback) {
 
 void MockApi::setBalanceCallback(std::function<void(bool)> callback) {
     m_balanceCallback = callback;
-} 
+}

@@ -1,6 +1,5 @@
 #include "api_binance.h"
 #include "orderbook.h"
-#include "trading_pair_format.h"
 #include <iostream>
 #include <sstream>
 #include <boost/beast/core.hpp>
@@ -17,12 +16,11 @@
 using json = nlohmann::json;
 using tcp = boost::asio::ip::tcp;
 namespace websocket = boost::beast::websocket;
-namespace http = beast::http;
 namespace ssl = boost::asio::ssl;
 
-constexpr const char* REST_ENDPOINT = "https://api.binance.com/api/v3";
-
 #define TRACE(...) TRACE_THIS(TraceInstance::A_BINANCE, __VA_ARGS__)
+
+constexpr const char* REST_ENDPOINT = "https://api.binance.com/api/v3";
 
 // HTTP client callback
 size_t ApiBinance::WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {
@@ -31,8 +29,21 @@ size_t ApiBinance::WriteCallback(void* contents, size_t size, size_t nmemb, std:
     return realsize;
 }
 
+size_t ApiBinance::HeaderCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {
+    size_t realsize = size * nmemb;
+    userp->append((char*)contents, realsize);
+    return realsize;
+}
+
 // Make HTTP request to Binance API
 json ApiBinance::makeHttpRequest(const std::string& endpoint, const std::string& params, const std::string& method) {
+    // Check if we're in a cooldown period
+    if (isInCooldown()) {
+        int remainingSeconds = getRemainingCooldownSeconds();
+        TRACE("Binance API in cooldown for ", remainingSeconds, " more seconds. Skipping request to ", endpoint);
+        throw std::runtime_error("API in cooldown period");
+    }
+
     if (!curl) {
         throw std::runtime_error("CURL not initialized");
     }
@@ -45,12 +56,16 @@ json ApiBinance::makeHttpRequest(const std::string& endpoint, const std::string&
     TRACE("Making HTTP ", method, " request to: ", url);
 
     std::string response;
+    std::string headers;
+    long httpCode = 0;
     
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &headers);
     
     if (method == "DELETE") {
         curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
@@ -66,6 +81,41 @@ json ApiBinance::makeHttpRequest(const std::string& endpoint, const std::string&
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         throw std::runtime_error(std::string("curl_easy_perform() failed: ") + curl_easy_strerror(res));
+    }
+
+
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
+    
+    // Check for rate limit headers
+    if (!headers.empty()) {
+        // Parse rate limit headers
+        std::string usedWeightHeader = "X-MBX-USED-WEIGHT-1M";
+        size_t pos = headers.find(usedWeightHeader);
+        if (pos != std::string::npos) {
+            size_t valueStart = headers.find(": ", pos) + 2;
+            size_t valueEnd = headers.find("\r\n", valueStart);
+            if (valueStart != std::string::npos && valueEnd != std::string::npos) {
+                std::string usedWeightStr = headers.substr(valueStart, valueEnd - valueStart);
+                try {
+                    int usedWeight = std::stoi(usedWeightStr);
+                    TRACE("Binance rate limit: ", usedWeight, "/1200 per minute");
+                    
+                    // If we're close to the limit, we could implement a more sophisticated rate limiting strategy
+                    if (usedWeight > 1000) {
+                        TRACE("Approaching Binance rate limit, consider implementing backoff");
+                    }
+                } catch (...) {
+                    // If we can't parse the header, just log it
+                    TRACE("Could not parse rate limit header: ", usedWeightStr);
+                }
+            }
+        }
+    }
+    
+    // Handle HTTP errors
+    if (httpCode >= 400) {
+        handleHttpError(httpCode, response, endpoint);
+        throw std::runtime_error("HTTP request failed with code " + std::to_string(httpCode));
     }
 
     // Truncate long responses for logging
@@ -101,8 +151,8 @@ std::string ApiBinance::tradingPairToSymbol(TradingPair pair) const {
     throw std::runtime_error("Unsupported trading pair");
 }
 
-ApiBinance::ApiBinance(OrderBookManager& orderBookManager)
-    : m_orderBookManager(orderBookManager)
+ApiBinance::ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode)
+    : ApiExchange(orderBookManager, timersMgr, testMode)
     , m_connected(false)
     , curl(nullptr) {
 
@@ -130,20 +180,15 @@ void ApiBinance::doPing() {
         TRACE("Ping: Not connected to Binance");
         return;
     }
-    
+
     try {
-        // Subscribe to all tickers as heartbeat
-        json heartbeat = {
-            {"method", "SUBSCRIBE"},
-            {"params", {"!ticker@arr"}},
-            {"id", 2}
-        };
-        TRACE("Subscribing to Binance heartbeat with message: ", heartbeat.dump());
-        doWrite(heartbeat.dump());
+        // TODO: Implement ping
+        TRACE("Ping: Not implemented for Binance");
     } catch (const std::exception& e) {
-        TRACE("Error subscribing to heartbeat: ", e.what());
+        TRACE("Error on ping: ", e.what());
     }
 }
+
 
 bool ApiBinance::connect() {
     if (m_connected) {
@@ -654,3 +699,52 @@ bool ApiBinance::getOrderBookSnapshot(TradingPair pair) {
         return false;
     }
 } 
+
+// Implement the cooldown method for Binance-specific rate limiting
+void ApiBinance::cooldown(int httpCode, const std::string& response, const std::string& endpoint) {
+    bool shouldCooldown = false;
+    int cooldownMinutes = 5; // Default cooldown time
+
+    // Binance-specific rate limit handling
+    if (httpCode == 429) {
+        // Try to parse the retryAfter field from the response
+        try {
+            json errorJson = json::parse(response);
+            if (errorJson.contains("retryAfter")) {
+                int retryAfter = errorJson["retryAfter"].get<int>();
+                TRACE("Binance rate limit retry after ", retryAfter, " seconds");
+                cooldownMinutes = std::max(1, retryAfter / 60);
+                shouldCooldown = true;
+            }
+        } catch (...) {
+            // If we can't parse the retryAfter, use default cooldown
+            shouldCooldown = true;
+            cooldownMinutes = 30; // Default for rate limits
+        }
+    } else if (httpCode == 418) {
+        // IP has been auto-banned
+        shouldCooldown = true;
+        cooldownMinutes = 120; // 2 hours cooldown for bans
+    } else if (httpCode == 403) {
+        // Authentication issues
+        shouldCooldown = true;
+        cooldownMinutes = 60; // 1 hour cooldown for auth issues
+    } else if (httpCode >= 500) {
+        // Server errors
+        shouldCooldown = true;
+        cooldownMinutes = 15; // 15 minutes for server errors
+    } else if (httpCode >= 400 && httpCode < 500) {
+        // Client errors
+        shouldCooldown = true;
+        cooldownMinutes = 10; // 10 minutes for client errors
+    }
+
+    // Check for rate limit headers in the response
+    // Note: This would be implemented in makeHttpRequest when processing the response
+    // Here we're just handling the cooldown based on the HTTP code
+
+    if (shouldCooldown) {
+        TRACE("Binance entering cooldown for ", cooldownMinutes, " minutes due to HTTP ", httpCode);
+        startCooldown(cooldownMinutes);
+    }
+}
