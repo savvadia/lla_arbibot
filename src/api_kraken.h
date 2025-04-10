@@ -2,29 +2,27 @@
 
 #include "api_exchange.h"
 #include "orderbook.h"
+#include "trading_pair_format.h"
 #include "timers.h"
 #include <string>
 #include <functional>
 #include <memory>
 #include <thread>
 #include <boost/beast/core.hpp>
-#include <boost/beast/websocket.hpp>
-#include <boost/beast/http.hpp>
 #include <boost/beast/ssl.hpp>
-#include <boost/beast/version.hpp>
-#include <boost/asio/connect.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/ssl/stream.hpp>
+#include <boost/beast/websocket.hpp>
+#include <boost/beast/websocket/ssl.hpp>
+#include <boost/asio/strand.hpp>
 #include <nlohmann/json.hpp>
-#include <curl/curl.h>
 #include <map>
+#include <curl/curl.h>
 
-using json = nlohmann::json;
-using tcp = boost::asio::ip::tcp;
-namespace websocket = boost::beast::websocket;
-namespace ssl = boost::asio::ssl;
-namespace net = boost::asio;
 namespace beast = boost::beast;
+namespace websocket = beast::websocket;
+namespace net = boost::asio;
+namespace ssl = boost::asio::ssl;
+using tcp = boost::asio::ip::tcp;
+using json = nlohmann::json;
 
 class ApiKraken : public ApiExchange {
 public:
@@ -41,7 +39,7 @@ public:
     // Get current order book snapshot
     bool getOrderBookSnapshot(TradingPair pair) override;
 
-    // Process incoming messages
+    // Process messages for all exchanges
     void processMessages() override;
 
     // Order management
@@ -49,7 +47,7 @@ public:
     bool cancelOrder(const std::string& orderId) override;
     bool getBalance(const std::string& asset) override;
 
-    std::string getExchangeName() const override { return "Kraken"; }
+    std::string getExchangeName() const override { return "KRAKEN"; }
     ExchangeId getExchangeId() const override { return ExchangeId::KRAKEN; }
     bool isConnected() const override { return m_connected; }
 
@@ -72,23 +70,33 @@ public:
 protected:
     // Override the cooldown method for Kraken-specific rate limiting
     void cooldown(int httpCode, const std::string& response, const std::string& endpoint = "") override;
+    
+    // Implement pure virtual methods from base class
+    void processRateLimitHeaders(const std::string& headers) override;
+    std::string getRestEndpoint() const override;
 
 private:
     struct SymbolState {
         bool subscribed{false};
         bool hasSnapshot{false};
+        int64_t lastUpdateId{0};
+        bool hasProcessedFirstUpdate{false};  // Track if we've processed the first update after snapshot
     };
 
-    // HTTP client callback
-    static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp);
-    json makeHttpRequest(const std::string& endpoint, const std::string& params = "", const std::string& method = "GET");
-    
     // WebSocket callbacks
     void doRead();
     void processMessage(const std::string& message);
     void processOrderBookUpdate(const json& data);
     void processOrderBookSnapshot(const json& data, TradingPair pair);
     void doWrite(std::string message);
+    void onKeepaliveTimer();
+
+    // HTTP callbacks
+    static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp);
+    static size_t HeaderCallback(char* buffer, size_t size, size_t nmemb, void* userdata);
+    
+    // HTTP request handling
+    json makeHttpRequest(const std::string& endpoint, const std::string& params = "", const std::string& method = "GET") override;
 
     // Internal symbol conversion methods
     TradingPair symbolToTradingPair(const std::string& symbol) const;
@@ -96,6 +104,7 @@ private:
 
     std::map<TradingPair, std::string> m_symbolMap;
     bool m_connected;
+    bool m_subscribed;
     
     // Callbacks
     std::function<void(bool)> m_subscriptionCallback;
@@ -113,6 +122,6 @@ private:
     
     std::unique_ptr<net::executor_work_guard<net::io_context::executor_type>> m_work;
     std::thread m_thread;
-    CURL* curl{nullptr};
+    CURL* m_curl{nullptr};
     std::map<TradingPair, SymbolState> symbolStates;
 }; 

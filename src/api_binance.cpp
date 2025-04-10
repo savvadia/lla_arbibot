@@ -757,3 +757,23 @@ void ApiBinance::cooldown(int httpCode, const std::string& response, const std::
         startCooldown(cooldownMinutes);
     }
 }
+
+void ApiBinance::processRateLimitHeaders(const std::string& headers) {
+    // Example header: "x-mbx-used-weight: 10"
+    // Parse rate limit headers from Binance
+    size_t pos = headers.find("x-mbx-used-weight:");
+    if (pos != std::string::npos) {
+        try {
+            std::string value = headers.substr(pos + 17); // Skip "x-mbx-used-weight:"
+            int usedWeight = std::stoi(value);
+            // Update rate limit info
+            updateRateLimit("weight", 1200, 1200 - usedWeight, 60);
+        } catch (const std::exception& e) {
+            TRACE("Failed to parse rate limit header: ", e.what());
+        }
+    }
+}
+
+std::string ApiBinance::getRestEndpoint() const {
+    return REST_ENDPOINT;
+}

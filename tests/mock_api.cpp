@@ -307,3 +307,13 @@ void MockApi::setOrderCallback(std::function<void(bool)> callback) {
 void MockApi::setBalanceCallback(std::function<void(bool)> callback) {
     m_balanceCallback = callback;
 }
+
+void MockApi::processRateLimitHeaders(const std::string& headers) {
+    // Mock implementation - no actual rate limiting in tests
+    std::cout << "[" << getTestTimestamp() << "] MockApi: Processing rate limit headers (mock)" << std::endl;
+}
+
+std::string MockApi::getRestEndpoint() const {
+    // Return mock REST endpoint based on exchange name
+    return m_name == "Binance" ? "https://api.binance.com/api/v3" : "https://api.kraken.com/0/public";
+}

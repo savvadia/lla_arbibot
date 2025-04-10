@@ -46,6 +46,9 @@ public:
     void simulateOrderBookUpdate(const std::vector<PriceLevel>& bids, const std::vector<PriceLevel>& asks);
 
 protected:
+    // Override the cooldown method for mock-specific rate limiting
+    void processRateLimitHeaders(const std::string& headers) override;
+    std::string getRestEndpoint() const override;
 
 private:
     // Internal symbol conversion methods

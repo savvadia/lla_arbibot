@@ -47,7 +47,7 @@ public:
     bool cancelOrder(const std::string& orderId) override;
     bool getBalance(const std::string& asset) override;
 
-    std::string getExchangeName() const override { return "Binance"; }
+    std::string getExchangeName() const override { return "BINANCE"; }
     ExchangeId getExchangeId() const override { return ExchangeId::BINANCE; }
     bool isConnected() const override { return m_connected; }
 
@@ -70,6 +70,10 @@ public:
 protected:
     // Override the cooldown method for Binance-specific rate limiting
     void cooldown(int httpCode, const std::string& response, const std::string& endpoint = "") override;
+    
+    // Implement pure virtual methods from base class
+    void processRateLimitHeaders(const std::string& headers) override;
+    std::string getRestEndpoint() const override;
 
 private:
     struct SymbolState {
@@ -79,20 +83,21 @@ private:
         bool hasProcessedFirstUpdate{false};  // Track if we've processed the first update after snapshot
     };
 
-    // HTTP client methods
-    json makeHttpRequest(const std::string& endpoint, const std::string& params = "", const std::string& method = "GET");
-    static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp);
-    static size_t HeaderCallback(void* contents, size_t size, size_t nmemb, std::string* userp);
-
     // WebSocket callbacks
     void doRead();
     void processMessage(const std::string& message);
     void processOrderBookUpdate(const json& data);
     void processOrderBookSnapshot(const json& data, TradingPair pair);
     void doWrite(std::string message);
-
-    // User data stream methods
+    void onKeepaliveTimer();
     void doPing();
+
+    // HTTP callbacks
+    static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp);
+    static size_t HeaderCallback(void* contents, size_t size, size_t nmemb, std::string* userp);
+    
+    // HTTP request handling
+    json makeHttpRequest(const std::string& endpoint, const std::string& params = "", const std::string& method = "GET") override;
 
     // Internal symbol conversion methods
     TradingPair symbolToTradingPair(const std::string& symbol) const;
@@ -100,6 +105,7 @@ private:
 
     std::map<TradingPair, std::string> m_symbolMap;
     bool m_connected;
+    bool m_subscribed;
     
     // Callbacks
     std::function<void(bool)> m_subscriptionCallback;

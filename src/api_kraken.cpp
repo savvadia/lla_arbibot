@@ -31,7 +31,7 @@ size_t ApiKraken::WriteCallback(void* contents, size_t size, size_t nmemb, std::
 }
 
 // Header callback function for CURL
-static size_t HeaderCallback(char* buffer, size_t size, size_t nmemb, void* userdata) {
+size_t ApiKraken::HeaderCallback(char* buffer, size_t size, size_t nmemb, void* userdata) {
     size_t totalSize = size * nmemb;
     std::string* headers = static_cast<std::string*>(userdata);
     headers->append(buffer, totalSize);
@@ -47,12 +47,12 @@ json ApiKraken::makeHttpRequest(const std::string& endpoint, const std::string& 
         throw std::runtime_error("API in cooldown period");
     }
 
-    if (!curl) {
+    if (!m_curl) {
         throw std::runtime_error("CURL not initialized");
     }
 
     std::string url = std::string(REST_ENDPOINT) + endpoint;
-    if (!params.empty()) {
+    if (!params.empty() && method == "GET") {
         url += "?" + params;
     }
 
@@ -62,37 +62,35 @@ json ApiKraken::makeHttpRequest(const std::string& endpoint, const std::string& 
     std::string headers;
     long httpCode = 0;
     
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &headers);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    curl_easy_setopt(m_curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(m_curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
+    curl_easy_setopt(m_curl, CURLOPT_HEADERDATA, &headers);
+    curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYHOST, 2L);
     
     if (method == "DELETE") {
-        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+        curl_easy_setopt(m_curl, CURLOPT_CUSTOMREQUEST, "DELETE");
     } else if (method == "POST") {
-        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(m_curl, CURLOPT_POST, 1L);
         if (!params.empty()) {
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, params.c_str());
+            curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, params.c_str());
         }
     } else {
-        curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+        curl_easy_setopt(m_curl, CURLOPT_HTTPGET, 1L);
     }
     
-    CURLcode res = curl_easy_perform(curl);
+    CURLcode res = curl_easy_perform(m_curl);
     if (res != CURLE_OK) {
         throw std::runtime_error(std::string("curl_easy_perform() failed: ") + curl_easy_strerror(res));
     }
 
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
+    curl_easy_getinfo(m_curl, CURLINFO_RESPONSE_CODE, &httpCode);
     
     // Check for rate limit headers
     if (!headers.empty()) {
-        // Parse rate limit headers if they exist
-        // Kraken doesn't use standard rate limit headers, but we can check for any custom headers
-        // This is a placeholder for future implementation if Kraken adds rate limit headers
+        processRateLimitHeaders(headers);
     }
     
     // Handle HTTP errors
@@ -137,11 +135,11 @@ std::string ApiKraken::tradingPairToSymbol(TradingPair pair) const {
 ApiKraken::ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode)
     : ApiExchange(orderBookManager, timersMgr, testMode)
     , m_connected(false)
-    , curl(nullptr) {
+    , m_curl(nullptr) {
 
     // Initialize CURL
-    curl = curl_easy_init();
-    if (!curl) {
+    m_curl = curl_easy_init();
+    if (!m_curl) {
         throw std::runtime_error("Failed to initialize CURL");
     }
 
@@ -152,8 +150,8 @@ ApiKraken::ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr, b
 }
 
 ApiKraken::~ApiKraken() {
-    if (curl) {
-        curl_easy_cleanup(curl);
+    if (m_curl) {
+        curl_easy_cleanup(m_curl);
     }
     disconnect();
 }
@@ -621,4 +619,24 @@ void ApiKraken::cooldown(int httpCode, const std::string& response, const std::s
     if (httpCode > 0) {
         ApiExchange::cooldown(httpCode, response, endpoint);
     }
+}
+
+void ApiKraken::processRateLimitHeaders(const std::string& headers) {
+    // Example header: "CF-RateLimit-Remaining: 50"
+    // Parse rate limit headers from Kraken
+    size_t pos = headers.find("CF-RateLimit-Remaining:");
+    if (pos != std::string::npos) {
+        try {
+            std::string value = headers.substr(pos + 22); // Skip "CF-RateLimit-Remaining:"
+            int remaining = std::stoi(value);
+            // Update rate limit info
+            updateRateLimit("api", 60, remaining, 60);
+        } catch (const std::exception& e) {
+            TRACE("Failed to parse rate limit header: ", e.what());
+        }
+    }
+}
+
+std::string ApiKraken::getRestEndpoint() const {
+    return REST_ENDPOINT;
 }
