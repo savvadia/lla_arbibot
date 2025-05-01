@@ -8,7 +8,7 @@
 #include <iostream>
 
 // Define TRACE macro for TimersMgr
-#define TRACE(_timer, ...) TRACE_OBJ("INFO ", &_timer, TraceInstance::TIMER, __VA_ARGS__)
+#define TRACE(_timer, ...) TRACE_OBJ("INFO ", &_timer, TraceInstance::TIMER, ExchangeId::UNKNOWN, __VA_ARGS__)
 
 // Initialize static member
 int TimersMgr::nextId = 1;

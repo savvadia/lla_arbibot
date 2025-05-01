@@ -13,6 +13,7 @@
 #include <boost/asio/ssl/stream.hpp>
 #include <nlohmann/json.hpp>
 #include "tracer.h"
+#include "types.h"
 
 using json = nlohmann::json;
 using tcp = boost::asio::ip::tcp;
@@ -21,7 +22,7 @@ namespace ssl = boost::asio::ssl;
 
 constexpr const char* REST_ENDPOINT = "https://api.kraken.com/0/public";
 
-#define TRACE(...) TRACE_THIS(TraceInstance::A_KRAKEN, __VA_ARGS__)
+#define TRACE(...) TRACE_THIS(TraceInstance::A_KRAKEN, ExchangeId::KRAKEN, __VA_ARGS__)
 
 // HTTP client callback
 size_t ApiKraken::WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {

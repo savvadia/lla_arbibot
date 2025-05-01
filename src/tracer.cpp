@@ -6,11 +6,26 @@
 #include <sstream>
 #include <iomanip>
 #include "tracer.h"
+#include "types.h"
 
 std::atomic<bool> g_globalLoggingEnabled(true);
 std::array<std::atomic<bool>, static_cast<int>(TraceInstance::COUNT)> g_logLevels{};
 std::ofstream g_logFile;
 std::mutex g_logMutex;
+
+// Exchange logging levels
+constexpr int MAX_EXCHANGES = 3;  // UNKNOWN, BINANCE, KRAKEN
+std::array<std::atomic<bool>, MAX_EXCHANGES>& FastTraceLogger::exchangeLogLevels() {
+    static std::array<std::atomic<bool>, MAX_EXCHANGES> levels;
+    static bool initialized = false;
+    if (!initialized) {
+        for (auto& level : levels) {
+            level.store(true, std::memory_order_relaxed);
+        }
+        initialized = true;
+    }
+    return levels;
+}
 
 void FastTraceLogger::setLogFile(const std::string& filename) {
     MUTEX_LOCK(g_logMutex);
@@ -32,6 +47,19 @@ void FastTraceLogger::setLoggingEnabled(bool enabled) {
 
 void FastTraceLogger::setLoggingEnabled(TraceInstance type, bool enabled) {
     g_logLevels[static_cast<int>(type)].store(enabled, std::memory_order_relaxed);
+}
+
+void FastTraceLogger::setLoggingEnabled(ExchangeId exchangeId, bool enabled) {
+    if (exchangeId != ExchangeId::UNKNOWN) {
+        exchangeLogLevels()[static_cast<int>(exchangeId)].store(enabled, std::memory_order_relaxed);
+    }
+}
+
+bool FastTraceLogger::isLoggingEnabled(ExchangeId exchangeId) {
+    if (exchangeId == ExchangeId::UNKNOWN) {
+        return true;
+    }
+    return exchangeLogLevels()[static_cast<int>(exchangeId)].load(std::memory_order_relaxed);
 }
 
 std::ostream& FastTraceLogger::getOutputStream() {
@@ -74,6 +102,14 @@ std::string_view FastTraceLogger::traceTypeToStr(TraceInstance type) {
     }
 }
 
+std::string_view FastTraceLogger::exchangeIdToStr(ExchangeId exchangeId) {
+    switch (exchangeId) {
+        case ExchangeId::BINANCE: return "BINANCE";
+        case ExchangeId::KRAKEN: return "KRAKEN";
+        default: return "UNKNOWN";
+    }
+}
+
 /* Example
 
 // ✅ Example class with overloaded `operator<<`
@@ -84,7 +120,7 @@ public:
     }
 
     void testTrace(int id) {
-        TRACE_THIS(TraceInstance::TIMER, "called with ", id, " and more data");
+        TRACE_THIS(TraceInstance::TIMER, ExchangeId::UNKNOWN, "called with ", id, " and more data");
     }
 };
 

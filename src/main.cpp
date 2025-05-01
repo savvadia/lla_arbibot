@@ -15,7 +15,7 @@
 using namespace std;
 
 // Define TRACE macro for main
-#define TRACE(...) TRACE_BASE(TraceInstance::MAIN, __VA_ARGS__)
+#define TRACE(...) TRACE_BASE(TraceInstance::MAIN, ExchangeId::UNKNOWN, __VA_ARGS__)
 
 // Global flag for graceful shutdown
 volatile sig_atomic_t g_running = 1;
@@ -43,14 +43,21 @@ int main() {
     
     // Enable specific trace types
     FastTraceLogger::setLoggingEnabled(TraceInstance::EVENT_LOOP, true);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::TIMER, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::STRAT, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::BALANCE, true);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, false);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_EXCHANGE, true);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::A_KRAKEN, false);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_KRAKEN, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_BINANCE, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::MAIN, true);
+
+    // Enable exchange-specific logging
+    FastTraceLogger::setLoggingEnabled(ExchangeId::BINANCE, true);
+    FastTraceLogger::setLoggingEnabled(ExchangeId::KRAKEN, false);
+
     TRACE("Trace types enabled: EVENT_LOOP, STRAT, BALANCE, ORDERBOOK, A_EXCHANGE, A_KRAKEN, A_BINANCE, MAIN");
+    TRACE("Exchange logging enabled: BINANCE");
 
     // Set up signal handlers
     TRACE("Setting up signal handlers...");

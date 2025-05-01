@@ -5,7 +5,7 @@
 #include <algorithm>
 
 // Define TRACE macro for ApiExchange
-#define TRACE(...) TRACE_THIS(TraceInstance::A_EXCHANGE, __VA_ARGS__)
+#define TRACE(...) TRACE_THIS(TraceInstance::A_EXCHANGE, this->getExchangeId(), __VA_ARGS__)
 
 std::unique_ptr<ApiExchange> createApiExchange(const std::string& exchangeName, OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode) {
     if (exchangeName == "Binance") {

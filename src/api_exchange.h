@@ -79,9 +79,7 @@ public:
     virtual void setBalanceCallback(std::function<void(bool)> callback) = 0;
 
     // Tracing
-    void trace(std::ostream& os) const override {
-        os << getExchangeName();
-    }
+    void trace(std::ostream& os) const override {}
 
     // Utility functions
     static std::string toLower(std::string str) {

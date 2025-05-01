@@ -17,7 +17,7 @@ brew install nlohmann_json
 # Clean build from scratch:
 
 ```
-rm -rf build && mkdir build && cd build && cmake -B . -S .. && make -j
+cd ~/repo/lla_arbibot/ && rm -rf build && mkdir build && cd build && cmake -B . -S .. && make -j
 ```
 
 # run

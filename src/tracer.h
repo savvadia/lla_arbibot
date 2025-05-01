@@ -12,6 +12,7 @@
 #include <string>
 #include <sstream>
 #include <iomanip>
+#include "types.h"  // Add this include for ExchangeId
 
 // Enum for logging types
 enum class TraceInstance {
@@ -26,8 +27,8 @@ enum class TraceInstance {
     A_KRAKEN,
     A_BINANCE,
     MAIN,  // For main function logging
+    MUTEX,
     COUNT,  // To track the number of log types
-    MUTEX
 };
 
 // Convert enum to string for logging purposes
@@ -63,15 +64,24 @@ public:
     // Enable or disable logging for a specific TraceInstance
     static void setLoggingEnabled(TraceInstance type, bool enabled);
 
+    // Enable or disable logging for a specific ExchangeId
+    static void setLoggingEnabled(ExchangeId exchangeId, bool enabled);
+
+    // Check if logging is enabled for a specific ExchangeId
+    static bool isLoggingEnabled(ExchangeId exchangeId);
+
     // Set the log file where logs will be written
     static void setLogFile(const std::string& filename);
 
     // Convert TraceInstance to a string
     static std::string_view traceTypeToStr(TraceInstance type);
 
+    // Convert ExchangeId to a string
+    static std::string_view exchangeIdToStr(ExchangeId exchangeId);
+
     // Log message with file and line info, plus any additional arguments
     template <typename... Args>
-    static void log(std::string level, const Traceable* instance, TraceInstance type, std::string_view file, int line, Args&&... args) {
+    static void log(std::string level, const Traceable* instance, TraceInstance type, ExchangeId exchangeId, std::string_view file, int line, Args&&... args) {
         std::lock_guard<std::mutex> lock(getMutex());
 
         // Construct log message
@@ -90,14 +100,15 @@ public:
             << std::left << std::setw(3) << line
             << " [" << traceTypeToStr(type) << "] ";
 
-        oss << std::fixed << std::setprecision(3);
+        // Add exchange ID if available
+        if (exchangeId != ExchangeId::UNKNOWN) {
+            oss << "[" << exchangeIdToStr(exchangeId) << "] ";
+        }
         
         // Print instance if it exists
         if (instance) {
-            oss << " [" << *instance << "]";
+            oss << "[" << *instance << "] ";
         }
-
-        oss << " ";
 
         // Print additional args (variadic)
         (oss << ... << std::forward<Args>(args));
@@ -111,7 +122,7 @@ public:
 
     // Specialization for nullptr
     template <typename... Args>
-    static void log(std::nullptr_t, TraceInstance type, std::string_view file, int line, Args&&... args) {
+    static void log(std::nullptr_t, TraceInstance type, ExchangeId exchangeId, std::string_view file, int line, Args&&... args) {
         std::lock_guard<std::mutex> lock(getMutex());
 
         // Construct log message
@@ -127,6 +138,11 @@ public:
         oss << " "<< std::right << std::setw(15) << std::setfill(' ') << getBaseName(file) << ":"
             << std::left << std::setw(3) << line
             << " [" << traceTypeToStr(type) << "] ";
+
+        // Add exchange ID if available
+        if (exchangeId != ExchangeId::UNKNOWN) {
+            oss << "[" << exchangeIdToStr(exchangeId) << "] ";
+        }
 
         // Print additional args (variadic)
         (oss << ... << std::forward<Args>(args));
@@ -161,27 +177,33 @@ public:
         }
         return path.substr(lastSlash + 1);
     }
+
+private:
+    // Add exchange logging levels
+    static std::array<std::atomic<bool>, 3>& exchangeLogLevels();  // UNKNOWN, BINANCE, KRAKEN
 };
 
-// Macro for TRACE with conditional logging (enabled only if logging is enabled)
-#ifndef DISABLED_TRACE
-    #define TRACE_OBJ(_level, _obj, _type, ...)                                            \
-        if (FastTraceLogger::globalLoggingEnabled().load(std::memory_order_relaxed) &&  \
-            FastTraceLogger::logLevels()[static_cast<int>(_type)].load(std::memory_order_relaxed)) { \
-            FastTraceLogger::log(_level, _obj, _type, __FILE__, __LINE__, __VA_ARGS__); \
-        }
-#else
-    #define TRACE_OBJ(_obj, _type, ...) ((void)0)  // Compiler removes the call entirely
-#endif
-#define TRACE_THIS(_type, ...) TRACE_OBJ("INFO ", this, _type, __VA_ARGS__)
-#define TRACE_BASE(_type, ...) TRACE_OBJ("INFO ",nullptr, _type, __VA_ARGS__)
+// Base macro for logging with object
+#define TRACE_OBJ(_level, _obj, _type, _exchangeId, ...)                                            \
+    if (FastTraceLogger::globalLoggingEnabled().load(std::memory_order_relaxed) &&  \
+        FastTraceLogger::logLevels()[static_cast<int>(_type)].load(std::memory_order_relaxed) && \
+        (_exchangeId == ExchangeId::UNKNOWN || FastTraceLogger::isLoggingEnabled(_exchangeId))) { \
+        FastTraceLogger::log(_level, _obj, _type, _exchangeId, __FILE__, __LINE__, __VA_ARGS__); \
+    }
 
+// For logging with this object
+#define TRACE_THIS(_type, _exchangeId, ...) TRACE_OBJ("INFO ", this, _type, _exchangeId, __VA_ARGS__)
+
+// For logging without object
+#define TRACE_BASE(_type, _exchangeId, ...) TRACE_OBJ("INFO ", nullptr, _type, _exchangeId, __VA_ARGS__)
+
+// Debug versions (disabled by default)
 #if 0
-    #define DEBUG_THIS(_type, ...) TRACE_OBJ("DEBUG", this, _type, __VA_ARGS__)
-    #define DEBUG_BASE(_type, ...) TRACE_OBJ("DEBUG",nullptr, _type, __VA_ARGS__)
+    #define DEBUG_THIS(_type, _exchangeId, ...) TRACE_OBJ("DEBUG", this, _type, _exchangeId, __VA_ARGS__)
+    #define DEBUG_BASE(_type, _exchangeId, ...) TRACE_OBJ("DEBUG", nullptr, _type, _exchangeId, __VA_ARGS__)
 #else
-    #define DEBUG_THIS(_type, ...) ((void)0)
-    #define DEBUG_BASE(_type, ...) ((void)0)
+    #define DEBUG_THIS(_type, _exchangeId, ...) ((void)0)
+    #define DEBUG_BASE(_type, _exchangeId, ...) ((void)0)
 #endif
 
 #define CONCATENATE_DETAIL(x, y) x##y

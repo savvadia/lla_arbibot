@@ -18,7 +18,7 @@ using tcp = boost::asio::ip::tcp;
 namespace websocket = boost::beast::websocket;
 namespace ssl = boost::asio::ssl;
 
-#define TRACE(...) TRACE_THIS(TraceInstance::A_BINANCE, __VA_ARGS__)
+#define TRACE(...) TRACE_THIS(TraceInstance::A_BINANCE, ExchangeId::BINANCE, __VA_ARGS__)
 
 constexpr const char* REST_ENDPOINT = "https://api.binance.com/api/v3";
 

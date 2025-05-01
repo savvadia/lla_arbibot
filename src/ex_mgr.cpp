@@ -2,7 +2,7 @@
 #include "tracer.h"
 
 // Define TRACE macro for ExchangeManager
-#define TRACE(...) TRACE_THIS(TraceInstance::EX_MGR, __VA_ARGS__)
+#define TRACE(...) TRACE_THIS(TraceInstance::EX_MGR, ExchangeId::UNKNOWN, __VA_ARGS__)
 
 ExchangeManager::ExchangeManager(TimersMgr &timersMgr,
                                  OrderBookManager &orderBookManager)

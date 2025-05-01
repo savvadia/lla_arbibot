@@ -1,14 +1,14 @@
 #ifndef TYPES_H
 #define TYPES_H
 
-#include <string>
 #include <iostream>
 #include <chrono>
 
 enum class ExchangeId {
     UNKNOWN = 0,
     BINANCE = 1,
-    KRAKEN = 2
+    KRAKEN = 2,
+    COUNT = 3 // To track the number of exchange IDs
 };
 
 // Convert ExchangeId to string

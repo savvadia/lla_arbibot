@@ -15,8 +15,8 @@
 using namespace std;
 
 // Define TRACE macro for StrategyPoplavki class
-#define TRACE(...) TRACE_THIS(TraceInstance::STRAT, __VA_ARGS__)
-#define DEBUG(...) DEBUG_THIS(TraceInstance::STRAT, __VA_ARGS__)
+#define TRACE(...) TRACE_THIS(TraceInstance::STRAT, ExchangeId::UNKNOWN, __VA_ARGS__)
+#define DEBUG(...) DEBUG_THIS(TraceInstance::STRAT, ExchangeId::UNKNOWN, __VA_ARGS__)
 
 Strategy::Strategy(std::string name, std::string coin, std::string stableCoin, TimersMgr &timersMgr) 
     : name(name), coin(coin), stableCoin(stableCoin), timersMgr(timersMgr) {
@@ -141,7 +141,7 @@ void StrategyPoplavki::timerCallback(int id, void *data) {
     auto* strategy = static_cast<StrategyPoplavki*>(data);
     strategy->startTimerToScan(Config::STRATEGY_CHECK_TIMER_MS);
 
-    TRACE_OBJ("INFO: ", strategy, TraceInstance::STRAT, "Timer callback for strategy: ", strategy->getName());
+    TRACE_OBJ("INFO: ", strategy, TraceInstance::STRAT, ExchangeId::UNKNOWN, "Timer callback for strategy: ", strategy->getName());
     strategy->scanOpportunities();
 }
 

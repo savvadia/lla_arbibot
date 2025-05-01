@@ -5,9 +5,9 @@
 #include "tracer.h"
 
 
-#define TRACE(...) TRACE_THIS(TraceInstance::ORDERBOOK, __VA_ARGS__)
-#define DEBUG(...) DEBUG_THIS(TraceInstance::ORDERBOOK, __VA_ARGS__)
-#define NOTICE(...) DEBUG_BASE(TraceInstance::ORDERBOOK, __VA_ARGS__)
+#define TRACE(...) TRACE_THIS(TraceInstance::ORDERBOOK, exchangeId, __VA_ARGS__)
+#define DEBUG(...) DEBUG_THIS(TraceInstance::ORDERBOOK, exchangeId, __VA_ARGS__)
+#define NOTICE(...) DEBUG_BASE(TraceInstance::ORDERBOOK, exchangeId, __VA_ARGS__)
 
 bool OrderBook::hasPricesChanged(const BestPrices& oldPrices, const BestPrices& newPrices) const {
     if(oldPrices.bestBid != newPrices.bestBid) {
@@ -149,7 +149,7 @@ void OrderBook::mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<P
         } else if(pushNew) {
             pushElement(result, itn, totalAmount, scenario);
         } else {
-            NOTICE(exchangeId, "Pushing - Scenario: ", scenario, " Push old: ", pushOld, " Push new: ", pushNew);
+            NOTICE("Pushing - Scenario: ", scenario, " Push old: ", pushOld, " Push new: ", pushNew);
         }
     }
 
@@ -157,6 +157,7 @@ void OrderBook::mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<P
     OrderBook::sortList(result, isBid);
 
     oldList = std::move(result);
+    // trace belongs to exchange more than to the order book, so use 
     TRACE_BASE(TraceInstance::ORDERBOOK, exchangeId, " merged size: ", oldList.size(), " amount: ", totalAmount, " ",
         isBid ? "bids" : "asks", " ", traceBidsAsks(oldList));
 }

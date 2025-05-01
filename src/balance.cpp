@@ -1,15 +1,15 @@
 #include "balance.h"
 #include "tracer.h"
 #include <iostream>
-#include <iomanip>
 #include <string>
 #include <unordered_map>
 #include <sstream>
+#include "types.h"
 
 using namespace std;
 
 // Define TRACE macro for Balance class
-#define TRACE(...) TRACE_THIS(TraceInstance::BALANCE, __VA_ARGS__)
+#define TRACE(...) TRACE_THIS(TraceInstance::BALANCE, ExchangeId::UNKNOWN, __VA_ARGS__)
 
 Balance::Balance() {
     balances = {};
