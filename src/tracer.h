@@ -36,7 +36,7 @@ std::string_view traceTypeToStr(TraceInstance type);
 
 template <typename Clock, typename Duration>
 std::ostream& operator<<(std::ostream& os, const std::chrono::time_point<Clock, Duration>& tp) {
-    os << std::chrono::duration_cast<std::chrono::microseconds>(tp.time_since_epoch()).count();
+    os << std::chrono::duration_cast<std::chrono::microseconds>(tp.time_since_epoch()).count() % 1000000;
     return os;
 }
 
@@ -143,6 +143,8 @@ public:
         if (exchangeId != ExchangeId::UNKNOWN) {
             oss << "[" << exchangeIdToStr(exchangeId) << "] ";
         }
+
+        oss << std::fixed << std::setprecision(5);
 
         // Print additional args (variadic)
         (oss << ... << std::forward<Args>(args));

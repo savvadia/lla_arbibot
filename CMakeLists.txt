@@ -137,11 +137,11 @@ add_executable(EventLoopTest
 target_link_libraries(EventLoopTest PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
 
 # Register tests with CTest
-add_test(NAME api_test COMMAND api_test)
-add_test(NAME BalanceTest COMMAND BalanceTest)
-add_test(NAME OrderBookTest COMMAND OrderBookTest)
-add_test(NAME TimersTest COMMAND TimersTest)
-add_test(NAME EventLoopTest COMMAND EventLoopTest)
+add_test(NAME api_test COMMAND api_test WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+add_test(NAME BalanceTest COMMAND BalanceTest WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+add_test(NAME OrderBookTest COMMAND OrderBookTest WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+add_test(NAME TimersTest COMMAND TimersTest WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+add_test(NAME EventLoopTest COMMAND EventLoopTest WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Suppress warnings for ignored attributes
 target_compile_options(api_test PRIVATE -Wno-ignored-attributes)

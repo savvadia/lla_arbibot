@@ -41,6 +41,7 @@ public:
 
     // Process messages for all exchanges
     void processMessages() override;
+    void processBookTicker(const json& data);
 
     // Order management
     bool placeOrder(TradingPair pair, OrderType type, double price, double quantity) override;

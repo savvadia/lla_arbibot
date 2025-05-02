@@ -19,6 +19,7 @@ namespace websocket = boost::beast::websocket;
 namespace ssl = boost::asio::ssl;
 
 #define TRACE(...) TRACE_THIS(TraceInstance::A_BINANCE, ExchangeId::BINANCE, __VA_ARGS__)
+#define DEBUG(...) DEBUG_THIS(TraceInstance::A_BINANCE, ExchangeId::BINANCE, __VA_ARGS__)
 
 constexpr const char* REST_ENDPOINT = "https://api.binance.com/api/v3";
 
@@ -271,21 +272,21 @@ void ApiBinance::doRead() {
             std::string message = beast::buffers_to_string(m_buffer.data());
             m_buffer.consume(m_buffer.size());
             
-            TRACE("Raw WebSocket message from Binance: ", message.substr(0, 300));
-            
             try {
                 json data = json::parse(message);
                 // Handle both array and single object messages
                 if (data.is_array()) {
                     if (!data.empty() && data[0].contains("e")) {
-                        TRACE("Parsed WebSocket message type: ", data[0]["e"].get<std::string>());
+                        TRACE("received message type: ", data[0]["e"].get<std::string>(), " ", data.dump().substr(0, 300));
                     } else {
-                        TRACE("Parsed WebSocket message type: array");
+                        TRACE("received message type: array", data.dump().substr(0, 300));
                     }
                 } else if (data.contains("e")) {
-                    TRACE("Parsed WebSocket message type: ", data["e"].get<std::string>());
+                    TRACE("received message type: ", data["e"].get<std::string>());
+                } else if (data.contains("b") && data.contains("a") && data.contains("B") && data.contains("A")) {
+                    DEBUG("received bookTicker: ", data.dump().substr(0, 300));
                 } else {
-                    TRACE("Parsed WebSocket message type: unknown");
+                    TRACE("ERROR: Parsed WebSocket message type: unknown", data.dump().substr(0, 300));
                 }
                 processMessage(message);
             } catch (const std::exception& e) {
@@ -298,63 +299,55 @@ void ApiBinance::doRead() {
 
 void ApiBinance::processMessage(const std::string& message) {
     try {
+        DEBUG("Received message: ", message.substr(0, 300));
         json data = json::parse(message);
         
-        // Log all messages for debugging
-        TRACE("Processing Binance message: ", message.substr(0, 300));
-        
-        // Check if it's a subscription response
-        if (data.contains("result") && data["result"] == nullptr) {
-            TRACE("Binance subscription successful");
-            return;
-        }
-
-        // Handle array messages (like ticker arrays)
-        if (data.is_array()) {
-            if (!data.empty() && data[0].contains("e")) {
-                std::string eventType = data[0]["e"].get<std::string>();
-                if (eventType == "24hrTicker") {
-                    TRACE("Received ticker array from Binance");
-                    return;
-                }
+        if (data.contains("e")) {
+            std::string eventType = data["e"];
+            if (eventType == "depthUpdate") {
+                processOrderBookUpdate(data);
+            } else if (eventType == "executionReport") {
+                TRACE("ERROR, not implemented: Execution report: ", data.dump());
+                // processExecutionReport(data);
+            } else {
+                TRACE("ERROR: Unhandled event type: ", eventType);
             }
-            return;
-        }
-
-        // Check if it's an order book update
-        if (data.contains("e") && data["e"] == "depthUpdate") {
-            std::string symbol = data["s"].get<std::string>();
-            TradingPair pair = symbolToTradingPair(symbol);
-            if (pair == TradingPair::UNKNOWN) {
-                TRACE("Unknown trading pair in Binance update: ", symbol);
-                return;
-            }
-
-            auto& state = symbolStates[pair];
-            TRACE("Processing Binance update for ", symbol, " - subscribed=", state.subscribed, " hasSnapshot=", state.hasSnapshot);
-            
-            if (!state.hasSnapshot) {
-                TRACE("Skipping Binance update for ", symbol, " - no snapshot yet");
-                return;
-            }
-
-            // Check if this update is after our last snapshot
-            if (data.contains("u")) {
-                int64_t updateId = data["u"];
-                if (updateId <= state.lastUpdateId) {
-                    TRACE("Skipping update for ", symbol, " - update ID ", updateId, " is before or equal to last snapshot ID ", state.lastUpdateId);
-                    return;
-                }
-                TRACE("Processing update for ", symbol, " - update ID ", updateId, " is after last snapshot ID ", state.lastUpdateId);
-            }
-
-            TRACE("Processing Binance order book update for ", symbol);
-            processOrderBookUpdate(data);
-        } else if (data.contains("e")) {
-            TRACE("Received non-orderbook event: ", data["e"].get<std::string>());
+        } else if (data.contains("result") && data["result"] == nullptr) {
+            // This is a subscription response
+            TRACE("Subscription successful");
+        } else if (data.contains("id") && data["id"] == 1) {
+            // This is a subscription response
+            TRACE("Subscription successful");
+        } else if (data.contains("s") && data.contains("b") && data.contains("B") && data.contains("a") && data.contains("A")) {
+            // This is a bookTicker message
+            processBookTicker(data);
+        } else {
+            TRACE("Unhandled message type: ", message);
         }
     } catch (const std::exception& e) {
-        TRACE("Error processing Binance message: ", e.what());
+        TRACE("Error processing message: ", e.what());
+    }
+}
+
+void ApiBinance::processBookTicker(const json& data) {
+    try {
+        std::string symbol = data["s"];
+        TradingPair pair = symbolToTradingPair(symbol);
+        if (pair == TradingPair::UNKNOWN) {
+            TRACE("ERROR: Unknown trading pair in bookTicker: ", symbol);
+            return;
+        }
+
+        double bidPrice = std::stod(data["b"].get<std::string>());
+        double bidQuantity = std::stod(data["B"].get<std::string>());
+        double askPrice = std::stod(data["a"].get<std::string>());
+        double askQuantity = std::stod(data["A"].get<std::string>());
+        std::vector<PriceLevel> bids({{bidPrice, bidQuantity}});
+        std::vector<PriceLevel> asks({{askPrice, askQuantity}});
+        m_orderBookManager.updateOrderBookBestBidAsk(ExchangeId::BINANCE, pair, bidPrice, bidQuantity, askPrice, askQuantity);
+    
+    } catch (const std::exception& e) {
+        TRACE("Error processing bookTicker: ", data.dump().substr(0, 300), " ", e.what());
     }
 }
 
@@ -593,7 +586,6 @@ void ApiBinance::doWrite(std::string message) {
                 TRACE("Write error: ", ec.message(), " for message: ", message);
                 return;
             }
-            TRACE("Successfully sent WebSocket message: ", message);
         });
 }
 
@@ -653,7 +645,7 @@ bool ApiBinance::subscribeOrderBook(std::vector<TradingPair> pairs) {
         message["params"] = json::array();
         for (const auto& pair : pairs) {
             std::string symbol = toLower(tradingPairToSymbol(pair));
-            message["params"].emplace_back(symbol + "@depth10");
+            message["params"].emplace_back(symbol + "@bookTicker");
         }
 
         std::string messageStr = message.dump();
@@ -666,9 +658,9 @@ bool ApiBinance::subscribeOrderBook(std::vector<TradingPair> pairs) {
             auto& state = symbolStates[pair];
             std::string symbol = tradingPairToSymbol(pair);    
             state.subscribed = true;
+            state.hasSnapshot = false;
             TRACE("Subscription state for ", symbol, ": subscribed=", state.subscribed, " hasSnapshot=", state.hasSnapshot);
         }
-        
         
         if (m_subscriptionCallback) {
             m_subscriptionCallback(true);

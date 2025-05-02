@@ -2,7 +2,6 @@
 
 #include <string>
 #include <vector>
-#include <map>
 #include <mutex>
 #include <chrono>
 #include <functional>
@@ -50,7 +49,10 @@ public:
     ~OrderBook() = default;
 
     // Update the order book with new price levels (assumes sorted input)
-    void update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>& newAsks);
+    void update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>& newAsks, bool isCompleteUpdate = false);
+
+    // Set best bid and ask prices directly (for bookTicker style updates)
+    void setBestBidAsk(double bidPrice, double bidQuantity, double askPrice, double askQuantity);
 
     // Get best bid price
     double getBestBid() const {
@@ -115,7 +117,7 @@ public:
             : bestBid(bestBid), bestAsk(bestAsk), worstBid(worstBid), worstAsk(worstAsk), bestBidQuantity(bestBidQuantity), bestAskQuantity(bestAskQuantity), worstBidQuantity(worstBidQuantity), worstAskQuantity(worstAskQuantity) {}
 
         void trace(std::ostream& os) const override {
-            os << "bp: bids: " << worstBid << "-" << bestBid << " " << bestAsk << "-" << worstAsk << " " << bestBidQuantity << " " << bestAskQuantity << " " << worstBidQuantity << " " << worstAskQuantity;
+            os << bestBid << "-" << bestAsk << " ";
         }
     };
 
@@ -187,9 +189,8 @@ public:
 
 protected:
     void trace(std::ostream& os) const override {
-        os << exchangeId << " " << pair <<
-            " bids/asks: " << bids.size() << "/" << asks.size() << " " <<
-            getBestPrices() << " lastUpdate: " << lastUpdate;
+        os << pair << " " << bids.size() << "/" << asks.size() << " " << std::fixed << std::setprecision(3) <<
+            getBestPrices() << "u: " << (lastUpdate);
     }
     std::string traceBidsAsks(std::vector<PriceLevel>& list) const {
         std::stringstream ss;
@@ -222,6 +223,11 @@ public:
 
     // Update order book for a trading pair
     void updateOrderBook(ExchangeId exchangeId, TradingPair pair, std::vector<PriceLevel>& bids, std::vector<PriceLevel>& asks);
+
+    // Update order book with best bid/ask prices (for bookTicker style updates)
+    void updateOrderBookBestBidAsk(ExchangeId exchangeId, TradingPair pair, 
+                                 double bidPrice, double bidQuantity, 
+                                 double askPrice, double askQuantity);
 
     // Get order book for a specific exchange and trading pair
     OrderBook& getOrderBook(ExchangeId exchangeId, TradingPair pair);
