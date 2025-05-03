@@ -3,30 +3,38 @@
 #include "types.h"
 #include "orderbook.h"
 #include "timers.h"
+#include <boost/asio/io_context.hpp>
 #include <string>
 #include <functional>
 #include <memory>
 #include "tracer.h"
 #include <chrono>
 #include <mutex>
-#include <atomic>
+#include <thread>
 #include <map>
 #include <nlohmann/json.hpp>
 #include <curl/curl.h>
+#include <boost/asio/strand.hpp>
+#include <boost/beast/core.hpp>
+#include <boost/beast/ssl.hpp>
+#include <boost/beast/websocket.hpp>
+#include <boost/beast/websocket/ssl.hpp>
+#include <boost/asio/strand.hpp>
+#include <nlohmann/json.hpp>
 
+namespace beast = boost::beast;
+namespace websocket = beast::websocket;
+namespace net = boost::asio;
+namespace ssl = boost::asio::ssl;
+using tcp = boost::asio::ip::tcp;
 using json = nlohmann::json;
+
 
 // Base class for exchange APIs
 class ApiExchange : public Traceable {
 public:
-    ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode = true) : 
-        m_testMode(testMode), m_inCooldown(false), m_cooldownEndTime(std::chrono::steady_clock::now()), m_timersMgr(timersMgr), m_orderBookManager(orderBookManager), m_keepaliveTimerId(0), m_curl(nullptr) {}
-    virtual ~ApiExchange() {
-        if (m_curl) {
-            curl_easy_cleanup(m_curl);
-            m_curl = nullptr;
-        }
-    }
+    ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr, const std::string& restEndpoint, bool testMode = true);
+    virtual ~ApiExchange();
 
     // Connect to the exchange
     virtual bool connect() = 0;
@@ -55,7 +63,7 @@ public:
     virtual ExchangeId getExchangeId() const = 0;
 
     // Check if connected to the exchange
-    virtual bool isConnected() const = 0;
+    bool isConnected() const { return m_connected; }
 
     // Check if in test mode
     virtual bool isTestMode() const { return m_testMode; }
@@ -73,10 +81,10 @@ public:
     }
 
     // Callbacks
-    virtual void setSubscriptionCallback(std::function<void(bool)> callback) = 0;
-    virtual void setSnapshotCallback(std::function<void(bool)> callback) = 0;
-    virtual void setOrderCallback(std::function<void(bool)> callback) = 0;
-    virtual void setBalanceCallback(std::function<void(bool)> callback) = 0;
+    void setSubscriptionCallback(std::function<void(bool)> callback);
+    void setSnapshotCallback(std::function<void(bool)> callback);
+    void setOrderCallback(std::function<void(bool)> callback);
+    void setBalanceCallback(std::function<void(bool)> callback);
 
     // Tracing
     void trace(std::ostream& os) const override {}
@@ -88,7 +96,7 @@ public:
     }
 
     // Common HTTP request handling
-    virtual json makeHttpRequest(const std::string& endpoint, const std::string& params = "", const std::string& method = "GET");
+    json makeHttpRequest(const std::string& endpoint, const std::string& params = "", const std::string& method = "GET");
     
     // Initialize CURL
     virtual bool initCurl();
@@ -103,8 +111,19 @@ public:
     virtual void endCooldown();
     virtual bool checkCooldownExpired();
     virtual void updateRateLimit(const std::string& endpoint, int limit, int remaining, int reset);
-
+    
 protected:
+    struct SymbolState {
+        bool subscribed{false};
+        bool hasSnapshot{false};
+        int64_t lastUpdateId{0};
+        bool hasProcessedFirstUpdate{false};  // Track if we've processed the first update after snapshot
+    };
+
+    void doWrite(std::string message);
+
+    bool m_connected{false};
+    bool m_subscribed{false};
     bool m_testMode;
     bool m_inCooldown;
     std::chrono::steady_clock::time_point m_cooldownEndTime;
@@ -113,15 +132,33 @@ protected:
     TimersMgr& m_timersMgr;
     OrderBookManager& m_orderBookManager;
     uint64_t m_keepaliveTimerId;
-    CURL* m_curl;
     
     // CURL callback functions
     static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
-    static size_t HeaderCallback(char* buffer, size_t size, size_t nitems, void* userdata);
     
     // Helper methods for derived classes
     virtual void processRateLimitHeaders(const std::string& headers) = 0;
-    virtual std::string getRestEndpoint() const = 0;
+    
+    // Callbacks
+    std::function<void(bool)> m_subscriptionCallback;
+    std::function<void()> m_updateCallback;
+    std::function<void(bool)> m_snapshotCallback;
+    std::function<void(bool)> m_orderCallback;
+    std::function<void(bool)> m_balanceCallback;
+
+    net::io_context m_ioc;
+    ssl::context m_ctx{ssl::context::tlsv12_client};
+    std::unique_ptr<websocket::stream<beast::ssl_stream<beast::tcp_stream>>> m_ws;
+    beast::flat_buffer m_buffer;
+
+    std::unique_ptr<net::executor_work_guard<net::io_context::executor_type>> m_work;
+    std::thread m_thread;
+    CURL* m_curl{nullptr};
+
+    std::map<TradingPair, std::string> m_symbolMap;
+    std::map<TradingPair, SymbolState> symbolStates;
+    std::string m_restEndpoint;
+
 };
 
 // Factory function to create exchange API instances

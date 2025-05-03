@@ -24,94 +24,12 @@ constexpr const char* REST_ENDPOINT = "https://api.kraken.com/0/public";
 
 #define TRACE(...) TRACE_THIS(TraceInstance::A_KRAKEN, ExchangeId::KRAKEN, __VA_ARGS__)
 
-// HTTP client callback
-size_t ApiKraken::WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {
-    size_t realsize = size * nmemb;
-    userp->append((char*)contents, realsize);
-    return realsize;
-}
-
-// Header callback function for CURL
-size_t ApiKraken::HeaderCallback(char* buffer, size_t size, size_t nmemb, void* userdata) {
-    size_t totalSize = size * nmemb;
-    std::string* headers = static_cast<std::string*>(userdata);
-    headers->append(buffer, totalSize);
-    return totalSize;
-}
-
-// Make HTTP request to Kraken API
-json ApiKraken::makeHttpRequest(const std::string& endpoint, const std::string& params, const std::string& method) {
-    // Check if we're in a cooldown period
-    if (isInCooldown()) {
-        int remainingSeconds = getRemainingCooldownSeconds();
-        TRACE("Kraken API in cooldown for ", remainingSeconds, " more seconds. Skipping request to ", endpoint);
-        throw std::runtime_error("API in cooldown period");
-    }
-
-    if (!m_curl) {
-        throw std::runtime_error("CURL not initialized");
-    }
-
-    std::string url = std::string(REST_ENDPOINT) + endpoint;
-    if (!params.empty() && method == "GET") {
-        url += "?" + params;
-    }
-
-    TRACE("Making HTTP ", method, " request to: ", url);
-
-    std::string response;
-    std::string headers;
-    long httpCode = 0;
-    
-    curl_easy_setopt(m_curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(m_curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
-    curl_easy_setopt(m_curl, CURLOPT_HEADERDATA, &headers);
-    curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYPEER, 1L);
-    curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYHOST, 2L);
-    
-    if (method == "DELETE") {
-        curl_easy_setopt(m_curl, CURLOPT_CUSTOMREQUEST, "DELETE");
-    } else if (method == "POST") {
-        curl_easy_setopt(m_curl, CURLOPT_POST, 1L);
-        if (!params.empty()) {
-            curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, params.c_str());
-        }
-    } else {
-        curl_easy_setopt(m_curl, CURLOPT_HTTPGET, 1L);
-    }
-    
-    CURLcode res = curl_easy_perform(m_curl);
-    if (res != CURLE_OK) {
-        throw std::runtime_error(std::string("curl_easy_perform() failed: ") + curl_easy_strerror(res));
-    }
-
-    curl_easy_getinfo(m_curl, CURLINFO_RESPONSE_CODE, &httpCode);
-    
-    // Check for rate limit headers
-    if (!headers.empty()) {
-        processRateLimitHeaders(headers);
-    }
-    
-    // Handle HTTP errors
-    if (httpCode >= 400) {
-        handleHttpError(httpCode, response, endpoint);
-        throw std::runtime_error("HTTP request failed with code " + std::to_string(httpCode));
-    }
-
-    // Truncate long responses for logging
-    std::string logResponse = response;
-    if (logResponse.length() > 500) {
-        logResponse = logResponse.substr(0, 497) + "...";
-    }
-    TRACE("Response: ", logResponse);
-
-    if (response.empty()) {
-        throw std::runtime_error("Empty response from server");
-    }
-
-    return json::parse(response);
+ApiKraken::ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode)
+    : ApiExchange(orderBookManager, timersMgr, REST_ENDPOINT, testMode) {
+    // Initialize symbol map
+    m_symbolMap[TradingPair::BTC_USDT] = "XBT/USD";
+    m_symbolMap[TradingPair::ETH_USDT] = "ETH/USD";
+    m_symbolMap[TradingPair::XTZ_USDT] = "XTZ/USD";
 }
 
 // Kraken-specific symbol mapping
@@ -131,30 +49,6 @@ std::string ApiKraken::tradingPairToSymbol(TradingPair pair) const {
         return it->second;
     }
     throw std::runtime_error("Unsupported trading pair");
-}
-
-ApiKraken::ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode)
-    : ApiExchange(orderBookManager, timersMgr, testMode)
-    , m_connected(false)
-    , m_curl(nullptr) {
-
-    // Initialize CURL
-    m_curl = curl_easy_init();
-    if (!m_curl) {
-        throw std::runtime_error("Failed to initialize CURL");
-    }
-
-    // Initialize symbol map
-    m_symbolMap[TradingPair::BTC_USDT] = "XBT/USD";
-    m_symbolMap[TradingPair::ETH_USDT] = "ETH/USD";
-    m_symbolMap[TradingPair::XTZ_USDT] = "XTZ/USD";
-}
-
-ApiKraken::~ApiKraken() {
-    if (m_curl) {
-        curl_easy_cleanup(m_curl);
-    }
-    disconnect();
 }
 
 bool ApiKraken::connect() {
@@ -584,35 +478,9 @@ bool ApiKraken::getBalance(const std::string& asset) {
     }
 }
 
-void ApiKraken::setSubscriptionCallback(std::function<void(bool)> callback) {
-    m_subscriptionCallback = callback;
-}
-
-void ApiKraken::setSnapshotCallback(std::function<void(bool)> callback) {
-    m_snapshotCallback = callback;
-}
-
-void ApiKraken::doWrite(std::string message) {
-    m_ws->async_write(net::buffer(message),
-        [this](boost::beast::error_code ec, std::size_t bytes_transferred) {
-            if (ec) {
-                TRACE("Write error: ", ec.message());
-                return;
-            }
-        });
-}
-
 void ApiKraken::processMessages() {
     // All messages are processed asynchronously via WebSocket callbacks
 }
-
-void ApiKraken::setOrderCallback(std::function<void(bool)> callback) {
-    m_orderCallback = callback;
-}
-
-void ApiKraken::setBalanceCallback(std::function<void(bool)> callback) {
-    m_balanceCallback = callback;
-} 
 
 // Implement the cooldown method for Kraken-specific rate limiting
 void ApiKraken::cooldown(int httpCode, const std::string& response, const std::string& endpoint) {
@@ -636,8 +504,4 @@ void ApiKraken::processRateLimitHeaders(const std::string& headers) {
             TRACE("Failed to parse rate limit header: ", e.what());
         }
     }
-}
-
-std::string ApiKraken::getRestEndpoint() const {
-    return REST_ENDPOINT;
 }

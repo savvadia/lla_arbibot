@@ -23,114 +23,13 @@ namespace ssl = boost::asio::ssl;
 
 constexpr const char* REST_ENDPOINT = "https://api.binance.com/api/v3";
 
-// HTTP client callback
-size_t ApiBinance::WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {
-    size_t realsize = size * nmemb;
-    userp->append((char*)contents, realsize);
-    return realsize;
-}
+ApiBinance::ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode)
+    : ApiExchange(orderBookManager, timersMgr, REST_ENDPOINT, testMode) {
 
-size_t ApiBinance::HeaderCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {
-    size_t realsize = size * nmemb;
-    userp->append((char*)contents, realsize);
-    return realsize;
-}
-
-// Make HTTP request to Binance API
-json ApiBinance::makeHttpRequest(const std::string& endpoint, const std::string& params, const std::string& method) {
-    // Check if we're in a cooldown period
-    if (isInCooldown()) {
-        int remainingSeconds = getRemainingCooldownSeconds();
-        TRACE("Binance API in cooldown for ", remainingSeconds, " more seconds. Skipping request to ", endpoint);
-        throw std::runtime_error("API in cooldown period");
-    }
-
-    if (!curl) {
-        throw std::runtime_error("CURL not initialized");
-    }
-
-    std::string url = std::string(REST_ENDPOINT) + endpoint;
-    if (!params.empty()) {
-        url += "?" + params;
-    }
-
-    TRACE("Making HTTP ", method, " request to: ", url);
-
-    std::string response;
-    std::string headers;
-    long httpCode = 0;
-    
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &headers);
-    
-    if (method == "DELETE") {
-        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
-    } else if (method == "POST") {
-        curl_easy_setopt(curl, CURLOPT_POST, 1L);
-        if (!params.empty()) {
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, params.c_str());
-        }
-    } else {
-        curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
-    }
-    
-    CURLcode res = curl_easy_perform(curl);
-    if (res != CURLE_OK) {
-        throw std::runtime_error(std::string("curl_easy_perform() failed: ") + curl_easy_strerror(res));
-    }
-
-
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
-    
-    // Check for rate limit headers
-    if (!headers.empty()) {
-        // Parse rate limit headers
-        std::string usedWeightHeader = "X-MBX-USED-WEIGHT-1M";
-        size_t pos = headers.find(usedWeightHeader);
-        if (pos != std::string::npos) {
-            size_t valueStart = headers.find(": ", pos) + 2;
-            size_t valueEnd = headers.find("\r\n", valueStart);
-            if (valueStart != std::string::npos && valueEnd != std::string::npos) {
-                std::string usedWeightStr = headers.substr(valueStart, valueEnd - valueStart);
-                try {
-                    int usedWeight = std::stoi(usedWeightStr);
-                    TRACE("Binance rate limit: ", usedWeight, "/1200 per minute");
-                    
-                    // If we're close to the limit, we could implement a more sophisticated rate limiting strategy
-                    if (usedWeight > 1000) {
-                        TRACE("Approaching Binance rate limit, consider implementing backoff");
-                    }
-                } catch (...) {
-                    // If we can't parse the header, just log it
-                    TRACE("Could not parse rate limit header: ", usedWeightStr);
-                }
-            }
-        }
-    }
-    
-    // Handle HTTP errors
-    if (httpCode >= 400) {
-        handleHttpError(httpCode, response, endpoint);
-        throw std::runtime_error("HTTP request failed with code " + std::to_string(httpCode));
-    }
-
-    // Truncate long responses for logging
-    std::string logResponse = response;
-    if (logResponse.length() > 500) {
-        logResponse = logResponse.substr(0, 497) + "...";
-    }
-    TRACE("Response: ", logResponse);
-
-    if (response.empty()) {
-        throw std::runtime_error("Empty response from server");
-    }
-
-    return json::parse(response);
+    // Initialize symbol map with only BTC, ETH, and XTZ
+    m_symbolMap[TradingPair::BTC_USDT] = "BTCUSDT";
+    m_symbolMap[TradingPair::ETH_USDT] = "ETHUSDT";
+    m_symbolMap[TradingPair::XTZ_USDT] = "XTZUSDT";
 }
 
 // Binance-specific symbol mapping
@@ -150,30 +49,6 @@ std::string ApiBinance::tradingPairToSymbol(TradingPair pair) const {
         return it->second;
     }
     throw std::runtime_error("Unsupported trading pair");
-}
-
-ApiBinance::ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode)
-    : ApiExchange(orderBookManager, timersMgr, testMode)
-    , m_connected(false)
-    , curl(nullptr) {
-
-    // Initialize CURL
-    curl = curl_easy_init();
-    if (!curl) {
-        throw std::runtime_error("Failed to initialize CURL");
-    }
-
-    // Initialize symbol map with only BTC, ETH, and XTZ
-    m_symbolMap[TradingPair::BTC_USDT] = "BTCUSDT";
-    m_symbolMap[TradingPair::ETH_USDT] = "ETHUSDT";
-    m_symbolMap[TradingPair::XTZ_USDT] = "XTZUSDT";
-}
-
-ApiBinance::~ApiBinance() {
-    if (curl) {
-        curl_easy_cleanup(curl);
-    }
-    disconnect();
 }
 
 void ApiBinance::doPing() {
@@ -562,33 +437,6 @@ bool ApiBinance::getBalance(const std::string& asset) {
     }
 }
 
-void ApiBinance::setSubscriptionCallback(std::function<void(bool)> callback) {
-    m_subscriptionCallback = callback;
-}
-
-void ApiBinance::setSnapshotCallback(std::function<void(bool)> callback) {
-    m_snapshotCallback = callback;
-}
-
-void ApiBinance::setOrderCallback(std::function<void(bool)> callback) {
-    m_orderCallback = callback;
-}
-
-void ApiBinance::setBalanceCallback(std::function<void(bool)> callback) {
-    m_balanceCallback = callback;
-}
-
-void ApiBinance::doWrite(std::string message) {
-    TRACE("Sending WebSocket message: ", message);
-    m_ws->async_write(net::buffer(message),
-        [this, message](beast::error_code ec, std::size_t bytes_transferred) {
-            if (ec) {
-                TRACE("Write error: ", ec.message(), " for message: ", message);
-                return;
-            }
-        });
-}
-
 void ApiBinance::processMessages() {
     // All messages are processed asynchronously via WebSocket callbacks
 }
@@ -764,8 +612,4 @@ void ApiBinance::processRateLimitHeaders(const std::string& headers) {
             TRACE("Failed to parse rate limit header: ", e.what());
         }
     }
-}
-
-std::string ApiBinance::getRestEndpoint() const {
-    return REST_ENDPOINT;
 }

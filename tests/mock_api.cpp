@@ -6,7 +6,9 @@
 #include <nlohmann/json.hpp>
 
 MockApi::MockApi(OrderBookManager& orderBookManager, TimersMgr& timersMgr, const std::string& name, bool testMode)
-    : ApiExchange(orderBookManager, timersMgr,  testMode)
+    : ApiExchange(orderBookManager, timersMgr, 
+    name == "Binance" ? "https://api.binance.com/api/v3" : "https://api.kraken.com/0/public",
+    testMode)
     , m_name(name)
     , m_id(name == "Binance" ? ExchangeId::BINANCE : ExchangeId::KRAKEN) {
     
@@ -180,16 +182,6 @@ bool MockApi::getBalance(const std::string& asset) {
     return true;
 }
 
-void MockApi::setSubscriptionCallback(std::function<void(bool)> callback) {
-    std::cout << "[" << getTestTimestamp() << "] MockApi: Setting subscription callback" << std::endl;
-    m_subscriptionCallback = callback;
-}
-
-void MockApi::setSnapshotCallback(std::function<void(bool)> callback) {
-    std::cout << "[" << getTestTimestamp() << "] MockApi: Setting snapshot callback" << std::endl;
-    m_snapshotCallback = callback;
-}
-
 TradingPair MockApi::symbolToTradingPair(const std::string& symbol) const {
     std::string lowerSymbol = toLower(symbol);
     
@@ -300,20 +292,7 @@ void MockApi::processMessages() {
     // All messages are processed asynchronously via callbacks in tests
 }
 
-void MockApi::setOrderCallback(std::function<void(bool)> callback) {
-    m_orderCallback = callback;
-}
-
-void MockApi::setBalanceCallback(std::function<void(bool)> callback) {
-    m_balanceCallback = callback;
-}
-
 void MockApi::processRateLimitHeaders(const std::string& headers) {
     // Mock implementation - no actual rate limiting in tests
     std::cout << "[" << getTestTimestamp() << "] MockApi: Processing rate limit headers (mock)" << std::endl;
-}
-
-std::string MockApi::getRestEndpoint() const {
-    // Return mock REST endpoint based on exchange name
-    return m_name == "Binance" ? "https://api.binance.com/api/v3" : "https://api.kraken.com/0/public";
 }

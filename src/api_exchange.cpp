@@ -7,6 +7,26 @@
 // Define TRACE macro for ApiExchange
 #define TRACE(...) TRACE_THIS(TraceInstance::A_EXCHANGE, this->getExchangeId(), __VA_ARGS__)
 
+ApiExchange::ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
+                        const std::string& restEndpoint,bool testMode)
+    : m_testMode(testMode), m_inCooldown(false), m_cooldownEndTime(std::chrono::steady_clock::now()), 
+    m_timersMgr(timersMgr), m_orderBookManager(orderBookManager), m_keepaliveTimerId(0),
+    m_restEndpoint(restEndpoint) {
+        // Initialize CURL
+        m_curl = curl_easy_init();
+        if (!m_curl) {
+            throw std::runtime_error("Failed to initialize CURL");
+        }
+    }
+
+ApiExchange::~ApiExchange() {
+    if (m_curl) {
+        curl_easy_cleanup(m_curl);
+        m_curl = nullptr;
+    }
+}
+
+// Factory function to create exchange API instances
 std::unique_ptr<ApiExchange> createApiExchange(const std::string& exchangeName, OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode) {
     if (exchangeName == "Binance") {
         return std::make_unique<ApiBinance>(orderBookManager, timersMgr, testMode);
@@ -21,11 +41,6 @@ std::unique_ptr<ApiExchange> createApiExchange(const std::string& exchangeName, 
 size_t ApiExchange::WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
     ((std::string*)userp)->append((char*)contents, size * nmemb);
     return size * nmemb;
-}
-
-size_t ApiExchange::HeaderCallback(char* buffer, size_t size, size_t nitems, void* userdata) {
-    ((std::string*)userdata)->append(buffer, size * nitems);
-    return size * nitems;
 }
 
 // Initialize CURL
@@ -66,7 +81,7 @@ json ApiExchange::makeHttpRequest(const std::string& endpoint, const std::string
         }
     }
 
-    std::string url = getRestEndpoint() + endpoint;
+    std::string url = m_restEndpoint + endpoint;
     if (!params.empty() && method == "GET") {
         url += "?" + params;
     }
@@ -80,7 +95,7 @@ json ApiExchange::makeHttpRequest(const std::string& endpoint, const std::string
     curl_easy_setopt(m_curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(m_curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
+    curl_easy_setopt(m_curl, CURLOPT_HEADERFUNCTION, WriteCallback);
     curl_easy_setopt(m_curl, CURLOPT_HEADERDATA, &headers);
     curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYHOST, 2L);
@@ -115,12 +130,25 @@ json ApiExchange::makeHttpRequest(const std::string& endpoint, const std::string
     
     // Parse response as JSON
     try {
+        TRACE("Response: ", response.substr(0, 500));
         return json::parse(response);
     } catch (const json::parse_error& e) {
         TRACE("Failed to parse JSON response: ", e.what());
         TRACE("Response: ", response);
         throw std::runtime_error("Failed to parse JSON response");
     }
+}
+
+
+void ApiExchange::doWrite(std::string message) {
+    TRACE("Sending WebSocket message: ", message);
+    m_ws->async_write(net::buffer(message),
+        [this, message](beast::error_code ec, std::size_t bytes_transferred) {
+            if (ec) {
+                TRACE("Write error: ", ec.message(), " for message: ", message);
+                return;
+            }
+        });
 }
 
 void ApiExchange::startCooldown(int minutes) {
@@ -226,4 +254,20 @@ void ApiExchange::handleHttpError(int httpCode, const std::string& response, con
         errorMsg += " for endpoint " + endpoint;
     }
     throw std::runtime_error(errorMsg);
+}
+
+void ApiExchange::setSubscriptionCallback(std::function<void(bool)> callback) {
+    m_subscriptionCallback = callback;
+}
+
+void ApiExchange::setSnapshotCallback(std::function<void(bool)> callback) {
+    m_snapshotCallback = callback;
+}
+
+void ApiExchange::setOrderCallback(std::function<void(bool)> callback) {
+    m_orderCallback = callback;
+}
+
+void ApiExchange::setBalanceCallback(std::function<void(bool)> callback) {
+    m_balanceCallback = callback;
 }

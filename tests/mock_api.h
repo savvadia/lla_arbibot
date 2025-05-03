@@ -34,13 +34,6 @@ public:
 
     std::string getExchangeName() const override { return m_name; }
     ExchangeId getExchangeId() const override { return m_id; }
-    bool isConnected() const override { return m_connected; }
-
-    // Callback setters
-    void setSubscriptionCallback(std::function<void(bool)> callback) override;
-    void setSnapshotCallback(std::function<void(bool)> callback) override;
-    void setOrderCallback(std::function<void(bool)> callback) override;
-    void setBalanceCallback(std::function<void(bool)> callback) override;
 
     // Test helper methods
     void simulateOrderBookUpdate(const std::vector<PriceLevel>& bids, const std::vector<PriceLevel>& asks);
@@ -48,7 +41,6 @@ public:
 protected:
     // Override the cooldown method for mock-specific rate limiting
     void processRateLimitHeaders(const std::string& headers) override;
-    std::string getRestEndpoint() const override;
 
 private:
     // Internal symbol conversion methods
@@ -60,8 +52,6 @@ private:
 
     std::string m_name;
     ExchangeId m_id;
-    std::map<TradingPair, std::string> m_symbolMap;
-    bool m_connected{false};
     
     // Callbacks
     std::function<void(bool)> m_subscriptionCallback;
@@ -69,7 +59,4 @@ private:
     std::function<void(bool)> m_snapshotCallback;
     std::function<void(bool)> m_orderCallback;
     std::function<void(bool)> m_balanceCallback;
-    
-    // Mock WebSocket state
-    bool m_subscribed{false};
 }; 
