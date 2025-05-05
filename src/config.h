@@ -12,4 +12,7 @@ namespace Config {
 
     // Execution settings
     constexpr int MAX_EXECUTION_TIME_MS = 0;  // Maximum time to run the bot (0 = run indefinitely)
+
+    // min margin, %
+    constexpr double MIN_MARGIN = 0.07;  // Minimum margin to execute a trade
 } 

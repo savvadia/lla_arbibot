@@ -1,9 +1,5 @@
-#include <iostream>
 #include <string>
-#include <thread>
-#include <iomanip>
 #include <algorithm>
-#include <sstream>
 
 #include "config.h"
 #include "balance.h"
@@ -53,10 +49,9 @@ StrategyPoplavki::StrategyPoplavki(const std::string& baseAsset,
     TRACE("Initializing with ", exchangeIds.size(), " exchanges");
     
     // Set up order book update callback
-    // TODO: uncomment when Binance updates are fixed
-    // exchangeManager.getOrderBookManager().setUpdateCallback([this](ExchangeId exchangeId, TradingPair pair) {
-    //     updateOrderBookData(exchangeId);
-    // });
+    exchangeManager.getOrderBookManager().setUpdateCallback([this](ExchangeId exchangeId, TradingPair pair) {
+        updateOrderBookData(exchangeId);
+    });
     
     // Set up periodic scanning
     TRACE("Setting up periodic scanning with ", Config::STRATEGY_CHECK_TIMER_MS, "ms interval");
@@ -83,7 +78,6 @@ void StrategyPoplavki::startTimerToScan(int ms) {
 }
 
 void StrategyPoplavki::updateOrderBookData(ExchangeId exchange) {
-    TRACE("Received order book update from exchange: ", exchange);
     scanOpportunities();
 }
 
@@ -94,15 +88,13 @@ Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId
 
     double buyPrice = buyBook.getBestAsk();
     double sellPrice = sellBook.getBestBid();
-    double profit = sellPrice - buyPrice;
-    double profitPercent = (profit / buyPrice) * 100;
     double amount  = std::min(buyBook.getBestAskQuantity(), sellBook.getBestBidQuantity());
 
-    TRACE("Calculating profit for ", 
+    DEBUG("Calculating profit for ", 
         buyExchange, "(", buyBook.getLastUpdate(), ") -> ",
         sellExchange, "(", sellBook.getLastUpdate(), ") ",
         buyPrice, " -> ", sellPrice,
-        " = ", profit, " (", profitPercent, "%)");
+        " = ", (sellPrice - buyPrice), " (", (((sellPrice - buyPrice) / buyPrice) * 100), "%)");
 
     if (buyPrice > 0 && sellPrice > 0 && amount > 0 && buyPrice < sellPrice) {
         return Opportunity(buyExchange, sellExchange, amount, buyPrice, sellPrice);
@@ -112,19 +104,17 @@ Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId
 }
 
 void StrategyPoplavki::scanOpportunities() {
-    TRACE("Starting opportunity scan...");
-    
     for (size_t i = 0; i < exchangeIds.size(); ++i) {
         for (size_t j = i + 1; j < exchangeIds.size(); ++j) {
             // Try both directions
             Opportunity opp1 = calculateProfit(exchangeIds[i], exchangeIds[j]);
-            if (opp1.amount > 0) {
+            if (opp1.amount > 0 && opp1.profit() > Config::MIN_MARGIN) {
                 TRACE("Found opportunity: ", opp1);
                 // TODO: Execute opportunity
             }
 
             Opportunity opp2 = calculateProfit(exchangeIds[j], exchangeIds[i]);
-            if (opp2.amount > 0) {
+            if (opp2.amount > 0 && opp2.profit() > Config::MIN_MARGIN) {
                 TRACE("Found opportunity: ", opp2);
                 // TODO: Execute opportunity
             }

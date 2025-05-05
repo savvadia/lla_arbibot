@@ -209,6 +209,8 @@ private:
     mutable std::mutex mutex;
     ExchangeId exchangeId;
     TradingPair pair;
+
+    // lastUpdate is the timestamp of the last update; not the "u" field in the exchange upadate message
     std::chrono::system_clock::time_point lastUpdate = std::chrono::system_clock::now();
 
     void pushElement(std::vector<PriceLevel>& result,

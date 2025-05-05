@@ -301,25 +301,25 @@ void OrderBookManager::updateOrderBook(ExchangeId exchangeId, TradingPair pair, 
         MUTEX_LOCK(mutex);
     
         auto& book = orderBooks[exchangeId][pair];
-        std::chrono::system_clock::time_point lastUpdate = book.getLastUpdate();
+        std::chrono::system_clock::time_point prevLastUpdate = book.getLastUpdate();
         
         // Update the order book
         book.update(bids, asks);
         
         // Only trigger callback if the lastUpdate timestamp changed
-        if (book.getLastUpdate() > lastUpdate) {
+        if (book.getLastUpdate() > prevLastUpdate) {
             changed = true;
         }
 
         NOTICE("Update order book - Exchange: ", exchangeId, " Pair: ", pair, 
                " calling callback: ", changed, 
-               " last update: ", lastUpdate, 
+               " last update: ", prevLastUpdate, 
                " new update: ", book.getLastUpdate());
     }
 
     if (changed) {        
         if (updateCallback) {
-            DEBUG("Calling update callback for exchange: ", exchangeId, " pair: ", pair);
+            TRACE("Calling update callback for exchange: ", exchangeId, " pair: ", pair);
             updateCallback(exchangeId, pair);
         }
     }
@@ -353,8 +353,10 @@ void OrderBookManager::updateOrderBookBestBidAsk(ExchangeId exchangeId, TradingP
 
     if (changed) {        
         if (updateCallback) {
-            DEBUG("Calling update callback for exchange: ", exchangeId, " pair: ", pair);
+            TRACE("Calling update callback for exchange: ", exchangeId, " pair: ", pair);
             updateCallback(exchangeId, pair);
+        } else {
+            TRACE("No update callback for exchange: ", exchangeId, " pair: ", pair);
         }
     }
 }
