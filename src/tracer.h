@@ -7,12 +7,14 @@
 #include <mutex>
 #include <atomic>
 #include <string_view>
-#include <unordered_map>
 #include <array>
 #include <string>
 #include <sstream>
 #include <iomanip>
-#include "types.h"  // Add this include for ExchangeId
+#include "types.h"  // For ExchangeId
+#include "config.h" // For COUNTABLE_TRACES_PRINT_INTERVAL
+// Forward declaration of TimersMgr
+class TimersMgr;
 
 // Enum for logging types
 enum class TraceInstance {
@@ -30,6 +32,56 @@ enum class TraceInstance {
     MUTEX,
     COUNT,  // To track the number of log types
 };
+
+enum class CountableTrace {
+    S_POPLAVKI_OPPORTUNITY,
+    COUNT,
+};
+
+
+// Base macro for logging with object
+#define TRACE_OBJ(_level, _obj, _type, _exchangeId, ...)                                            \
+    if (FastTraceLogger::globalLoggingEnabled().load(std::memory_order_relaxed) &&  \
+        FastTraceLogger::logLevels()[static_cast<int>(_type)].load(std::memory_order_relaxed) && \
+        (_exchangeId == ExchangeId::UNKNOWN || FastTraceLogger::isLoggingEnabled(_exchangeId))) { \
+        FastTraceLogger::log(_level, _obj, _type, _exchangeId, __FILE__, __LINE__, __VA_ARGS__); \
+    }
+
+// For logging with this object
+#define TRACE_THIS(_type, _exchangeId, ...) TRACE_OBJ("INFO ", this, _type, _exchangeId, __VA_ARGS__)
+
+// For logging without object
+#define TRACE_BASE(_type, _exchangeId, ...) TRACE_OBJ("INFO ", nullptr, _type, _exchangeId, __VA_ARGS__)
+
+// For logging with countable trace
+#define TRACE_COUNT(_type, _id, _exchangeId, ...) \
+    if(FastTraceLogger::globalLoggingEnabled().load(std::memory_order_relaxed) && \
+        FastTraceLogger::logLevels()[static_cast<int>(_type)].load(std::memory_order_relaxed) && \
+        (_exchangeId == ExchangeId::UNKNOWN || FastTraceLogger::isLoggingEnabled(_exchangeId))) { \
+        FastTraceLogger::countableLog("INFO ", this, _type, _id, _exchangeId, __FILE__, __LINE__, __VA_ARGS__); \
+    }
+
+// Debug versions (disabled by default)
+#if 0
+    #define DEBUG_THIS(_type, _exchangeId, ...) TRACE_OBJ("DEBUG", this, _type, _exchangeId, __VA_ARGS__)
+    #define DEBUG_BASE(_type, _exchangeId, ...) TRACE_OBJ("DEBUG", nullptr, _type, _exchangeId, __VA_ARGS__)
+    #define DEBUG_OBJ(_level, _obj, _type, _exchangeId, ...) TRACE_OBJ(_level, _obj, _type, _exchangeId, __VA_ARGS__)
+#else
+    #define DEBUG_THIS(_type, _exchangeId, ...) ((void)0)
+    #define DEBUG_BASE(_type, _exchangeId, ...) ((void)0)
+    #define DEBUG_OBJ(_level, _obj, _type, _exchangeId, ...) ((void)0)
+#endif
+
+#define CONCATENATE_DETAIL(x, y) x##y
+#define UNIQUE_LOCK_NAME(_base, _line) CONCATENATE_DETAIL(_base, _line)
+#if 0
+#define MUTEX_LOCK(_mutex) \
+    std::cout<<__FILE__<<":"<<__LINE__<<" locking "<<#_mutex<<std::endl; \
+    std::lock_guard<std::mutex> UNIQUE_LOCK_NAME(lock_, __LINE__)(_mutex);
+#else
+#define MUTEX_LOCK(_mutex) \
+    std::lock_guard<std::mutex> UNIQUE_LOCK_NAME(lock_, __LINE__)(_mutex);
+#endif
 
 // Convert enum to string for logging purposes
 std::string_view traceTypeToStr(TraceInstance type);
@@ -57,6 +109,7 @@ protected:
 };
 
 class FastTraceLogger {
+
 public:
     // Enable or disable global logging
     static void setLoggingEnabled(bool enabled);
@@ -81,7 +134,8 @@ public:
 
     // Log message with file and line info, plus any additional arguments
     template <typename... Args>
-    static void log(std::string level, const Traceable* instance, TraceInstance type, ExchangeId exchangeId, std::string_view file, int line, Args&&... args) {
+    static void log(std::string level, const Traceable* instance, TraceInstance type, 
+        ExchangeId exchangeId, std::string_view file, int line, Args&&... args) {
         std::lock_guard<std::mutex> lock(getMutex());
 
         // Construct log message
@@ -156,6 +210,33 @@ public:
         out << oss.str() << std::endl;
     }
 
+    // countable log takes exact trace type and prints not more than one per 1000 and reset limits every second
+    template <typename... Args>
+    static void countableLog(std::string level, const Traceable* instance, TraceInstance type, CountableTrace countableTrace,
+        ExchangeId exchangeId, std::string_view file, int line, Args&&... args) {
+        // increase countable trace
+        countableTraces()[static_cast<int>(countableTrace)].fetch_add(1, std::memory_order_relaxed);
+        int cnt = countableTraces()[static_cast<int>(countableTrace)].load(std::memory_order_relaxed);
+        if (cnt == 1 || cnt % Config::COUNTABLE_TRACES_PRINT_INTERVAL == 0) { // print only first time and every 100th time
+            log(level, instance, type, exchangeId, file, line, "[ cnt:", cnt, "] ", std::forward<Args>(args)...);
+        }
+    }
+
+    // reset countable traces every second
+    static void resetCountableTraces() {
+        static std:: string mapIdToString[] = {
+            "S_POPLAVKI_OPP",
+        };
+        const int n = countableTraces().size();
+        for (int traceId = 0; traceId < n; traceId++) {
+            auto& cnt = countableTraces()[traceId];
+            if (cnt > 0) {
+                TRACE_BASE(TraceInstance::TIMER, ExchangeId::UNKNOWN, "Resetting countable trace: ", mapIdToString[traceId], " ", cnt.load(std::memory_order_relaxed));
+                cnt.store(0, std::memory_order_relaxed);
+            }
+        }
+    }
+
     // Atomic flag for global logging enable/disable
     static std::atomic<bool>& globalLoggingEnabled();
 
@@ -171,7 +252,7 @@ public:
     // Mutex for thread safety during logging
     static std::mutex& getMutex();
 
-    // Utility to get the base file name from a full file path
+    // Get the base file name from a full file path
     static constexpr std::string_view getBaseName(std::string_view path) {
         size_t lastSlash = path.find_last_of("/\\");
         if (lastSlash == std::string_view::npos) {
@@ -183,40 +264,9 @@ public:
 private:
     // Add exchange logging levels
     static std::array<std::atomic<bool>, 3>& exchangeLogLevels();  // UNKNOWN, BINANCE, KRAKEN
+    
+    // array of counters for countable traces
+    static std::array<std::atomic<int>, static_cast<int>(CountableTrace::COUNT)>& countableTraces();
 };
-
-// Base macro for logging with object
-#define TRACE_OBJ(_level, _obj, _type, _exchangeId, ...)                                            \
-    if (FastTraceLogger::globalLoggingEnabled().load(std::memory_order_relaxed) &&  \
-        FastTraceLogger::logLevels()[static_cast<int>(_type)].load(std::memory_order_relaxed) && \
-        (_exchangeId == ExchangeId::UNKNOWN || FastTraceLogger::isLoggingEnabled(_exchangeId))) { \
-        FastTraceLogger::log(_level, _obj, _type, _exchangeId, __FILE__, __LINE__, __VA_ARGS__); \
-    }
-
-// For logging with this object
-#define TRACE_THIS(_type, _exchangeId, ...) TRACE_OBJ("INFO ", this, _type, _exchangeId, __VA_ARGS__)
-
-// For logging without object
-#define TRACE_BASE(_type, _exchangeId, ...) TRACE_OBJ("INFO ", nullptr, _type, _exchangeId, __VA_ARGS__)
-
-// Debug versions (disabled by default)
-#if 0
-    #define DEBUG_THIS(_type, _exchangeId, ...) TRACE_OBJ("DEBUG", this, _type, _exchangeId, __VA_ARGS__)
-    #define DEBUG_BASE(_type, _exchangeId, ...) TRACE_OBJ("DEBUG", nullptr, _type, _exchangeId, __VA_ARGS__)
-#else
-    #define DEBUG_THIS(_type, _exchangeId, ...) ((void)0)
-    #define DEBUG_BASE(_type, _exchangeId, ...) ((void)0)
-#endif
-
-#define CONCATENATE_DETAIL(x, y) x##y
-#define UNIQUE_LOCK_NAME(_base, _line) CONCATENATE_DETAIL(_base, _line)
-#if 0
-#define MUTEX_LOCK(_mutex) \
-    std::cout<<__FILE__<<":"<<__LINE__<<" locking "<<#_mutex<<std::endl; \
-    std::lock_guard<std::mutex> UNIQUE_LOCK_NAME(lock_, __LINE__)(_mutex);
-#else
-#define MUTEX_LOCK(_mutex) \
-    std::lock_guard<std::mutex> UNIQUE_LOCK_NAME(lock_, __LINE__)(_mutex);
-#endif
 
 #endif // TRACER_H

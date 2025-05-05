@@ -13,6 +13,7 @@ using namespace std;
 // Define TRACE macro for StrategyPoplavki class
 #define TRACE(...) TRACE_THIS(TraceInstance::STRAT, ExchangeId::UNKNOWN, __VA_ARGS__)
 #define DEBUG(...) DEBUG_THIS(TraceInstance::STRAT, ExchangeId::UNKNOWN, __VA_ARGS__)
+#define TRACE_CNT(_id,...) TRACE_COUNT(TraceInstance::STRAT, _id, ExchangeId::UNKNOWN, __VA_ARGS__)
 
 Strategy::Strategy(std::string name, std::string coin, std::string stableCoin, TimersMgr &timersMgr) 
     : name(name), coin(coin), stableCoin(stableCoin), timersMgr(timersMgr) {
@@ -74,7 +75,7 @@ void StrategyPoplavki::startTimerToScan(int ms) {
     
     // Add new timer
     timerId = timersMgr.addTimer(ms, timerCallback, this, TimerType::PRICE_CHECK);
-    TRACE("Set up timer with ID ", timerId, " for scanning in ", ms, "ms");
+    DEBUG("Set up timer with ID ", timerId, " for scanning in ", ms, "ms");
 }
 
 void StrategyPoplavki::updateOrderBookData(ExchangeId exchange) {
@@ -109,13 +110,13 @@ void StrategyPoplavki::scanOpportunities() {
             // Try both directions
             Opportunity opp1 = calculateProfit(exchangeIds[i], exchangeIds[j]);
             if (opp1.amount > 0 && opp1.profit() > Config::MIN_MARGIN) {
-                TRACE("Found opportunity: ", opp1);
+                TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY, "Found opportunity: ", opp1);
                 // TODO: Execute opportunity
             }
 
             Opportunity opp2 = calculateProfit(exchangeIds[j], exchangeIds[i]);
             if (opp2.amount > 0 && opp2.profit() > Config::MIN_MARGIN) {
-                TRACE("Found opportunity: ", opp2);
+                TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY, "Found opportunity: ", opp2);
                 // TODO: Execute opportunity
             }
         }
@@ -131,7 +132,7 @@ void StrategyPoplavki::timerCallback(int id, void *data) {
     auto* strategy = static_cast<StrategyPoplavki*>(data);
     strategy->startTimerToScan(Config::STRATEGY_CHECK_TIMER_MS);
 
-    TRACE_OBJ("INFO: ", strategy, TraceInstance::STRAT, ExchangeId::UNKNOWN, "Timer callback for strategy: ", strategy->getName());
+    DEBUG_OBJ("INFO: ", strategy, TraceInstance::STRAT, ExchangeId::UNKNOWN, "Timer callback for strategy: ", strategy->getName());
     strategy->scanOpportunities();
 }
 

@@ -110,6 +110,12 @@ std::string_view FastTraceLogger::exchangeIdToStr(ExchangeId exchangeId) {
     }
 }
 
+// Implementation of countableTraces
+std::array<std::atomic<int>, static_cast<int>(CountableTrace::COUNT)>& FastTraceLogger::countableTraces() {
+    static std::array<std::atomic<int>, static_cast<int>(CountableTrace::COUNT)> traces;
+    return traces;
+}
+
 /* Example
 
 // ✅ Example class with overloaded `operator<<`

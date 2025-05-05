@@ -1,5 +1,4 @@
 #include <iostream>
-#include <string>
 #include <vector>
 #include <memory>
 #include <thread>
@@ -11,7 +10,7 @@
 #include "s_poplavki.h"
 #include "balance.h"
 #include "config.h"
-#include "event_loop.h"
+#include "tracer_timer.h"
 using namespace std;
 
 // Define TRACE macro for main
@@ -43,7 +42,7 @@ int main() {
     
     // Enable specific trace types
     FastTraceLogger::setLoggingEnabled(TraceInstance::EVENT_LOOP, true);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::TIMER, true);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::TIMER, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::STRAT, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::BALANCE, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, false);
@@ -68,6 +67,9 @@ int main() {
     TRACE("Initializing TimersMgr...");
     TimersMgr timersMgr;
     OrderBookManager orderBookManager;
+
+    // init reset countable traces timer
+    initResetCountableTracesTimer(timersMgr);
     
     // Create exchange manager
     TRACE("Initializing ExchangeManager...");
