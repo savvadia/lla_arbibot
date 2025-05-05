@@ -25,7 +25,8 @@ constexpr const char* REST_ENDPOINT = "https://api.kraken.com/0/public";
 #define TRACE(...) TRACE_THIS(TraceInstance::A_KRAKEN, ExchangeId::KRAKEN, __VA_ARGS__)
 
 ApiKraken::ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode)
-    : ApiExchange(orderBookManager, timersMgr, REST_ENDPOINT, testMode) {
+    : ApiExchange(orderBookManager, timersMgr, "ws.kraken.com", "443", 
+    REST_ENDPOINT, "/ws", testMode) {
     // Initialize symbol map
     m_symbolMap[TradingPair::BTC_USDT] = "XBT/USD";
     m_symbolMap[TradingPair::ETH_USDT] = "ETH/USD";
@@ -51,58 +52,6 @@ std::string ApiKraken::tradingPairToSymbol(TradingPair pair) const {
     throw std::runtime_error("Unsupported trading pair");
 }
 
-bool ApiKraken::connect() {
-    if (m_connected) {
-        TRACE("Already connected to Kraken");
-        return true;
-    }
-
-    try {
-        // Set up SSL context
-        m_ctx.set_verify_mode(ssl::verify_peer);
-        m_ctx.set_default_verify_paths();
-
-        // Create the WebSocket stream
-        m_ws = std::make_unique<websocket::stream<boost::beast::ssl_stream<boost::beast::tcp_stream>>>(m_ioc, m_ctx);
-
-        // These two lines are needed for SSL
-        if (!SSL_set_tlsext_host_name(m_ws->next_layer().native_handle(), m_host.c_str())) {
-            throw boost::beast::system_error(
-                boost::beast::error_code(static_cast<int>(::ERR_get_error()),
-                                net::error::get_ssl_category()),
-                "Failed to set SNI hostname");
-        }
-
-        // Look up the domain name
-        tcp::resolver resolver(m_ioc);
-        auto const results = resolver.resolve(m_host, m_port);
-
-        // Connect to the IP address we get from a lookup
-        boost::beast::get_lowest_layer(*m_ws).connect(results);
-
-        // Perform the SSL handshake
-        m_ws->next_layer().handshake(ssl::stream_base::client);
-
-        // Perform the websocket handshake
-        m_ws->handshake(m_host, "/ws");
-
-        m_connected = true;
-
-        // Start the IO context in a separate thread for reading
-        m_work = std::make_unique<net::executor_work_guard<net::io_context::executor_type>>(m_ioc.get_executor());
-        m_thread = std::thread([this]() { m_ioc.run(); });
-
-        // Start reading
-        doRead();
-
-        TRACE("Successfully connected to Kraken");
-        return true;
-    } catch (const std::exception& e) {
-        TRACE("Error in connect: ", e.what());
-        return false;
-    }
-}
-
 void ApiKraken::doRead() {
     m_ws->async_read(m_buffer,
         [this](boost::beast::error_code ec, std::size_t bytes_transferred) {
@@ -124,42 +73,6 @@ void ApiKraken::doRead() {
             processMessage(message);
             doRead();
         });
-}
-
-void ApiKraken::disconnect() {
-    if (!m_connected) {
-        return;
-    }
-
-    try {
-        // First, stop the IO context to prevent new operations
-        if (m_work) {
-            m_work.reset();
-        }
-
-        // Stop the IO context
-        m_ioc.stop();
-
-        // Wait for the IO thread to finish
-        if (m_thread.joinable()) {
-            m_thread.join();
-        }
-
-        // Now it's safe to close the WebSocket
-        if (m_ws) {
-            boost::beast::error_code ec;
-            m_ws->close(websocket::close_code::normal, ec);
-            if (ec) {
-                TRACE("Warning: Error during WebSocket close: ", ec.message());
-            }
-            m_ws.reset();
-        }
-
-        m_connected = false;
-        TRACE("Disconnected from Kraken");
-    } catch (const std::exception& e) {
-        TRACE("Warning: Error in disconnect: ", e.what());
-    }
 }
 
 bool ApiKraken::subscribeOrderBook(std::vector<TradingPair> pairs) {

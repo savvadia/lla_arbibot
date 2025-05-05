@@ -33,14 +33,14 @@ using json = nlohmann::json;
 // Base class for exchange APIs
 class ApiExchange : public Traceable {
 public:
-    ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr, const std::string& restEndpoint, bool testMode = true);
+    ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr, 
+    const std::string& host, const std::string& port,
+    const std::string& restEndpoint, const std::string& wsEndpoint, bool testMode = true);
     virtual ~ApiExchange();
 
     // Connect to the exchange
-    virtual bool connect() = 0;
-
-    // Disconnect from the exchange
-    virtual void disconnect() = 0;
+    virtual bool connect();
+    virtual void disconnect();
 
     // Subscribe to order book updates for a trading pair
     virtual bool subscribeOrderBook(std::vector<TradingPair> pairs) = 0;
@@ -120,6 +120,7 @@ protected:
         bool hasProcessedFirstUpdate{false};  // Track if we've processed the first update after snapshot
     };
 
+    virtual void doRead() = 0;
     void doWrite(std::string message);
 
     bool m_connected{false};
@@ -157,8 +158,10 @@ protected:
 
     std::map<TradingPair, std::string> m_symbolMap;
     std::map<TradingPair, SymbolState> symbolStates;
+    std::string m_host;
+    std::string m_port;
     std::string m_restEndpoint;
-
+    std::string m_wsEndpoint;
 };
 
 // Factory function to create exchange API instances

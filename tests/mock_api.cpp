@@ -7,7 +7,10 @@
 
 MockApi::MockApi(OrderBookManager& orderBookManager, TimersMgr& timersMgr, const std::string& name, bool testMode)
     : ApiExchange(orderBookManager, timersMgr, 
+    name == "Binance" ? "stream.binance.com" : "ws.kraken.com",
+    name == "Binance" ? "9443" : "443",
     name == "Binance" ? "https://api.binance.com/api/v3" : "https://api.kraken.com/0/public",
+    name == "Binance" ? "/ws/stream" : "/ws",
     testMode)
     , m_name(name)
     , m_id(name == "Binance" ? ExchangeId::BINANCE : ExchangeId::KRAKEN) {

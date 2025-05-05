@@ -24,8 +24,8 @@ namespace ssl = boost::asio::ssl;
 constexpr const char* REST_ENDPOINT = "https://api.binance.com/api/v3";
 
 ApiBinance::ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode)
-    : ApiExchange(orderBookManager, timersMgr, REST_ENDPOINT, testMode) {
-
+    : ApiExchange(orderBookManager, timersMgr,  
+    "stream.binance.com", "9443", REST_ENDPOINT, "/ws/stream", testMode) {
     // Initialize symbol map with only BTC, ETH, and XTZ
     m_symbolMap[TradingPair::BTC_USDT] = "BTCUSDT";
     m_symbolMap[TradingPair::ETH_USDT] = "ETHUSDT";
@@ -49,85 +49,6 @@ std::string ApiBinance::tradingPairToSymbol(TradingPair pair) const {
         return it->second;
     }
     throw std::runtime_error("Unsupported trading pair");
-}
-
-void ApiBinance::doPing() {
-    if (!m_connected) {
-        TRACE("Ping: Not connected to Binance");
-        return;
-    }
-
-    try {
-        // TODO: Implement ping
-        TRACE("Ping: Not implemented for Binance");
-    } catch (const std::exception& e) {
-        TRACE("Error on ping: ", e.what());
-    }
-}
-
-
-bool ApiBinance::connect() {
-    if (m_connected) {
-        TRACE("Already connected to Binance");
-        return true;
-    }
-
-    try {
-        // Reset IO context if it was stopped
-        if (m_ioc.stopped()) {
-            m_ioc.restart();
-        }
-
-        // Set up SSL context
-        m_ctx.set_verify_mode(ssl::verify_peer);
-        m_ctx.set_default_verify_paths();
-
-        // Create the WebSocket stream
-        m_ws = std::make_unique<websocket::stream<beast::ssl_stream<beast::tcp_stream>>>(m_ioc, m_ctx);
-
-        // These two lines are needed for SSL
-        if (!SSL_set_tlsext_host_name(m_ws->next_layer().native_handle(), m_host.c_str())) {
-            throw beast::system_error(
-                beast::error_code(static_cast<int>(::ERR_get_error()),
-                                net::error::get_ssl_category()),
-                "Failed to set SNI hostname");
-        }
-
-        // Look up the domain name
-        tcp::resolver resolver(m_ioc);
-        auto const results = resolver.resolve(m_host, m_port);
-
-        // Connect to the IP address we get from a lookup
-        beast::get_lowest_layer(*m_ws).connect(results);
-
-        // Perform the SSL handshake
-        m_ws->next_layer().handshake(ssl::stream_base::client);
-
-        // Perform the websocket handshake
-        m_ws->handshake(m_host, "/ws/stream");
-
-        m_connected = true;
-
-        // Start the IO context in a separate thread for reading
-        m_work = std::make_unique<net::executor_work_guard<net::io_context::executor_type>>(m_ioc.get_executor());
-        m_thread = std::thread([this]() { 
-            TRACE("Starting IO context thread");
-            m_ioc.run();
-            TRACE("IO context thread finished");
-        });
-
-        // Start reading
-        doRead();
-
-        // Subscribe to heartbeat
-        doPing();
-
-        TRACE("Successfully connected to Binance WebSocket at ", m_host, ":", m_port);
-        return true;
-    } catch (const std::exception& e) {
-        TRACE("Error in connect: ", e.what());
-        return false;
-    }
 }
 
 void ApiBinance::doRead() {
@@ -439,45 +360,6 @@ bool ApiBinance::getBalance(const std::string& asset) {
 
 void ApiBinance::processMessages() {
     // All messages are processed asynchronously via WebSocket callbacks
-}
-
-void ApiBinance::disconnect() {
-    if (!m_connected) {
-        return;
-    }
-
-    try {
-        // First, stop the IO context to prevent new operations
-        if (m_work) {
-            m_work.reset();
-        }
-
-        // Stop the IO context
-        m_ioc.stop();
-
-        // Wait for the IO thread to finish
-        if (m_thread.joinable()) {
-            m_thread.join();
-        }
-
-        // Reset the IO context for potential reconnection
-        m_ioc.restart();
-
-        // Now it's safe to close the WebSocket
-        if (m_ws) {
-            boost::beast::error_code ec;
-            m_ws->close(websocket::close_code::normal, ec);
-            if (ec) {
-                TRACE("Warning: Error during WebSocket close: ", ec.message());
-            }
-            m_ws.reset();
-        }
-
-        m_connected = false;
-        TRACE("Disconnected from Binance");
-    } catch (const std::exception& e) {
-        TRACE("Warning: Error in disconnect: ", e.what());
-    }
 }
 
 bool ApiBinance::subscribeOrderBook(std::vector<TradingPair> pairs) {

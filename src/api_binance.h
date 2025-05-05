@@ -28,10 +28,6 @@ class ApiBinance : public ApiExchange {
 public:
     ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode = true);
 
-    // Initialize WebSocket connection
-    bool connect() override;
-    void disconnect() override;
-
     // Subscribe to order book updates for a trading pair
     bool subscribeOrderBook(std::vector<TradingPair> pairs) override;
 
@@ -56,20 +52,15 @@ protected:
     
     // Implement pure virtual methods from base class
     void processRateLimitHeaders(const std::string& headers) override;
+    void doRead() override;
 
 private:
     // WebSocket callbacks
-    void doRead();
     void processMessage(const std::string& message);
     void processOrderBookUpdate(const json& data);
     void processOrderBookSnapshot(const json& data, TradingPair pair);
-    void onKeepaliveTimer();
-    void doPing();
     
     // Internal symbol conversion methods
     TradingPair symbolToTradingPair(const std::string& symbol) const;
     std::string tradingPairToSymbol(TradingPair pair) const;
-    
-    std::string m_host{"stream.binance.com"};
-    std::string m_port{"9443"};  // Using SSL port
 }; 

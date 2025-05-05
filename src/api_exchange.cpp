@@ -8,10 +8,11 @@
 #define TRACE(...) TRACE_THIS(TraceInstance::A_EXCHANGE, this->getExchangeId(), __VA_ARGS__)
 
 ApiExchange::ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
-                        const std::string& restEndpoint,bool testMode)
+    const std::string& host, const std::string& port,
+    const std::string& restEndpoint, const std::string& wsEndpoint, bool testMode)
     : m_testMode(testMode), m_inCooldown(false), m_cooldownEndTime(std::chrono::steady_clock::now()), 
     m_timersMgr(timersMgr), m_orderBookManager(orderBookManager), m_keepaliveTimerId(0),
-    m_restEndpoint(restEndpoint) {
+    m_host(host), m_port(port), m_restEndpoint(restEndpoint), m_wsEndpoint(wsEndpoint) {
         // Initialize CURL
         m_curl = curl_easy_init();
         if (!m_curl) {
@@ -63,6 +64,107 @@ void ApiExchange::cleanupCurl() {
     if (m_curl) {
         curl_easy_cleanup(m_curl);
         m_curl = nullptr;
+    }
+}
+
+
+bool ApiExchange::connect() {
+    if (m_connected) {
+        TRACE("Already connected to ", getExchangeName());
+        return true;
+    }
+
+    try {
+        // Reset IO context if it was stopped
+        if (m_ioc.stopped()) {
+            m_ioc.restart();
+        }
+
+        // Set up SSL context
+        m_ctx.set_verify_mode(ssl::verify_peer);
+        m_ctx.set_default_verify_paths();
+
+        // Create the WebSocket stream
+        m_ws = std::make_unique<websocket::stream<beast::ssl_stream<beast::tcp_stream>>>(m_ioc, m_ctx);
+
+        // These two lines are needed for SSL
+        if (!SSL_set_tlsext_host_name(m_ws->next_layer().native_handle(), m_host.c_str())) {
+            throw beast::system_error(
+                beast::error_code(static_cast<int>(::ERR_get_error()),
+                                net::error::get_ssl_category()),
+                "Failed to set SNI hostname");
+        }
+
+        // Look up the domain name
+        tcp::resolver resolver(m_ioc);
+        auto const results = resolver.resolve(m_host, m_port);
+
+        // Connect to the IP address we get from a lookup
+        beast::get_lowest_layer(*m_ws).connect(results);
+
+        // Perform the SSL handshake
+        m_ws->next_layer().handshake(ssl::stream_base::client);
+
+        // Perform the websocket handshake
+        m_ws->handshake(m_host, m_wsEndpoint);
+
+        m_connected = true;
+
+        // Start the IO context in a separate thread for reading
+        m_work = std::make_unique<net::executor_work_guard<net::io_context::executor_type>>(m_ioc.get_executor());
+        m_thread = std::thread([this]() { 
+            TRACE("Starting IO context thread");
+            m_ioc.run();
+            TRACE("IO context thread finished");
+        });
+
+        // Start reading
+        doRead();
+
+        TRACE("Successfully connected to ", getExchangeName(), " WebSocket at ", m_host, ":", m_port);
+        return true;
+    } catch (const std::exception& e) {
+        TRACE("Error in connect: ", e.what());
+        return false;
+    }
+}
+
+void ApiExchange::disconnect() {
+    if (!m_connected) {
+        return;
+    }
+
+    try {
+        // First, stop the IO context to prevent new operations
+        if (m_work) {
+            m_work.reset();
+        }
+
+        // Stop the IO context
+        m_ioc.stop();
+
+        // Wait for the IO thread to finish
+        if (m_thread.joinable()) {
+            m_thread.join();
+        }
+
+        // Reset the IO context for potential reconnection
+        m_ioc.restart();
+
+        // Now it's safe to close the WebSocket
+        if (m_ws) {
+            boost::beast::error_code ec;
+            m_ws->close(websocket::close_code::normal, ec);
+            if (ec) {
+                TRACE("Warning: Error during WebSocket close: ", ec.message());
+            }
+            m_ws.reset();
+        }
+
+        m_connected = false;
+        TRACE("Disconnected from ", getExchangeName());
+    } catch (const std::exception& e) {
+        TRACE("Warning: Error in disconnect: ", e.what());
     }
 }
 

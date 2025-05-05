@@ -5,7 +5,6 @@
 #include "../src/timers.h"
 #include <string>
 #include <functional>
-#include <map>
 
 using json = nlohmann::json;
 
@@ -41,6 +40,7 @@ public:
 protected:
     // Override the cooldown method for mock-specific rate limiting
     void processRateLimitHeaders(const std::string& headers) override;
+    void doRead() override {};
 
 private:
     // Internal symbol conversion methods
