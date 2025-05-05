@@ -48,39 +48,12 @@ include(FetchContent)
 FetchContent_Declare(
     json
     URL https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.tar.gz
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
-
-# Make json available
 FetchContent_MakeAvailable(json)
 
 # Add source files
-set(SOURCES
-    src/event_loop.cpp
-    src/timers.cpp
-    src/api_binance.cpp
-    src/api_kraken.cpp
-    src/s_poplavki.cpp
-    src/orderbook.cpp
-    src/balance.cpp
-    src/tracer.cpp
-    src/ex_mgr.cpp
-    src/api_exchange.cpp
-)
-
-# Set header files
-set(HEADERS
-    src/event_loop.h
-    src/timers.h
-    src/api_exchange.h
-    src/api_binance.h
-    src/api_kraken.h
-    src/s_poplavki.h
-    src/orderbook.h
-    src/balance.h
-    src/tracer.h
-    src/types.h
-)
+file(GLOB_RECURSE SOURCES "src/*.cpp")
+file(GLOB_RECURSE HEADERS "src/*.h")
 
 # Create library from source files
 add_library(lla_arbibot_lib STATIC ${SOURCES} ${HEADERS})
@@ -90,9 +63,8 @@ target_include_directories(lla_arbibot_lib PUBLIC
     ${CMAKE_SOURCE_DIR}/src
     ${Boost_INCLUDE_DIRS}
     ${CURL_INCLUDE_DIRS}
-    ${GTEST_INCLUDE_DIRS}
     ${OPENSSL_INCLUDE_DIR}
-    ${nlohmann_json_SOURCE_DIR}/include
+    nlohmann_json::nlohmann_json
 )
 
 # Link libraries
@@ -109,43 +81,45 @@ add_executable(LlaArbibot src/main.cpp)
 target_link_libraries(LlaArbibot PRIVATE lla_arbibot_lib)
 
 # Add test executables
-add_executable(api_test 
-    tests/api.test.cpp 
-    tests/mock_api.cpp
-)
-target_link_libraries(api_test PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
-
-add_executable(BalanceTest 
-    tests/balance.test.cpp
-)
+add_executable(BalanceTest tests/balance.test.cpp)
 target_link_libraries(BalanceTest PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
 
-add_executable(OrderBookTest 
-    tests/orderbook.test.cpp
-)
+add_executable(OrderBookTest tests/orderbook.test.cpp)
 target_link_libraries(OrderBookTest PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
 
-add_executable(TimersTest 
-    tests/timers.test.cpp
-    tests/timers_perf.test.cpp
-)
+add_executable(TimersTest tests/timers.test.cpp tests/timers_perf.test.cpp)
 target_link_libraries(TimersTest PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
 
-add_executable(EventLoopTest
-    tests/event_loop.test.cpp
-)
+add_executable(EventLoopTest tests/event_loop.test.cpp)
 target_link_libraries(EventLoopTest PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
 
+add_executable(ApiExchangeTest tests/api_exchange.test.cpp)
+target_link_libraries(ApiExchangeTest PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
+
+add_executable(ApiBinanceTest tests/api_binance.test.cpp)
+target_link_libraries(ApiBinanceTest PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
+
+add_executable(ApiKrakenTest tests/api_kraken.test.cpp)
+target_link_libraries(ApiKrakenTest PRIVATE lla_arbibot_lib GTest::GTest GTest::Main)
+
+
 # Register tests with CTest
-add_test(NAME api_test COMMAND api_test WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 add_test(NAME BalanceTest COMMAND BalanceTest WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 add_test(NAME OrderBookTest COMMAND OrderBookTest WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 add_test(NAME TimersTest COMMAND TimersTest WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 add_test(NAME EventLoopTest COMMAND EventLoopTest WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+add_test(NAME ApiExchangeTest COMMAND ApiExchangeTest WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+add_test(NAME ApiBinanceTest COMMAND ApiBinanceTest WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+add_test(NAME ApiKrakenTest COMMAND ApiKrakenTest WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Suppress warnings for ignored attributes
-target_compile_options(api_test PRIVATE -Wno-ignored-attributes)
 target_compile_options(BalanceTest PRIVATE -Wno-ignored-attributes)
 target_compile_options(OrderBookTest PRIVATE -Wno-ignored-attributes)
 target_compile_options(TimersTest PRIVATE -Wno-ignored-attributes)
 target_compile_options(EventLoopTest PRIVATE -Wno-ignored-attributes)
+target_compile_options(ApiExchangeTest PRIVATE -Wno-ignored-attributes)
+target_compile_options(ApiBinanceTest PRIVATE -Wno-ignored-attributes)
+target_compile_options(ApiKrakenTest PRIVATE -Wno-ignored-attributes)
+
+# Remove the tests subdirectory since all test content is here
+# add_subdirectory(tests)

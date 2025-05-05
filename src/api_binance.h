@@ -54,8 +54,7 @@ protected:
     void processRateLimitHeaders(const std::string& headers) override;
     void doRead() override;
 
-private:
-    // WebSocket callbacks
+    // Message processing methods (moved from private to protected for testing)
     void processMessage(const std::string& message);
     void processOrderBookUpdate(const json& data);
     void processOrderBookSnapshot(const json& data, TradingPair pair);
@@ -63,4 +62,7 @@ private:
     // Internal symbol conversion methods
     TradingPair symbolToTradingPair(const std::string& symbol) const;
     std::string tradingPairToSymbol(TradingPair pair) const;
+
+private:
+    // Any remaining private members
 }; 
