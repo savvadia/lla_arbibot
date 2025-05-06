@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "api_exchange.h"
-#include "test_utils.h"
 #include <memory>
 #include <thread>
 #include <chrono>
@@ -47,7 +46,7 @@ public:
         return true; 
     }
 
-    void processMessages() override {
+    void processMessage(const std::string& message) override {
         // Process any queued messages
         while (!m_messageQueue.empty()) {
             auto message = m_messageQueue.front();
@@ -107,7 +106,6 @@ public:
     std::string getExchangeName() const override { return "TEST"; }
     ExchangeId getExchangeId() const override { return ExchangeId::BINANCE; }
 
-    void doRead() override {}
     void processRateLimitHeaders(const std::string& headers) override {
         // Simulate rate limit delay
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -188,10 +186,6 @@ TEST_F(ApiExchangeTest, OrderBookSnapshot) {
     EXPECT_TRUE(callbackCalled);
 }
 
-TEST_F(ApiExchangeTest, MessageProcessing) {
-    api->processMessages(); // Should not throw
-}
-
 // TEST_F(ApiExchangeTest, ProcessOrderBookUpdate) {
 //     // Test that order book updates are correctly processed
 //     std::string message = R"({
@@ -264,8 +258,7 @@ TEST_F(ApiExchangeTest, ProcessTradeUpdate) {
     })";
 
     // Queue the message for processing
-    api->queueMessage(message);
-    api->processMessages();
+    api->processMessage(message);
 
     // Verify the last price was updated
     auto& orderBook = orderBookManager->getOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT);
@@ -290,8 +283,7 @@ TEST_F(ApiExchangeTest, ProcessBalanceUpdate) {
     });
 
     // Queue the message for processing
-    api->queueMessage(message);
-    api->processMessages();
+    api->processMessage(message);
     EXPECT_TRUE(callbackCalled);
 }
 
@@ -317,8 +309,7 @@ TEST_F(ApiExchangeTest, ProcessOrderUpdate) {
     });
 
     // Queue the message for processing
-    api->queueMessage(message);
-    api->processMessages();
+    api->processMessage(message);
     EXPECT_TRUE(callbackCalled);
 }
 

@@ -6,8 +6,6 @@
 #include <nlohmann/json.hpp>
 
 using namespace std::chrono_literals;
-using ::testing::_;
-using ::testing::Return;
 using json = nlohmann::json;
 
 // Test class to expose protected methods for testing
@@ -18,6 +16,9 @@ public:
 
     // Expose protected methods for testing
     using ApiKraken::processRateLimitHeaders;
+
+    void processMessage(const std::string& message) override {
+    }
 };
 
 class ApiKrakenTest : public ::testing::Test {
@@ -156,7 +157,7 @@ TEST_F(ApiKrakenTest, ProcessTradeUpdate) {
     })";
 
     // Use the public method to process the message
-    api->processMessages(); // This will process the message in test mode
+    api->processMessage(message); // This will process the message in test mode
 
     // Verify the last price was updated
     auto& orderBook = orderBookManager->getOrderBook(ExchangeId::KRAKEN, TradingPair::BTC_USDT);

@@ -76,6 +76,8 @@ void Balance::retrieveBalances() {
     balances["kraken"]["USDT"] = 100.0;
     balances["binance"]["BTC"] = 0.02;
     balances["binance"]["USDT"] = 200.0;
+    balances["binance"]["XTZ"] = 0.003;
+    balances["binance"]["ETH"] = 50.0;
     for (const auto& exchange : balances) {
         std::ostringstream oss;
         oss << exchange.first << ": ";

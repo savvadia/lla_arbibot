@@ -21,20 +21,17 @@ bool ExchangeManager::initializeExchanges(
   TRACE("initializing ", exchangeIds.size(), " exchanges");
 
   for (const auto &exchangeId : exchangeIds) {
-    std::string exchangeName =
-        (exchangeId == ExchangeId::BINANCE) ? "Binance" : "Kraken";
-    TRACE("creating exchange API for: ", exchangeName);
+    TRACE("creating exchange API for: ", exchangeId);
 
     std::unique_ptr<ApiExchange> api =
-        createApiExchange(exchangeName, m_orderBookManager, m_timersMgr, true);
+        createApiExchange(exchangeId, m_orderBookManager, m_timersMgr, true);
     if (!api) {
-      TRACE("failed to create exchange API for: ", exchangeName);
+      TRACE("failed to create exchange API for: ", exchangeId);
       return false;
     }
 
     exchanges[exchangeId] = std::move(api);
   }
-
   return true;
 }
 
@@ -45,15 +42,10 @@ ApiExchange *ExchangeManager::getExchange(ExchangeId id) const {
 
 bool ExchangeManager::connectAll() {
   for (const auto &[exchangeId, api] : exchanges) {
-    std::string exchangeName =
-        (exchangeId == ExchangeId::BINANCE) ? "BINANCE" : "KRAKEN";
-    TRACE("connecting to ", exchangeName);
     if (!api->connect()) {
-      TRACE("failed to connect to ", exchangeName);
       return false;
     }
   }
-
   return true;
 }
 
@@ -72,11 +64,9 @@ void ExchangeManager::disconnectAll() {
 
 bool ExchangeManager::subscribeAllOrderBooks(std::vector<TradingPair> pairs) {
   for (const auto &[exchangeId, api] : exchanges) {
-    std::string exchangeName =
-        (exchangeId == ExchangeId::BINANCE) ? "BINANCE" : "KRAKEN";
-    TRACE("subscribing to order book for ", exchangeName);
+    TRACE("subscribing to order book for ", exchangeId);
     if (!api->subscribeOrderBook(pairs)) {
-      TRACE("failed to subscribe to order book for ", exchangeName);
+      TRACE("failed to subscribe to order book for ", exchangeId);
       return false;
     }
   }
@@ -96,12 +86,4 @@ bool ExchangeManager::getOrderBookSnapshots(TradingPair pair) {
   }
 
   return true;
-}
-
-void ExchangeManager::processMessages() {
-  for (const auto &exchangeId : exchangeIds) {
-    if (auto *exchange = exchanges[exchangeId].get()) {
-      exchange->processMessages();
-    }
-  }
 }

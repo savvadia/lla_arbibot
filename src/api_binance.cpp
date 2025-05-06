@@ -15,8 +15,6 @@
 
 using json = nlohmann::json;
 using tcp = boost::asio::ip::tcp;
-namespace websocket = boost::beast::websocket;
-namespace ssl = boost::asio::ssl;
 
 #define TRACE(...) TRACE_THIS(TraceInstance::A_BINANCE, ExchangeId::BINANCE, __VA_ARGS__)
 #define DEBUG(...) DEBUG_THIS(TraceInstance::A_BINANCE, ExchangeId::BINANCE, __VA_ARGS__)
@@ -51,48 +49,6 @@ std::string ApiBinance::tradingPairToSymbol(TradingPair pair) const {
     throw std::runtime_error("Unsupported trading pair");
 }
 
-void ApiBinance::doRead() {
-    m_ws->async_read(m_buffer,
-        [this](beast::error_code ec, std::size_t bytes_transferred) {
-            if (ec) {
-                TRACE("Read error: ", ec.message());
-                // Try to reconnect on error
-                if (m_connected) {
-                    TRACE("Attempting to reconnect to Binance...");
-                    disconnect();
-                    connect();
-                }
-                return;
-            }
-
-            std::string message = beast::buffers_to_string(m_buffer.data());
-            m_buffer.consume(m_buffer.size());
-            
-            try {
-                json data = json::parse(message);
-                // Handle both array and single object messages
-                if (data.is_array()) {
-                    if (!data.empty() && data[0].contains("e")) {
-                        TRACE("received message type: ", data[0]["e"].get<std::string>(), " ", data.dump().substr(0, 300));
-                    } else {
-                        TRACE("received message type: array", data.dump().substr(0, 300));
-                    }
-                } else if (data.contains("e")) {
-                    TRACE("received message type: ", data["e"].get<std::string>());
-                } else if (data.contains("b") && data.contains("a") && data.contains("B") && data.contains("A")) {
-                    DEBUG("received bookTicker: ", data.dump().substr(0, 300));
-                } else {
-                    TRACE("ERROR: Parsed WebSocket message type: unknown", data.dump().substr(0, 300));
-                }
-                processMessage(message);
-            } catch (const std::exception& e) {
-                TRACE("Error processing message: ", e.what(), " message: ", message.substr(0, 300));
-            }
-            
-            doRead();
-        });
-}
-
 void ApiBinance::processMessage(const std::string& message) {
     try {
         DEBUG("Received message: ", message.substr(0, 300));
@@ -100,6 +56,7 @@ void ApiBinance::processMessage(const std::string& message) {
         
         if (data.contains("e")) {
             std::string eventType = data["e"];
+            TRACE("received message type: ", eventType, " ", data.dump().substr(0, 300));
             if (eventType == "depthUpdate") {
                 processOrderBookUpdate(data);
             } else if (eventType == "executionReport") {
@@ -108,20 +65,20 @@ void ApiBinance::processMessage(const std::string& message) {
             } else {
                 TRACE("ERROR: Unhandled event type: ", eventType);
             }
+        } else if (data.contains("b") && data.contains("a") && data.contains("B") && data.contains("A")) {
+            DEBUG("received bookTicker: ", data.dump().substr(0, 300));
+            processBookTicker(data);
         } else if (data.contains("result") && data["result"] == nullptr) {
             // This is a subscription response
-            TRACE("Subscription successful");
-        } else if (data.contains("id") && data["id"] == 1) {
+            TRACE("Subscription successful", data.dump());
+        } else if (data.contains("id")) {
             // This is a subscription response
-            TRACE("Subscription successful");
-        } else if (data.contains("s") && data.contains("b") && data.contains("B") && data.contains("a") && data.contains("A")) {
-            // This is a bookTicker message
-            processBookTicker(data);
+            TRACE("Subscription response: ", data.dump());
         } else {
-            TRACE("Unhandled message type: ", message);
+            TRACE("ERROR: Unhandled message type: ", message);
         }
     } catch (const std::exception& e) {
-        TRACE("Error processing message: ", e.what());
+        TRACE("ERROR processing message: ", e.what());
     }
 }
 
@@ -358,10 +315,6 @@ bool ApiBinance::getBalance(const std::string& asset) {
     }
 }
 
-void ApiBinance::processMessages() {
-    // All messages are processed asynchronously via WebSocket callbacks
-}
-
 bool ApiBinance::subscribeOrderBook(std::vector<TradingPair> pairs) {
     if (!m_connected) {
         TRACE("Not connected to Binance");
@@ -378,10 +331,8 @@ bool ApiBinance::subscribeOrderBook(std::vector<TradingPair> pairs) {
             message["params"].emplace_back(symbol + "@bookTicker");
         }
 
-        std::string messageStr = message.dump();
-
-        TRACE("Subscribing to Binance order book with message: ", messageStr);
-        doWrite(messageStr);  
+        TRACE("Subscribing to Binance order book with message: ", message.dump());
+        doWrite(message.dump());  
 
         // Store the subscription state
         for (const auto& pair : pairs) {

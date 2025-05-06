@@ -48,9 +48,6 @@ public:
     // Get order book snapshot for a trading pair
     virtual bool getOrderBookSnapshot(TradingPair pair) = 0;
 
-    // Process incoming messages
-    virtual void processMessages() = 0;
-
     // Order management
     virtual bool placeOrder(TradingPair pair, OrderType type, double price, double quantity) = 0;
     virtual bool cancelOrder(const std::string& orderId) = 0;
@@ -120,8 +117,9 @@ protected:
         bool hasProcessedFirstUpdate{false};  // Track if we've processed the first update after snapshot
     };
 
-    virtual void doRead() = 0;
+    void doRead();
     void doWrite(std::string message);
+    virtual void processMessage(const std::string& message) = 0;
 
     bool m_connected{false};
     bool m_subscribed{false};
@@ -165,4 +163,5 @@ protected:
 };
 
 // Factory function to create exchange API instances
-std::unique_ptr<ApiExchange> createApiExchange(const std::string& exchangeName, OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode); 
+std::unique_ptr<ApiExchange> createApiExchange(const ExchangeId exchangeId, OrderBookManager& orderBookManager, 
+    TimersMgr& timersMgr, bool testMode); 

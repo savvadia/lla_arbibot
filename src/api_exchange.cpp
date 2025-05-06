@@ -1,11 +1,13 @@
 #include "api_exchange.h"
 #include "api_binance.h"
 #include "api_kraken.h"
+#include "tracer.h"
 #include <stdexcept>
 #include <algorithm>
 
 // Define TRACE macro for ApiExchange
 #define TRACE(...) TRACE_THIS(TraceInstance::A_EXCHANGE, this->getExchangeId(), __VA_ARGS__)
+#define DEBUG(...) DEBUG_THIS(TraceInstance::A_EXCHANGE, this->getExchangeId(), __VA_ARGS__)
 
 ApiExchange::ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
     const std::string& host, const std::string& port,
@@ -28,14 +30,15 @@ ApiExchange::~ApiExchange() {
 }
 
 // Factory function to create exchange API instances
-std::unique_ptr<ApiExchange> createApiExchange(const std::string& exchangeName, OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode) {
-    if (exchangeName == "Binance") {
+std::unique_ptr<ApiExchange> createApiExchange(ExchangeId exchangeId, OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode) {
+    if (exchangeId == ExchangeId::BINANCE) {
         return std::make_unique<ApiBinance>(orderBookManager, timersMgr, testMode);
-    } else if (exchangeName == "Kraken") {
+    } else if (exchangeId == ExchangeId::KRAKEN) {
         return std::make_unique<ApiKraken>(orderBookManager, timersMgr, testMode);
     }
     // Add more exchanges here as we implement them
-    throw std::runtime_error("Unsupported exchange: " + exchangeName);
+    TRACE_BASE(TraceInstance::A_EXCHANGE, exchangeId, "ERROR: Unsupported exchange");
+    return nullptr;
 } 
 
 // CURL callback functions
@@ -241,6 +244,28 @@ json ApiExchange::makeHttpRequest(const std::string& endpoint, const std::string
     }
 }
 
+void ApiExchange::doRead() {
+    m_ws->async_read(m_buffer,
+        [this](boost::beast::error_code ec, std::size_t bytes_transferred) {
+            if (ec) {
+                TRACE("Read error: ", ec.message());
+                return;
+            }
+
+            std::string message = boost::beast::buffers_to_string(m_buffer.data());
+            m_buffer.consume(m_buffer.size());
+            
+            // Truncate long messages for logging
+            std::string logMessage = message;
+            if (logMessage.length() > 500) {
+                logMessage = logMessage.substr(0, 497) + "...";
+            }
+            DEBUG("Received message: ", logMessage);
+            
+            processMessage(message);
+            doRead();
+        });
+}
 
 void ApiExchange::doWrite(std::string message) {
     TRACE("Sending WebSocket message: ", message);

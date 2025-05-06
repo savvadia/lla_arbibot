@@ -35,7 +35,6 @@ public:
     bool getOrderBookSnapshot(TradingPair pair) override;
 
     // Process messages for all exchanges
-    void processMessages() override;
     void processBookTicker(const json& data);
 
     // Order management
@@ -52,17 +51,13 @@ protected:
     
     // Implement pure virtual methods from base class
     void processRateLimitHeaders(const std::string& headers) override;
-    void doRead() override;
 
-    // Message processing methods (moved from private to protected for testing)
-    void processMessage(const std::string& message);
+    // Message processing methods
+    void processMessage(const std::string& message) override;
     void processOrderBookUpdate(const json& data);
     void processOrderBookSnapshot(const json& data, TradingPair pair);
     
     // Internal symbol conversion methods
     TradingPair symbolToTradingPair(const std::string& symbol) const;
     std::string tradingPairToSymbol(TradingPair pair) const;
-
-private:
-    // Any remaining private members
 }; 

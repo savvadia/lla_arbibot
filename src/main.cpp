@@ -45,14 +45,14 @@ int main() {
     FastTraceLogger::setLoggingEnabled(TraceInstance::TIMER, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::STRAT, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::BALANCE, true);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, false);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_EXCHANGE, true);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::A_KRAKEN, false);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_KRAKEN, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_BINANCE, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::MAIN, true);
 
     // Enable exchange-specific logging
-    FastTraceLogger::setLoggingEnabled(ExchangeId::BINANCE, true);
+    FastTraceLogger::setLoggingEnabled(ExchangeId::BINANCE, false);
     FastTraceLogger::setLoggingEnabled(ExchangeId::KRAKEN, true);
 
     TRACE("Trace types enabled: EVENT_LOOP, STRAT, BALANCE, ORDERBOOK, A_EXCHANGE, A_KRAKEN, A_BINANCE, MAIN");
@@ -95,7 +95,7 @@ int main() {
 
     // Subscribe to order books
     TRACE("Subscribing to order books...");
-    if (!exchangeManager.subscribeAllOrderBooks({TradingPair::BTC_USDT, TradingPair::ETH_USDT})) {
+    if (!exchangeManager.subscribeAllOrderBooks({TradingPair::BTC_USDT, TradingPair::ETH_USDT, TradingPair::XTZ_USDT})) {
         TRACE("Failed to subscribe to order books");
         return 1;
     }
@@ -107,12 +107,14 @@ int main() {
     
     // no timeout
     if (exchangeManager.getOrderBookSnapshots(TradingPair::BTC_USDT)) {
-            snapshotsReceived = true;
+        snapshotsReceived = true;
     }
     if (exchangeManager.getOrderBookSnapshots(TradingPair::ETH_USDT)) {
-            snapshotsReceived = true;
+        snapshotsReceived = true;
     }
-    
+    if (exchangeManager.getOrderBookSnapshots(TradingPair::XTZ_USDT)) {
+        snapshotsReceived = true;
+    }
     if (!snapshotsReceived) {
         TRACE("Failed to get order book snapshots");
         return 1;
@@ -120,8 +122,9 @@ int main() {
     
     // Create strategy
     TRACE("Creating Poplavki strategy for BTC/USDT...");
-    auto strategy = std::make_unique<StrategyPoplavki>("BTC", "USDT", timersMgr, exchangeManager, exchanges);
-    
+    auto strategy1 = std::make_unique<StrategyPoplavki>("BTC", "USDT", timersMgr, exchangeManager, exchanges);
+    auto strategy2 = std::make_unique<StrategyPoplavki>("ETH", "USDT", timersMgr, exchangeManager, exchanges);
+    auto strategy3 = std::make_unique<StrategyPoplavki>("XTZ", "USDT", timersMgr, exchangeManager, exchanges);
     // Create balance manager
     TRACE("Initializing Balance manager...");
     Balance balance;
@@ -132,7 +135,9 @@ int main() {
     
     // Set balances for strategy
     TRACE("Setting strategy balances...");
-    strategy->setBalances(balance.getBalances());
+    strategy1->setBalances(balance.getBalances());
+    strategy2->setBalances(balance.getBalances());
+    strategy3->setBalances(balance.getBalances());
     
     TRACE("System initialization complete, starting main loop...");
     
@@ -155,9 +160,6 @@ int main() {
             
             // Process timers
             timersMgr.checkTimers();
-            
-            // Process exchange messages
-            exchangeManager.processMessages();
             
             // Execute strategy
             // TODO: check if we need it. scan is done either on timer or on exchange update

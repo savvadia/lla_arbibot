@@ -80,10 +80,15 @@ TEST_F(ApiBinanceTest, OrderBookSnapshot) {
     EXPECT_TRUE(callbackCalled);
 }
 
-
-
 TEST_F(ApiBinanceTest, MessageProcessing) {
-    api->processMessages(); // Should not throw
+    api->processMessage(R"({
+        "e": "bookTicker",
+        "s": "BTCUSDT",
+        "b": "10000.0",
+        "B": "1.0",
+        "a": "10001.0",
+        "A": "0.5"
+    })");
 }
 
 // TEST_F(ApiBinanceTest, ProcessOrderBookUpdate) {

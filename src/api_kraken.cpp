@@ -17,8 +17,6 @@
 
 using json = nlohmann::json;
 using tcp = boost::asio::ip::tcp;
-namespace websocket = boost::beast::websocket;
-namespace ssl = boost::asio::ssl;
 
 constexpr const char* REST_ENDPOINT = "https://api.kraken.com/0/public";
 
@@ -52,29 +50,6 @@ std::string ApiKraken::tradingPairToSymbol(TradingPair pair) const {
     throw std::runtime_error("Unsupported trading pair");
 }
 
-void ApiKraken::doRead() {
-    m_ws->async_read(m_buffer,
-        [this](boost::beast::error_code ec, std::size_t bytes_transferred) {
-            if (ec) {
-                TRACE("Read error: ", ec.message());
-                return;
-            }
-
-            std::string message = boost::beast::buffers_to_string(m_buffer.data());
-            m_buffer.consume(m_buffer.size());
-            
-            // Truncate long messages for logging
-            std::string logMessage = message;
-            if (logMessage.length() > 500) {
-                logMessage = logMessage.substr(0, 497) + "...";
-            }
-            TRACE("Received message: ", logMessage);
-            
-            processMessage(message);
-            doRead();
-        });
-}
-
 bool ApiKraken::subscribeOrderBook(std::vector<TradingPair> pairs) {
     if (!m_connected) {
         TRACE("Not connected to Kraken");
@@ -87,11 +62,13 @@ bool ApiKraken::subscribeOrderBook(std::vector<TradingPair> pairs) {
     }
 
     try {
+        // kraken doesn't support subscription for best bid/ask only
+        // so we need to subscribe to the order book
         json subscription = {
             {"event", "subscribe"},
             {"subscription", {
                 {"name", "book"},
-                {"depth", 100}
+                {"depth", 10} // min depth is 10
             }},
             {"pair", symbols}
         };
@@ -148,6 +125,12 @@ void ApiKraken::processMessage(const std::string& message) {
         }
         TRACE("Processing message: ", logMessage);
         
+        // examples:
+        // {"method":"subscribe","result":{"channel":"book","depth":10,"snapshot":true,"symbol":"ETH/USD"},"success":true,"time_in":"2025-05-06T09:17:26.058856Z","time_out":"2025-05-06T09:17:26.058894Z"}
+        // {"channel":"book","type":"snapshot","data":[{"symbol":"ETH/USD","bids":[{"price":1797.24,"qty":0.43393711},{"price":1797.18,"qty":139.10616255},{"price":1797.13,"qty":139.10995927},{"price":1797.12,"qty":0.80386470},{"price":1797.07,"qty":139.11517673},{"price":1796.98,"qty":5.22282896},{"price":1796.97,"qty":12.17138476},{"price":1796.95,"qty":139.69390939},{"price":1796.88,"qty":4.21870000},{"price":1796.85,"qty":1.22932317}],"asks":[{"price":1797.25,"qty":1.40355852},{"price":1797.28,"qty":10.82400000},{"price":1797.29,"qty":139.09899871},{"price":1797.30,"qty":139.09783403},{"price":1797.37,"qty":139.09216827},{"price":1797.41,"qty":5.24638952},{"price":1797.42,"qty":0.01780330},{"price":1797.46,"qty":33.05700000},{"price":1797.48,"qty":3.11556555},{"price":1797.49,"qty":139.49306646}],"checksum":2606672715}]}
+        // {"channel":"book","type":"update","data":[{"symbol":"ETH/USD","bids":[],"asks":[{"price":1797.29,"qty":0.00000000},{"price":1797.52,"qty":1.56601318}],"checksum":3329440863,"timestamp":"2025-05-06T09:17:26.208075Z"}]}
+
+
         // Check if it's a subscription response
         if (data.is_object() && data.contains("event")) {
             if (data["event"] == "subscriptionStatus") {
@@ -389,10 +372,6 @@ bool ApiKraken::getBalance(const std::string& asset) {
         TRACE("Error getting balance: ", e.what());
         return false;
     }
-}
-
-void ApiKraken::processMessages() {
-    // All messages are processed asynchronously via WebSocket callbacks
 }
 
 // Implement the cooldown method for Kraken-specific rate limiting
