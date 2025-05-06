@@ -3,67 +3,27 @@
 #include <string>
 #include "balance.h"
 #include "timers.h"
-#include "orderbook.h"
-#include <map>
 #include <mutex>
 #include <vector>
-#include <memory>
 #include <chrono>
-#include "event_loop.h"
 #include "ex_mgr.h"
 #include "tracer.h"
-#include <iomanip>
-
-class Strategy : public Traceable
-{
-private:
-    std::string name;
-    std::string coin;       // coin to trade
-    std::string stableCoin; // coin to trade against
-    BalanceData balances;
-
-protected:
-    TimersMgr &timersMgr;
-
-public:
-    Strategy(std::string name, std::string coin, std::string stableCoin, TimersMgr &timersMgr);
-
-    void setBalances(BalanceData balances);
-
-    // Core strategy methods
-    virtual void execute() = 0;
-
-    // Optional methods for exchange updates
-    virtual void onExchangeUpdate(ExchangeId exchange) {}
-
-    // Optional methods for periodic scanning
-    virtual void scanOpportunities() {}
-    virtual void startTimerToScan(int ms) {}
-
-    virtual ~Strategy() = default;
-    std::string getName() const;
-
-    // For TRACE identification
-    const std::string &getStrategyName() const { return name; }
-
-protected:
-    virtual void trace(std::ostream &os) const override
-    {
-        os << name << " " << coin << "/" << stableCoin;
-    }
-};
 
 class Opportunity : public Traceable
 {
 public:
     ExchangeId buyExchange;
     ExchangeId sellExchange;
+    TradingPair pair;
+    std::chrono::system_clock::time_point timestamp;
     double amount;
     double buyPrice;
     double sellPrice;
 
-    Opportunity(ExchangeId buyExchange, ExchangeId sellExchange, double amount, double buyPrice, double sellPrice)
-        : buyExchange(buyExchange), sellExchange(sellExchange), amount(amount), buyPrice(buyPrice), sellPrice(sellPrice) {}
+    Opportunity(ExchangeId buyExchange, ExchangeId sellExchange, TradingPair pair,
+        double amount, double buyPrice, double sellPrice, std::chrono::system_clock::time_point timestamp)
+        : buyExchange(buyExchange), sellExchange(sellExchange), pair(pair), timestamp(timestamp),
+        amount(amount), buyPrice(buyPrice), sellPrice(sellPrice) {}
 
     double profit() const
     {
@@ -78,11 +38,54 @@ private:
     }
 };
 
+class Strategy : public Traceable
+{
+protected:
+    BalanceData balances;
+
+public:
+    Strategy(std::string name, std::string coin, std::string stableCoin, TradingPair pair, TimersMgr &timersMgr);
+
+    std::string name;
+    std::string coin;       // coin to trade
+    std::string stableCoin; // coin to trade against
+    TradingPair pair;
+    Opportunity bestOpportunity1;
+    Opportunity bestOpportunity2;
+    TimersMgr &timersMgr;
+
+    void setBalances(BalanceData balances);
+
+    // Core strategy methods
+    virtual void execute() = 0;
+
+    // Optional methods for exchange updates
+    virtual void onExchangeUpdate(ExchangeId exchange) {}
+
+    // Optional methods for periodic scanning
+    virtual void scanOpportunities() {}
+    virtual void startTimerToScan(int ms) {}
+    static void resetBestSeenOpportunityTimerCallback(int id, void *data);
+
+    virtual ~Strategy() = default;
+    std::string getName() const;
+
+    // For TRACE identification
+    const std::string &getStrategyName() const { return name; }
+
+protected:
+    virtual void trace(std::ostream &os) const override
+    {
+        os << name << " " << coin << "/" << stableCoin;
+    }
+};
+
 class StrategyPoplavki : public Strategy
 {
 public:
     StrategyPoplavki(const std::string &baseAsset,
                      const std::string &quoteAsset,
+                     TradingPair pair,
                      TimersMgr &timers,
                      ExchangeManager &exchangeManager,
                      const std::vector<ExchangeId> &exchangeIds);
@@ -119,7 +122,7 @@ private:
 
     // Helper methods
     void updateOrderBookData(ExchangeId exchange);
-    Opportunity calculateProfit(ExchangeId buyExchange, ExchangeId sellExchange);
+    Opportunity calculateProfit(ExchangeId buyExchange, ExchangeId sellExchange, TradingPair pair);
 
     // For TRACE identification
     const std::vector<ExchangeId> &getExchangeIds() const { return exchangeIds; }

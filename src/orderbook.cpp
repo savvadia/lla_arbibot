@@ -345,10 +345,10 @@ void OrderBookManager::updateOrderBookBestBidAsk(ExchangeId exchangeId, TradingP
     }
 
     if (changed) {        
-        if (updateCallback) {
+    if (updateCallback) {
             TRACE("Calling update callback for exchange: ", exchangeId, " pair: ", pair);
             updateCallback(exchangeId, pair);
-        } else {
+    } else {
             TRACE("No update callback for exchange: ", exchangeId, " pair: ", pair);
         }
     }

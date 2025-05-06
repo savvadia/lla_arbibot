@@ -5,7 +5,6 @@
 #include <string>
 #include <map>
 #include <unordered_map>
-#include <functional>
 #include <mutex>
 #include <ostream>
 #include "tracer.h"
@@ -19,6 +18,7 @@ enum class TimerType {
     BALANCE_CHECK,
     ORDER_CHECK,
     PRICE_CHECK,
+    RESET_BEST_SEEN_OPPORTUNITY,
     MAX
 };
 

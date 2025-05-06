@@ -122,8 +122,10 @@ int main() {
     
     // Create strategy
     TRACE("Creating Poplavki strategy for BTC/USDT...");
-    auto strategy1 = std::make_unique<StrategyPoplavki>("BTC", "USDT", timersMgr, exchangeManager, exchanges);
-    auto strategy2 = std::make_unique<StrategyPoplavki>("ETH", "USDT", timersMgr, exchangeManager, exchanges);
+    auto strategy1 = std::make_unique<StrategyPoplavki>("BTC", "USDT", TradingPair::BTC_USDT, timersMgr, exchangeManager, exchanges);
+    auto strategy2 = std::make_unique<StrategyPoplavki>("ETH", "USDT", TradingPair::ETH_USDT, timersMgr, exchangeManager, exchanges);
+    auto strategy3 = std::make_unique<StrategyPoplavki>("XTZ", "USDT", TradingPair::XTZ_USDT, timersMgr, exchangeManager, exchanges);
+    
     // Create balance manager
     TRACE("Initializing Balance manager...");
     Balance balance;
@@ -136,7 +138,7 @@ int main() {
     TRACE("Setting strategy balances...");
     strategy1->setBalances(balance.getBalances());
     strategy2->setBalances(balance.getBalances());
-    
+    strategy3->setBalances(balance.getBalances());
     TRACE("System initialization complete, starting main loop...");
     
     // Main event loop

@@ -15,9 +15,12 @@ using namespace std;
 #define DEBUG(...) DEBUG_THIS(TraceInstance::STRAT, ExchangeId::UNKNOWN, __VA_ARGS__)
 #define TRACE_CNT(_id,...) TRACE_COUNT(TraceInstance::STRAT, _id, ExchangeId::UNKNOWN, __VA_ARGS__)
 
-Strategy::Strategy(std::string name, std::string coin, std::string stableCoin, TimersMgr &timersMgr) 
-    : name(name), coin(coin), stableCoin(stableCoin), timersMgr(timersMgr) {
-    balances = {};
+Strategy::Strategy(std::string name, std::string coin, std::string stableCoin, TradingPair pair, TimersMgr &timersMgr) 
+    : balances({}), name(name), coin(coin), stableCoin(stableCoin), pair(pair),
+    bestOpportunity1(ExchangeId::UNKNOWN, ExchangeId::UNKNOWN, pair, 0.0, 0.0, 0.0, std::chrono::system_clock::now()),
+    bestOpportunity2(ExchangeId::UNKNOWN, ExchangeId::UNKNOWN, pair, 0.0, 0.0, 0.0, std::chrono::system_clock::now()),
+    timersMgr(timersMgr) {
+        resetBestSeenOpportunityTimerCallback(0, this);
 }
 
 void Strategy::setBalances(BalanceData balances) {
@@ -38,10 +41,11 @@ std::string Strategy::getName() const {
 
 StrategyPoplavki::StrategyPoplavki(const std::string& baseAsset, 
                                  const std::string& quoteAsset, 
+                                 TradingPair pair,
                                  TimersMgr& timers,
                                  ExchangeManager& exchangeManager,
                                  const std::vector<ExchangeId>& exchangeIds)
-    : Strategy("Poplavki", baseAsset, quoteAsset, timers)
+    : Strategy("Poplavki", baseAsset, quoteAsset, pair, timers)
     , baseAsset(baseAsset)
     , quoteAsset(quoteAsset)
     , exchangeManager(exchangeManager)
@@ -82,10 +86,10 @@ void StrategyPoplavki::updateOrderBookData(ExchangeId exchange) {
     scanOpportunities();
 }
 
-Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId sellExchange) {
+Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId sellExchange, TradingPair pair) {
     auto& orderBookManager = exchangeManager.getOrderBookManager();
-    auto buyBook = orderBookManager.getOrderBook(buyExchange, TradingPair::BTC_USDT);
-    auto sellBook = orderBookManager.getOrderBook(sellExchange, TradingPair::BTC_USDT);
+    auto buyBook = orderBookManager.getOrderBook(buyExchange, pair);
+    auto sellBook = orderBookManager.getOrderBook(sellExchange, pair);
 
     double buyPrice = buyBook.getBestAsk();
     double sellPrice = sellBook.getBestBid();
@@ -98,26 +102,39 @@ Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId
         " = ", (sellPrice - buyPrice), " (", (((sellPrice - buyPrice) / buyPrice) * 100), "%)");
 
     if (buyPrice > 0 && sellPrice > 0 && amount > 0 && buyPrice < sellPrice) {
-        return Opportunity(buyExchange, sellExchange, amount, buyPrice, sellPrice);
+        return Opportunity(buyExchange, sellExchange, pair, amount, buyPrice, sellPrice, std::chrono::system_clock::now());
     }
 
-    return Opportunity(buyExchange, sellExchange, 0.0, 0.0, 0.0);
+    return Opportunity(buyExchange, sellExchange, TradingPair::UNKNOWN, 0.0, 0.0, 0.0, std::chrono::system_clock::now());
 }
 
 void StrategyPoplavki::scanOpportunities() {
     for (size_t i = 0; i < exchangeIds.size(); ++i) {
         for (size_t j = i + 1; j < exchangeIds.size(); ++j) {
             // Try both directions
-            Opportunity opp1 = calculateProfit(exchangeIds[i], exchangeIds[j]);
+            Opportunity opp1 = calculateProfit(exchangeIds[i], exchangeIds[j], pair);
             if (opp1.amount > 0 && opp1.profit() > Config::MIN_MARGIN) {
                 TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY, "Found opportunity: ", opp1);
                 // TODO: Execute opportunity
+                if (bestOpportunity1.amount == 0 || opp1.profit() > bestOpportunity1.profit()) {
+                    TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY, "Updating best seen opportunity: ", opp1);
+                    bestOpportunity1 = opp1;
+                } else {
+                    DEBUG("Best seen opportunity is better: ", bestOpportunity1, " vs ", opp1);
+                }
             }
 
-            Opportunity opp2 = calculateProfit(exchangeIds[j], exchangeIds[i]);
+            Opportunity opp2 = calculateProfit(exchangeIds[j], exchangeIds[i], pair);
             if (opp2.amount > 0 && opp2.profit() > Config::MIN_MARGIN) {
                 TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY, "Found opportunity: ", opp2);
                 // TODO: Execute opportunity
+                if (bestOpportunity2.amount == 0 || opp2.profit() > bestOpportunity2.profit()) {
+                    TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY, "Updating best seen opportunity: ", opp2);
+                    bestOpportunity2 = opp2;
+                } else {
+                    DEBUG("Best seen opportunity is better: ", bestOpportunity2, " vs ", opp2);
+                }
+
             }
         }
     }
@@ -134,5 +151,24 @@ void StrategyPoplavki::timerCallback(int id, void *data) {
 
     DEBUG_OBJ("INFO: ", strategy, TraceInstance::STRAT, ExchangeId::UNKNOWN, "Timer callback for strategy: ", strategy->getName());
     strategy->scanOpportunities();
+}
+
+// Make the callback function a static member of Strategy
+void Strategy::resetBestSeenOpportunityTimerCallback(int id, void *data) {
+    auto* strategy = static_cast<StrategyPoplavki*>(data);
+    if (strategy->bestOpportunity1.amount > 0) {
+        TRACE_BASE(TraceInstance::STRAT, ExchangeId::UNKNOWN,
+            "Resetting best seen opportunity1 for ", strategy->getName(), " ", strategy->pair, ": ", strategy->bestOpportunity1);
+        strategy->bestOpportunity1 = Opportunity(ExchangeId::UNKNOWN, ExchangeId::UNKNOWN, strategy->pair, 0, 0, 0, std::chrono::system_clock::now());
+    }
+    if (strategy->bestOpportunity2.amount > 0) {
+        TRACE_BASE(TraceInstance::STRAT, ExchangeId::UNKNOWN,
+            "Resetting best seen opportunity2 for ", strategy->getName(), " ", strategy->pair, ": ", strategy->bestOpportunity2);
+        strategy->bestOpportunity2 = Opportunity(ExchangeId::UNKNOWN, ExchangeId::UNKNOWN, strategy->pair, 0, 0, 0, std::chrono::system_clock::now());
+    }
+    
+    strategy->timersMgr.addTimer(Config::BEST_SEEN_OPPORTUNITY_RESET_INTERVAL_MS,
+        &Strategy::resetBestSeenOpportunityTimerCallback, strategy,
+        TimerType::RESET_BEST_SEEN_OPPORTUNITY);
 }
 

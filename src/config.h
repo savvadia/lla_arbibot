@@ -7,6 +7,9 @@ namespace Config {
     // Strategy settings
     constexpr int STRATEGY_CHECK_TIMER_MS = 5000;  // How often to check for opportunities
 
+    // Best seen opportunity settings
+    constexpr int BEST_SEEN_OPPORTUNITY_RESET_INTERVAL_MS = 60000;
+
     // Order book settings
     constexpr double MAX_ORDER_BOOK_AMOUNT = 100000.0;  // Maximum total amount to keep in order book
 
@@ -20,5 +23,5 @@ namespace Config {
     constexpr int COUNTABLE_TRACES_PRINT_INTERVAL = 100;
 
     // reset interval, ms
-    constexpr int RESET_INTERVAL_MS = 5000;
+    constexpr int RESET_INTERVAL_MS = 600000;
 } 
