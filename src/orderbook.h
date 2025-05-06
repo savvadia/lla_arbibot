@@ -224,7 +224,7 @@ public:
     ~OrderBookManager() = default;
 
     // Update order book for a trading pair
-    void updateOrderBook(ExchangeId exchangeId, TradingPair pair, std::vector<PriceLevel>& bids, std::vector<PriceLevel>& asks);
+    void updateOrderBook(ExchangeId exchangeId, TradingPair pair, std::vector<PriceLevel>& bids, std::vector<PriceLevel>& asks, bool isCompleteUpdate = false);
 
     // Update order book with best bid/ask prices (for bookTicker style updates)
     void updateOrderBookBestBidAsk(ExchangeId exchangeId, TradingPair pair, 

@@ -59,17 +59,6 @@ TEST_F(ApiBinanceTest, ConnectionHandling) {
     EXPECT_TRUE(api->connect());
 }
 
-TEST_F(ApiBinanceTest, OrderBookSubscription) {
-    // Set up subscription callback
-    bool callbackCalled = false;
-    api->setSubscriptionCallback([&](bool success) { callbackCalled = success; });
-    
-    // Subscribe to order book updates
-    std::vector<TradingPair> pairs = {TradingPair::BTC_USDT};
-    EXPECT_TRUE(api->subscribeOrderBook(pairs));
-    EXPECT_TRUE(callbackCalled);
-}
-
 TEST_F(ApiBinanceTest, OrderBookSnapshot) {
     // Set up snapshot callback
     bool callbackCalled = false;

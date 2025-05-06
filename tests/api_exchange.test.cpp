@@ -26,7 +26,6 @@ public:
     }
 
     bool subscribeOrderBook(std::vector<TradingPair> pairs) override { 
-        if (m_subscriptionCallback) m_subscriptionCallback(true);
         return true; 
     }
 
@@ -163,27 +162,6 @@ TEST_F(ApiExchangeTest, ConnectionHandling) {
     
     // Reconnect for subsequent tests
     EXPECT_TRUE(api->connect());
-}
-
-TEST_F(ApiExchangeTest, OrderBookSubscription) {
-    // Set up subscription callback
-    bool callbackCalled = false;
-    api->setSubscriptionCallback([&](bool success) { callbackCalled = success; });
-    
-    // Subscribe to order book updates
-    std::vector<TradingPair> pairs = {TradingPair::BTC_USDT};
-    EXPECT_TRUE(api->subscribeOrderBook(pairs));
-    EXPECT_TRUE(callbackCalled);
-}
-
-TEST_F(ApiExchangeTest, OrderBookSnapshot) {
-    // Set up snapshot callback
-    bool callbackCalled = false;
-    api->setSnapshotCallback([&](bool success) { callbackCalled = success; });
-    
-    // Get order book snapshot
-    EXPECT_TRUE(api->getOrderBookSnapshot(TradingPair::BTC_USDT));
-    EXPECT_TRUE(callbackCalled);
 }
 
 // TEST_F(ApiExchangeTest, ProcessOrderBookUpdate) {

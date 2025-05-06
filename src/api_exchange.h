@@ -78,7 +78,6 @@ public:
     }
 
     // Callbacks
-    void setSubscriptionCallback(std::function<void(bool)> callback);
     void setSnapshotCallback(std::function<void(bool)> callback);
     void setOrderCallback(std::function<void(bool)> callback);
     void setBalanceCallback(std::function<void(bool)> callback);
@@ -139,7 +138,6 @@ protected:
     virtual void processRateLimitHeaders(const std::string& headers) = 0;
     
     // Callbacks
-    std::function<void(bool)> m_subscriptionCallback;
     std::function<void()> m_updateCallback;
     std::function<void(bool)> m_snapshotCallback;
     std::function<void(bool)> m_orderCallback;

@@ -2,7 +2,7 @@
 
 namespace Config {
     // Event loop settings
-    constexpr int EVENT_LOOP_DELAY_MS = 500;  // Delay between event loop iterations
+    constexpr int EVENT_LOOP_DELAY_MS = 20;  // Delay between event loop iterations
 
     // Strategy settings
     constexpr int STRATEGY_CHECK_TIMER_MS = 5000;  // How often to check for opportunities
@@ -17,7 +17,7 @@ namespace Config {
     constexpr double MIN_MARGIN = 0.05;  // Minimum margin to execute a trade
 
     // countable traces print interval
-    constexpr int COUNTABLE_TRACES_PRINT_INTERVAL = 10;
+    constexpr int COUNTABLE_TRACES_PRINT_INTERVAL = 100;
 
     // reset interval, ms
     constexpr int RESET_INTERVAL_MS = 5000;

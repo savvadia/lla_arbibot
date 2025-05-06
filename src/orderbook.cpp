@@ -166,7 +166,6 @@ void OrderBook::update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>
     TRACE("OrderBook update - Bids: ", newBids.size(), " Asks: ", newAsks.size(), " Complete update: ", isCompleteUpdate);
     
     {
-        
         if (isCompleteUpdate) {
             // allocate mutex here to avoid deadlock. it will be used by orderbook manager
             MUTEX_LOCK(mutex);
@@ -182,12 +181,9 @@ void OrderBook::update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>
             }
             
             // Process bids (descending order)
-            double totalBidAmount = 0.0;
             for (const auto& bid : newBids) {
                 if (bid.quantity > 0 && bid.price > 0) {  // Reject zero or negative prices
                     bids.push_back(bid);
-                    totalBidAmount += bid.price * bid.quantity;
-                    if (totalBidAmount >= Config::MAX_ORDER_BOOK_AMOUNT) break;
                 }
             }
             
@@ -198,12 +194,9 @@ void OrderBook::update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>
             }
             
             // Process asks (ascending order)
-            double totalAskAmount = 0.0;
             for (const auto& ask : newAsks) {
                 if (ask.quantity > 0 && ask.price > 0) {  // Reject zero or negative prices
                     asks.push_back(ask);
-                    totalAskAmount += ask.price * ask.quantity;
-                    if (totalAskAmount >= Config::MAX_ORDER_BOOK_AMOUNT) break;
                 }
             }
             
@@ -295,7 +288,7 @@ OrderBookManager::OrderBookManager() {
     }
 }
 
-void OrderBookManager::updateOrderBook(ExchangeId exchangeId, TradingPair pair, std::vector<PriceLevel>& bids, std::vector<PriceLevel>& asks) {
+void OrderBookManager::updateOrderBook(ExchangeId exchangeId, TradingPair pair, std::vector<PriceLevel>& bids, std::vector<PriceLevel>& asks, bool isCompleteUpdate) {
     bool changed = false;
     {
         MUTEX_LOCK(mutex);
@@ -304,7 +297,7 @@ void OrderBookManager::updateOrderBook(ExchangeId exchangeId, TradingPair pair, 
         std::chrono::system_clock::time_point prevLastUpdate = book.getLastUpdate();
         
         // Update the order book
-        book.update(bids, asks);
+        book.update(bids, asks, isCompleteUpdate);
         
         // Only trigger callback if the lastUpdate timestamp changed
         if (book.getLastUpdate() > prevLastUpdate) {

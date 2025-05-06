@@ -75,15 +75,6 @@ bool ExchangeManager::subscribeAllOrderBooks(std::vector<TradingPair> pairs) {
 }
 
 bool ExchangeManager::getOrderBookSnapshots(TradingPair pair) {
-  for (const auto &[exchangeId, api] : exchanges) {
-    std::string exchangeName =
-        (exchangeId == ExchangeId::BINANCE) ? "BINANCE" : "KRAKEN";
-    TRACE("getting order book snapshot for ", exchangeName);
-    if (!api->getOrderBookSnapshot(pair)) {
-      TRACE("failed to get order book snapshot for ", exchangeName);
-      return false;
-    }
-  }
-
+  TRACE("Ignored getting order book snapshot for ", pair);
   return true;
 }

@@ -343,16 +343,9 @@ bool ApiBinance::subscribeOrderBook(std::vector<TradingPair> pairs) {
             TRACE("Subscription state for ", symbol, ": subscribed=", state.subscribed, " hasSnapshot=", state.hasSnapshot);
         }
         
-        if (m_subscriptionCallback) {
-            m_subscriptionCallback(true);
-        }
-        
         return true;
     } catch (const std::exception& e) {
         TRACE("Error subscribing to order book: ", e.what());
-        if (m_subscriptionCallback) {
-            m_subscriptionCallback(false);
-        }
         return false;
     }
 }

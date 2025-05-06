@@ -48,12 +48,12 @@ int main() {
     FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_EXCHANGE, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_KRAKEN, true);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::A_BINANCE, false);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_BINANCE, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::MAIN, true);
 
     // Enable exchange-specific logging
     FastTraceLogger::setLoggingEnabled(ExchangeId::BINANCE, false);
-    FastTraceLogger::setLoggingEnabled(ExchangeId::KRAKEN, true);
+    FastTraceLogger::setLoggingEnabled(ExchangeId::KRAKEN, false);
 
     TRACE("Trace types enabled: EVENT_LOOP, STRAT, BALANCE, ORDERBOOK, A_EXCHANGE, A_KRAKEN, A_BINANCE, MAIN");
     TRACE("Exchange logging enabled: BINANCE");
@@ -124,7 +124,6 @@ int main() {
     TRACE("Creating Poplavki strategy for BTC/USDT...");
     auto strategy1 = std::make_unique<StrategyPoplavki>("BTC", "USDT", timersMgr, exchangeManager, exchanges);
     auto strategy2 = std::make_unique<StrategyPoplavki>("ETH", "USDT", timersMgr, exchangeManager, exchanges);
-    auto strategy3 = std::make_unique<StrategyPoplavki>("XTZ", "USDT", timersMgr, exchangeManager, exchanges);
     // Create balance manager
     TRACE("Initializing Balance manager...");
     Balance balance;
@@ -137,7 +136,6 @@ int main() {
     TRACE("Setting strategy balances...");
     strategy1->setBalances(balance.getBalances());
     strategy2->setBalances(balance.getBalances());
-    strategy3->setBalances(balance.getBalances());
     
     TRACE("System initialization complete, starting main loop...");
     
@@ -166,7 +164,7 @@ int main() {
             // strategy->execute();
             
             // Log loop count periodically
-            if (++loopCount % 100 == 0) {
+            if (++loopCount % 1000 == 0) {
                 TRACE("Main loop iteration: ", loopCount);
             }
             

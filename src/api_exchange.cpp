@@ -383,10 +383,6 @@ void ApiExchange::handleHttpError(int httpCode, const std::string& response, con
     throw std::runtime_error(errorMsg);
 }
 
-void ApiExchange::setSubscriptionCallback(std::function<void(bool)> callback) {
-    m_subscriptionCallback = callback;
-}
-
 void ApiExchange::setSnapshotCallback(std::function<void(bool)> callback) {
     m_snapshotCallback = callback;
 }
