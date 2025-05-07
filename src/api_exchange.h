@@ -29,7 +29,6 @@ namespace ssl = boost::asio::ssl;
 using tcp = boost::asio::ip::tcp;
 using json = nlohmann::json;
 
-
 // Base class for exchange APIs
 class ApiExchange : public Traceable {
 public:
@@ -158,6 +157,17 @@ protected:
     std::string m_port;
     std::string m_restEndpoint;
     std::string m_wsEndpoint;
+
+    std::map<TradingPair, int> m_pricePrecision = {
+        {TradingPair::BTC_USDT, 1},
+        {TradingPair::XTZ_USDT, 4},
+        {TradingPair::ETH_USDT, 2}
+    };
+
+    int getPricePrecision(TradingPair pair) const {
+        auto it = m_pricePrecision.find(pair);
+        return it != m_pricePrecision.end() ? it->second : 1; // default to 1 if not found
+    }
 };
 
 // Factory function to create exchange API instances

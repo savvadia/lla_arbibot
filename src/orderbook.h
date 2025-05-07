@@ -49,7 +49,7 @@ public:
     ~OrderBook() = default;
 
     // Update the order book with new price levels (assumes sorted input)
-    void update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>& newAsks, bool isCompleteUpdate = false);
+    void update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>& newAsks, bool isCompleteUpdate = false, int maxDepth = 10);
 
     // Set best bid and ask prices directly (for bookTicker style updates)
     void setBestBidAsk(double bidPrice, double bidQuantity, double askPrice, double askQuantity);
@@ -184,8 +184,7 @@ public:
     static bool isSorted(const std::vector<PriceLevel>& list, bool isBid);
     static void sortList(std::vector<PriceLevel>& list, bool isBid);
 
-    void mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<PriceLevel>& newList, 
-                     bool isBid, double& totalAmount, double limit = Config::MAX_ORDER_BOOK_AMOUNT);
+    void mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<PriceLevel>& newList, bool isBid);
 
 protected:
     void trace(std::ostream& os) const override {
@@ -213,8 +212,7 @@ private:
     // lastUpdate is the timestamp of the last update; not the "u" field in the exchange upadate message
     std::chrono::system_clock::time_point lastUpdate = std::chrono::system_clock::now();
 
-    void pushElement(std::vector<PriceLevel>& result,
-                    std::vector<PriceLevel>::iterator& it, double& totalAmount, int scenario);
+    void pushElement(std::vector<PriceLevel>& result, std::vector<PriceLevel>::iterator& it, int scenario);
 };
 
 // Order book manager for all trading pairs
@@ -224,7 +222,8 @@ public:
     ~OrderBookManager() = default;
 
     // Update order book for a trading pair
-    void updateOrderBook(ExchangeId exchangeId, TradingPair pair, std::vector<PriceLevel>& bids, std::vector<PriceLevel>& asks, bool isCompleteUpdate = false);
+    void updateOrderBook(ExchangeId exchangeId, TradingPair pair, std::vector<PriceLevel>& bids, std::vector<PriceLevel>& asks,
+                        bool isCompleteUpdate = false, int maxDepth = 10);
 
     // Update order book with best bid/ask prices (for bookTicker style updates)
     void updateOrderBookBestBidAsk(ExchangeId exchangeId, TradingPair pair, 

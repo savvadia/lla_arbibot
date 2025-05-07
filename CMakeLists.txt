@@ -40,6 +40,7 @@ find_package(CURL REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system thread)
 find_package(GTest REQUIRED)
 find_package(OpenSSL REQUIRED)
+find_package(ZLIB REQUIRED)
 
 # Include FetchContent module
 include(FetchContent)
@@ -72,6 +73,7 @@ target_link_libraries(lla_arbibot_lib PUBLIC
     ${Boost_LIBRARIES}
     ${CURL_LIBRARIES}
     ${OPENSSL_LIBRARIES}
+    ${ZLIB_LIBRARIES}
     pthread
     nlohmann_json::nlohmann_json
 )

@@ -17,11 +17,11 @@ namespace Config {
     constexpr int MAX_EXECUTION_TIME_MS = 0;  // Maximum time to run the bot (0 = run indefinitely)
 
     // min margin, %
-    constexpr double MIN_MARGIN = 0.05;  // Minimum margin to execute a trade
+    constexpr double MIN_MARGIN = 0.02;  // Minimum margin to execute a trade
 
     // countable traces print interval
     constexpr int COUNTABLE_TRACES_PRINT_INTERVAL = 100;
 
     // reset interval, ms
-    constexpr int RESET_INTERVAL_MS = 600000;
+    constexpr int RESET_INTERVAL_MS = 600000; // 10 minutes
 } 

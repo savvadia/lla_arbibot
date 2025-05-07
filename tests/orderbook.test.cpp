@@ -256,20 +256,17 @@ PriceLevel makePriceLevel(double price, double quantity) {
 TEST_F(OrderBookTest, MergeEmptyLists) {
     std::vector<PriceLevel> oldList;
     std::vector<PriceLevel> newList;
-    double totalAmount = 0.0;
     OrderBook book;
-    book.mergeSortedLists(oldList, newList, true, totalAmount, 1000.0);
+    book.mergeSortedLists(oldList, newList, true);
     EXPECT_TRUE(oldList.empty());
-    EXPECT_EQ(totalAmount, 0.0);
     EXPECT_TRUE(OrderBook::isSorted(oldList, true));
 }
 
 TEST_F(OrderBookTest, MergeEmptyOldList) {
     std::vector<PriceLevel> oldList;
     std::vector<PriceLevel> newList = {{50000.0, 1.0}};
-    double totalAmount = 0.0;
     OrderBook book;
-    book.mergeSortedLists(oldList, newList, true, totalAmount, 1000.0);
+    book.mergeSortedLists(oldList, newList, true);
     EXPECT_EQ(oldList.size(), 1);
     EXPECT_EQ(oldList[0].price, 50000.0);
 }
@@ -277,9 +274,8 @@ TEST_F(OrderBookTest, MergeEmptyOldList) {
 TEST_F(OrderBookTest, MergeEmptyNewList) {
     std::vector<PriceLevel> oldList = {{50000.0, 1.0}};
     std::vector<PriceLevel> newList;
-    double totalAmount = 0.0;
     OrderBook book;
-    book.mergeSortedLists(oldList, newList, true, totalAmount, 1000.0);
+    book.mergeSortedLists(oldList, newList, true);
     EXPECT_EQ(oldList.size(), 1);
     EXPECT_EQ(oldList[0].price, 50000.0);
 }
@@ -287,9 +283,8 @@ TEST_F(OrderBookTest, MergeEmptyNewList) {
 TEST_F(OrderBookTest, MergeWithUpdates) {
     std::vector<PriceLevel> oldList = {{50000.0, 1.0}, {49900.0, 2.0}};
     std::vector<PriceLevel> newList = {{50000.0, 2.0}, {49800.0, 3.0}};
-    double totalAmount = 0.0;
     OrderBook book;
-    book.mergeSortedLists(oldList, newList, true, totalAmount, 1000000.0);
+    book.mergeSortedLists(oldList, newList, true);
     EXPECT_EQ(oldList.size(), 3);
     EXPECT_EQ(oldList[0].price, 50000.0);
     EXPECT_EQ(oldList[0].quantity, 2.0);
@@ -298,30 +293,19 @@ TEST_F(OrderBookTest, MergeWithUpdates) {
 TEST_F(OrderBookTest, MergeWithZeroQuantitiesInNewList) {
     std::vector<PriceLevel> oldList = {{50000.0, 1.0}};
     std::vector<PriceLevel> newList = {{50000.0, 0.0}};
-    double totalAmount = 0.0;
     OrderBook book;
-    book.mergeSortedLists(oldList, newList, true, totalAmount, 1000.0);
+    book.mergeSortedLists(oldList, newList, true);
     EXPECT_EQ(oldList.size(), 0);
 }
 
 TEST_F(OrderBookTest, MergeWithZeroQuantitiesInOldList) {
     std::vector<PriceLevel> oldList = {{50000.0, 0.0}};
     std::vector<PriceLevel> newList = {{50000.0, 1.0}};
-    double totalAmount = 0.0;
     OrderBook book;
-    book.mergeSortedLists(oldList, newList, true, totalAmount, 1000.0);
+    book.mergeSortedLists(oldList, newList, true);
     EXPECT_EQ(oldList.size(), 1);
     EXPECT_EQ(oldList[0].price, 50000.0);
     EXPECT_EQ(oldList[0].quantity, 1.0);
-}
-
-TEST_F(OrderBookTest, MergeWithSizeLimit) {
-    std::vector<PriceLevel> oldList = {{50000.0, 1.0}, {49900.0, 2.0}};
-    std::vector<PriceLevel> newList = {{50100.0, 1.0}, {49800.0, 3.0}};
-    double totalAmount = 0.0;
-    OrderBook book;
-    book.mergeSortedLists(oldList, newList, true, totalAmount, 100.0);  // Small limit
-    EXPECT_LE(oldList.size(), 2);  // Should be limited by total amount
 }
 
 int main(int argc, char **argv) {

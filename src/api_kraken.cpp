@@ -11,16 +11,17 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <nlohmann/json.hpp>
+#include <zlib.h>  // for crc32
 #include "tracer.h"
 #include "types.h"
 
-using json = nlohmann::json;
 using tcp = boost::asio::ip::tcp;
 
 constexpr const char* REST_ENDPOINT = "https://api.kraken.com/0/public";
 
 #define TRACE(...) TRACE_THIS(TraceInstance::A_KRAKEN, ExchangeId::KRAKEN, __VA_ARGS__)
 #define DEBUG(...) DEBUG_THIS(TraceInstance::A_KRAKEN, ExchangeId::KRAKEN, __VA_ARGS__)
+#define ERROR(...) ERROR_THIS(TraceInstance::A_KRAKEN, ExchangeId::KRAKEN, __VA_ARGS__)
 #define TRACE_CNT(_id, ...) TRACE_COUNT(TraceInstance::A_KRAKEN, _id, ExchangeId::KRAKEN, __VA_ARGS__)
 
 ApiKraken::ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode)
@@ -53,7 +54,7 @@ std::string ApiKraken::tradingPairToSymbol(TradingPair pair) const {
 
 bool ApiKraken::subscribeOrderBook(std::vector<TradingPair> pairs) {
     if (!m_connected) {
-        TRACE("Not connected to Kraken");
+        ERROR("Not connected to Kraken");
         return false;
     }
 
@@ -78,14 +79,14 @@ bool ApiKraken::subscribeOrderBook(std::vector<TradingPair> pairs) {
         doWrite(subscription.dump());
         return true;
     } catch (const std::exception& e) {
-        TRACE("Error subscribing to order book: ", e.what());
+        ERROR("Error subscribing to order book: ", e.what());
         return false;
     }
 }
 
 bool ApiKraken::getOrderBookSnapshot(TradingPair pair) {
     if (!m_connected) {
-        TRACE("Not connected to Kraken");
+        ERROR("Not connected to Kraken");
         return false;
     }
     return true;
@@ -136,50 +137,70 @@ void ApiKraken::processMessage(const std::string& message) {
 }
 
 void ApiKraken::processOrderBookUpdate(const json& data) {
-    try {
-        if (!data.contains("type") ||
-            !data.contains("data") || 
-            !data["data"].is_array() ||
-            data["data"].size() != 1 ||
-            !data["data"][0].contains("symbol")) {
-            TRACE("ERROR: Invalid order book update: ", data.dump());
-            return;
-        }
+    if (!data.contains("type") ||
+        !data.contains("data") ||
+        !data["data"].is_array() ||
+        data["data"].size() != 1 ||
+        !data["data"][0].contains("symbol") ||
+        !data["data"][0].contains("asks") ||
+        !data["data"][0].contains("bids") ||
+        !data["data"][0].contains("checksum")) {
+        TRACE("ERROR: Invalid order book update: ", data.dump());
+        return;
+    }
 
-        bool isCompleteUpdate = (data["type"] == "snapshot") ? true : false;
+    std::vector<PriceLevel> asks;
+    std::vector<PriceLevel> bids;
+    TradingPair pair = TradingPair::UNKNOWN;
+    std::string symbol;
+
+    bool isCompleteUpdate = (data["type"] == "snapshot") ? true : false;
         
+    try {
         // example:
         // {"channel":"book","data":[{"asks":[{"price":93888.1,"qty":0.06918769},{"price":93888.2,"qty":0.0066583},{"price":93889.9,"qty":0.01161697},{"price":93890.2,"qty":0.84329594},{"price":93891.1,"qty":0.053},{"price":93892.7,"qty":0.01017287},{"price":93896.4,"qty":0.03184175},{"price":93898.0,"qty":5.325e-05},{"price":93901.8,"qty":0.135},{"price":93903.4,"qty":0.0339}],"bids":[{"price":93888.0,"qty":7.04391006},{"price":93887.5,"qty":3.08880155},{"price":93886.7,"qty":2.66278352},{"price":93886.5,"qty":5.072e-05},{"price":93886.2,"qty":1.63973},{"price":93886.1,"qty":2.76930693},{"price":93885.7,"qty":0.00803005},{"price":93885.0,"qty":0.10585564},{"price":93884.2,"qty":0.10650715},{"price":93882.6,"qty":5.3257969}],"checksum":2610022218,"symbol":"BTC/USD"}],"type":"snapshot"}
 
-        std::string symbol = data["data"][0]["symbol"].get<std::string>();
-        TradingPair pair = symbolToTradingPair(symbol);
+        symbol = data["data"][0]["symbol"].get<std::string>();
+        pair = symbolToTradingPair(symbol);
         if (pair == TradingPair::UNKNOWN) {
-            TRACE("ERROR: Unknown trading pair: ", symbol, " - ", data.dump().substr(0, 300));
+            ERROR("Unknown trading pair: ", symbol, " - ", data.dump().substr(0, 300));
             return;
         }
-        TRACE("Processing order book ", data["type"], " for ", symbol, " - ", data.dump().substr(0, 300));  
+        TRACE("Processing order book ", data["type"], " for ", symbol, " - ", data.dump().substr(0, 3000));  
+    } catch (const std::exception& e) {
+        ERROR("Error processing order book update: ", e.what());
+        return;
+    }
+    try {
+        // Process asks
+        for (const auto& ask : data["data"][0]["asks"]) {
+            double price = ask["price"];
+            double qty = ask["qty"];
 
-        std::vector<PriceLevel> bids;
-        std::vector<PriceLevel> asks;
+            asks.push_back({price, qty});
+        }
 
         // Process bids
         for (const auto& bid : data["data"][0]["bids"]) {
-            bids.push_back({
-                bid["price"].get<double>(),  // price
-                bid["qty"].get<double>()   // quantity
-            });
+            double price = bid["price"];
+            double qty = bid["qty"];
+            
+            bids.push_back({price, qty});
         }
+    } catch (const std::exception& e) {
+        ERROR("Error processing order book update: ", e.what());
+        return;
+    }
 
-        // Process asks
-        for (const auto& ask : data["data"][0]["asks"]) {
-            asks.push_back({
-                ask["price"].get<double>(),  // price
-                ask["qty"].get<double>()   // quantity
-            });
-        }
-
+    try {
         TRACE_CNT(CountableTrace::A_KRAKEN_ORDERBOOK_UPDATE, "Updating order book for ", symbol, " with ", bids.size(), " bids and ", asks.size(), " asks");
         m_orderBookManager.updateOrderBook(ExchangeId::KRAKEN, pair, bids, asks, isCompleteUpdate);
+
+        uint32_t receivedChecksum = data["data"][0]["checksum"];
+        if (!isOrderBookValid(pair, receivedChecksum)) {
+            ERROR("Invalid order book checksum: ", receivedChecksum, " for ", symbol, " - ", data.dump().substr(0, 300));
+            return;
+        }
 
         if (isCompleteUpdate) {
             auto& state = symbolStates[pair];
@@ -187,8 +208,65 @@ void ApiKraken::processOrderBookUpdate(const json& data) {
             TRACE("Snapshot received for ", symbol);
         }
     } catch (const std::exception& e) {
-        TRACE("Error processing order book update: ", e.what());
+        ERROR("Error processing order book update: ", e.what());
     }
+}
+
+// CHECKSUM functions
+
+// rules defined here: https://docs.kraken.com/api/docs/guides/spot-ws-book-v2
+// Remove the decimal character, '.', from the price, i.e. "45285.2" -> "452852".
+// Remove all leading zero characters from the price. i.e. "452852" -> "452852".
+std::string ApiKraken::formatPrice(TradingPair pair, double price) {
+    std::ostringstream out;
+    // Get the trading pair from the current order book being processed
+    int precision = getPricePrecision(pair);
+    out << std::fixed << std::setprecision(precision) << price;
+    std::string s = out.str();
+    s.erase(std::remove(s.begin(), s.end(), '.'), s.end());
+    s.erase(0, s.find_first_not_of('0'));
+    return s;
+}
+
+// Remove the decimal character, '.', from the qty, i.e. "0.00100000" -> "000100000".
+// Remove all leading zero characters from the qty. i.e. "000100000" -> "100000".
+std::string ApiKraken::formatQty(double qty) {
+    std::ostringstream out;
+    out << std::fixed << std::setprecision(8) << qty;   
+    std::string s = out.str();
+    s.erase(std::remove(s.begin(), s.end(), '.'), s.end());
+    s.erase(0, s.find_first_not_of('0'));
+    return s;
+}
+
+std::string ApiKraken::buildChecksumString(TradingPair pair, const std::vector<PriceLevel>& prices) {
+    std::ostringstream oss;
+    
+    // Process asks (sorted by price from low to high)
+    size_t depth = std::min(size_t(10), prices.size());
+    for (size_t i = 0; i < depth; ++i) {
+        oss << formatPrice(pair, prices[i].price) << formatQty(prices[i].quantity);
+    }
+
+    return oss.str();
+}
+
+uint32_t ApiKraken::computeChecksum(const std::string& checksumString) {
+    return crc32(0L, reinterpret_cast<const unsigned char*>(checksumString.c_str()), checksumString.length());
+}
+
+bool ApiKraken::isOrderBookValid(TradingPair pair, uint32_t receivedChecksum) {
+    auto& book = m_orderBookManager.getOrderBook(ExchangeId::KRAKEN, pair);
+    auto bids = book.getBids();
+    auto asks = book.getAsks();
+    std::string str = buildChecksumString(pair, asks) + buildChecksumString(pair, bids);
+    uint32_t localChecksum = computeChecksum(str);
+    
+    if (localChecksum != receivedChecksum) {
+        ERROR("Invalid order book checksum: ", receivedChecksum, " local: ", localChecksum, " for ", pair, " - [", str, "]");
+        return false;
+    }
+    return true;
 }
 
 bool ApiKraken::placeOrder(TradingPair pair, OrderType type, double price, double quantity) {
@@ -212,7 +290,7 @@ bool ApiKraken::placeOrder(TradingPair pair, OrderType type, double price, doubl
         TRACE("Order placed successfully: ", response.dump());
         return true;
     } catch (const std::exception& e) {
-        TRACE("Error placing order: ", e.what());
+        ERROR("Error placing order: ", e.what());
         return false;
     }
 }
@@ -229,14 +307,14 @@ bool ApiKraken::cancelOrder(const std::string& orderId) {
         TRACE("Order cancelled successfully: ", response.dump());
         return true;
     } catch (const std::exception& e) {
-        TRACE("Error cancelling order: ", e.what());
+        ERROR("Error cancelling order: ", e.what());
         return false;
     }
 }
 
 bool ApiKraken::getBalance(const std::string& asset) {
     if (!m_connected) {
-        TRACE("Not connected to Kraken");
+        ERROR("Not connected to Kraken");
         return false;
     }
 
@@ -251,7 +329,7 @@ bool ApiKraken::getBalance(const std::string& asset) {
         TRACE("No balance found for asset: ", asset);
         return false;
     } catch (const std::exception& e) {
-        TRACE("Error getting balance: ", e.what());
+        ERROR("Error getting balance: ", e.what());
         return false;
     }
 }

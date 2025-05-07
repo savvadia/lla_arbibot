@@ -50,18 +50,16 @@ void OrderBook::sortList(std::vector<PriceLevel>& list, bool isBid) {
     }
 }
 
-void OrderBook::pushElement(std::vector<PriceLevel>& result, std::vector<PriceLevel>::iterator& it, double& totalAmount, int scenario) {
+void OrderBook::pushElement(std::vector<PriceLevel>& result, std::vector<PriceLevel>::iterator& it, int scenario) {
     NOTICE("Pushing element - Price: ", it->price, " Quantity: ", it->quantity, " Scenario: ", scenario);
     if(it->price > 0 && it->quantity > 0) {
         result.push_back(*it);
-        totalAmount += it->price * it->quantity;
     }
     it++;
 }
 
 // Helper function to merge sorted lists while maintaining size limit
-void OrderBook::mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<PriceLevel>& newList, 
-                     bool isBid, double& totalAmount, double limit) {
+void OrderBook::mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<PriceLevel>& newList, bool isBid) {
 
     if(newList.empty()) {
         NOTICE("New list is empty for ", isBid ? "bid" : "ask", ", returning");
@@ -72,7 +70,6 @@ void OrderBook::mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<P
 
     std::vector<PriceLevel> result;
     result.reserve(oldList.size() + newList.size());
-    totalAmount = 0.0;  // Reset total amount
 
     // Sort both lists before merging
     OrderBook::sortList(oldList, isBid);
@@ -94,10 +91,6 @@ void OrderBook::mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<P
             itn != newList.end() ? itn->price : 0.0, "/",
             itn != newList.end() ? itn->quantity : 0.0);
 
-        if(totalAmount > limit) {
-            NOTICE("Total amount limit reached. skipping the test");
-            break;
-        }
         if(itn != newList.end() && (itn->price < 0.0 || itn->quantity < 0.0)) {
             NOTICE("New list has negative price or quantity, skipping: ", itn->price, " ", itn->quantity);
             itn++;
@@ -143,9 +136,9 @@ void OrderBook::mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<P
         }
 
         if(pushOld) {
-            pushElement(result, ito, totalAmount, scenario);
+            pushElement(result, ito, scenario);
         } else if(pushNew) {
-            pushElement(result, itn, totalAmount, scenario);
+            pushElement(result, itn, scenario);
         } else {
             NOTICE("Pushing - Scenario: ", scenario, " Push old: ", pushOld, " Push new: ", pushNew);
         }
@@ -156,11 +149,11 @@ void OrderBook::mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<P
 
     oldList = std::move(result);
     // trace belongs to exchange more than to the order book, so use 
-    TRACE_BASE(TraceInstance::ORDERBOOK, exchangeId, " merged size: ", oldList.size(), " amount: ", totalAmount, " ",
-        isBid ? "bids" : "asks", " ", traceBidsAsks(oldList));
+    TRACE_BASE(TraceInstance::ORDERBOOK, exchangeId, " merged size: ", oldList.size(), 
+        isBid ? " bids" : " asks", " ", traceBidsAsks(oldList));
 }
 
-void OrderBook::update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>& newAsks, bool isCompleteUpdate) {
+void OrderBook::update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>& newAsks, bool isCompleteUpdate, int maxDepth) {
     BestPrices oldPrices = getBestPrices();
     bool pricesChanged = false;
     TRACE("OrderBook update - Bids: ", newBids.size(), " Asks: ", newAsks.size(), " Complete update: ", isCompleteUpdate);
@@ -205,11 +198,10 @@ void OrderBook::update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>
             // we don't need MUTEX here and merge requests below will need it
             
             // For incremental updates (like Kraken), merge with existing data
-            double totalBidAmount = 0.0;
-            mergeSortedLists(bids, newBids, true, totalBidAmount, Config::MAX_ORDER_BOOK_AMOUNT);
-            
-            double totalAskAmount = 0.0;
-            mergeSortedLists(asks, newAsks, false, totalAskAmount, Config::MAX_ORDER_BOOK_AMOUNT);
+            mergeSortedLists(bids, newBids, true);
+            mergeSortedLists(asks, newAsks, false);
+            bids.resize(std::min(size_t(maxDepth), bids.size()));
+            asks.resize(std::min(size_t(maxDepth), asks.size()));
             DEBUG("After merge - Bids size: ", bids.size(), " ask size: ", asks.size());
         }
         
@@ -288,7 +280,7 @@ OrderBookManager::OrderBookManager() {
     }
 }
 
-void OrderBookManager::updateOrderBook(ExchangeId exchangeId, TradingPair pair, std::vector<PriceLevel>& bids, std::vector<PriceLevel>& asks, bool isCompleteUpdate) {
+void OrderBookManager::updateOrderBook(ExchangeId exchangeId, TradingPair pair, std::vector<PriceLevel>& bids, std::vector<PriceLevel>& asks, bool isCompleteUpdate, int maxDepth) {
     bool changed = false;
     {
         MUTEX_LOCK(mutex);
@@ -297,7 +289,7 @@ void OrderBookManager::updateOrderBook(ExchangeId exchangeId, TradingPair pair, 
         std::chrono::system_clock::time_point prevLastUpdate = book.getLastUpdate();
         
         // Update the order book
-        book.update(bids, asks, isCompleteUpdate);
+        book.update(bids, asks, isCompleteUpdate, maxDepth);
         
         // Only trigger callback if the lastUpdate timestamp changed
         if (book.getLastUpdate() > prevLastUpdate) {

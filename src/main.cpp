@@ -46,14 +46,14 @@ int main() {
     FastTraceLogger::setLoggingEnabled(TraceInstance::STRAT, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::BALANCE, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, true);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::A_EXCHANGE, true);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_EXCHANGE, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_KRAKEN, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_BINANCE, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::MAIN, true);
 
     // Enable exchange-specific logging
     FastTraceLogger::setLoggingEnabled(ExchangeId::BINANCE, false);
-    FastTraceLogger::setLoggingEnabled(ExchangeId::KRAKEN, false);
+    FastTraceLogger::setLoggingEnabled(ExchangeId::KRAKEN, true);
 
     TRACE("Trace types enabled: EVENT_LOOP, STRAT, BALANCE, ORDERBOOK, A_EXCHANGE, A_KRAKEN, A_BINANCE, MAIN");
     TRACE("Exchange logging enabled: BINANCE");

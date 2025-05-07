@@ -2,31 +2,21 @@
 
 #include "api_exchange.h"
 #include "orderbook.h"
-#include "trading_pair_format.h"
 #include "timers.h"
 #include <string>
-#include <functional>
-#include <memory>
-#include <thread>
 #include <boost/beast/core.hpp>
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/websocket.hpp>
 #include <boost/beast/websocket/ssl.hpp>
 #include <boost/asio/strand.hpp>
 #include <nlohmann/json.hpp>
-#include <map>
 #include <curl/curl.h>
 
-namespace beast = boost::beast;
-namespace websocket = beast::websocket;
-namespace net = boost::asio;
-namespace ssl = boost::asio::ssl;
 using tcp = boost::asio::ip::tcp;
-using json = nlohmann::json;
 
 class ApiKraken : public ApiExchange {
 public:
-    ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode = true);
+    ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode = false);
 
     // Subscribe to order book updates for a trading pair
     bool subscribeOrderBook(std::vector<TradingPair> pairs) override;
@@ -42,6 +32,13 @@ public:
     std::string getExchangeName() const override { return "KRAKEN"; }
     ExchangeId getExchangeId() const override { return ExchangeId::KRAKEN; }
 
+    // Helper functions for checksum calculation
+    std::string formatPrice(TradingPair pair, double price);
+    std::string formatQty(double qty);
+    std::string buildChecksumString(TradingPair pair, const std::vector<PriceLevel>& prices);
+    uint32_t computeChecksum(const std::string& checksumString);
+    bool isOrderBookValid(TradingPair pair, uint32_t receivedChecksum);
+
 protected:
     // Override the cooldown method for Kraken-specific rate limiting
     void cooldown(int httpCode, const std::string& response, const std::string& endpoint = "") override;
@@ -56,5 +53,4 @@ protected:
     // Internal symbol conversion methods
     TradingPair symbolToTradingPair(const std::string& symbol) const;
     std::string tradingPairToSymbol(TradingPair pair) const;
-private:
 }; 

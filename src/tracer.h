@@ -48,10 +48,7 @@ enum class CountableTrace {
         FastTraceLogger::log(_level, _obj, _type, _exchangeId, __FILE__, __LINE__, __VA_ARGS__); \
     }
 
-// For logging with this object
 #define TRACE_THIS(_type, _exchangeId, ...) TRACE_OBJ("INFO ", this, _type, _exchangeId, __VA_ARGS__)
-
-// For logging without object
 #define TRACE_BASE(_type, _exchangeId, ...) TRACE_OBJ("INFO ", nullptr, _type, _exchangeId, __VA_ARGS__)
 
 // For logging with countable trace
@@ -61,6 +58,13 @@ enum class CountableTrace {
         (_exchangeId == ExchangeId::UNKNOWN || FastTraceLogger::isLoggingEnabled(_exchangeId))) { \
         FastTraceLogger::countableLog("INFO ", this, _type, _id, _exchangeId, __FILE__, __LINE__, __VA_ARGS__); \
     }
+
+// no checks
+#define ERROR_OBJ(_obj, _type, _exchangeId, ...) FastTraceLogger::log("ERROR", _obj, _type, _exchangeId, __FILE__, __LINE__, __VA_ARGS__);
+#define ERROR_THIS(_type, _exchangeId, ...) ERROR_OBJ(this, _type, _exchangeId, __VA_ARGS__)
+#define ERROR_BASE(_type, _exchangeId, ...) ERROR_OBJ(nullptr, _type, _exchangeId, __VA_ARGS__)
+#define ERROR_COUNT(_type, _id, _exchangeId, ...) \
+    FastTraceLogger::countableLog("ERROR", this, _type, _id, _exchangeId, __FILE__, __LINE__, __VA_ARGS__);
 
 // Debug versions (disabled by default)
 #if 0
