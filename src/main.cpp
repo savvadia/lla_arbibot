@@ -15,7 +15,7 @@ using namespace std;
 
 // Define TRACE macro for main
 #define TRACE(...) TRACE_BASE(TraceInstance::MAIN, ExchangeId::UNKNOWN, __VA_ARGS__)
-
+#define ERROR(...) ERROR_BASE(TraceInstance::MAIN, ExchangeId::UNKNOWN, __VA_ARGS__)
 // Global flag for graceful shutdown
 volatile sig_atomic_t g_running = 1;
 std::atomic<bool> g_shutdown_requested{false};
@@ -45,10 +45,10 @@ int main() {
     FastTraceLogger::setLoggingEnabled(TraceInstance::TIMER, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::STRAT, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::BALANCE, true);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, true);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_EXCHANGE, false);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::A_KRAKEN, true);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::A_BINANCE, true);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_KRAKEN, false);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_BINANCE, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::MAIN, true);
 
     // Enable exchange-specific logging
@@ -188,7 +188,7 @@ int main() {
             // Sleep for a short time to prevent CPU spinning
             std::this_thread::sleep_for(std::chrono::milliseconds(Config::EVENT_LOOP_DELAY_MS));
         } catch (const std::exception& e) {
-            TRACE("Error in main loop: ", e.what());
+            ERROR("Error in main loop: ", e.what());
             // Don't break on error, try to continue
             std::this_thread::sleep_for(std::chrono::milliseconds(Config::EVENT_LOOP_DELAY_MS));
         }

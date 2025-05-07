@@ -6,7 +6,7 @@
 #define TRACE(...) TRACE_THIS(TraceInstance::ORDERBOOK, exchangeId, __VA_ARGS__)
 #define DEBUG(...) DEBUG_THIS(TraceInstance::ORDERBOOK, exchangeId, __VA_ARGS__)
 #define NOTICE(...) DEBUG_BASE(TraceInstance::ORDERBOOK, exchangeId, __VA_ARGS__)
-
+#define ERROR(...) ERROR_BASE(TraceInstance::ORDERBOOK, exchangeId, __VA_ARGS__)
 bool OrderBook::hasPricesChanged(const BestPrices& oldPrices, const BestPrices& newPrices) const {
     if(oldPrices.bestBid != newPrices.bestBid) {
         NOTICE("changed bestBid: ", oldPrices.bestBid, "->", newPrices.bestBid);
@@ -169,7 +169,7 @@ void OrderBook::update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>
             
             // Validate bids are sorted in descending order
             if (!newBids.empty() && newBids.front().price < newBids.back().price) {
-                TRACE("ERROR: Bids are not sorted in descending order");
+                ERROR("Bids are not sorted in descending order");
                 return;
             }
             
@@ -182,7 +182,7 @@ void OrderBook::update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>
             
             // Validate asks are sorted in ascending order
             if (!newAsks.empty() && newAsks.front().price > newAsks.back().price) {
-                TRACE("ERROR: Asks are not sorted in ascending order");
+                ERROR("Asks are not sorted in ascending order");
                 return;
             }
             

@@ -22,6 +22,7 @@ constexpr const char* REST_ENDPOINT = "https://api.kraken.com/0/public";
 #define TRACE(...) TRACE_THIS(TraceInstance::A_KRAKEN, ExchangeId::KRAKEN, __VA_ARGS__)
 #define DEBUG(...) DEBUG_THIS(TraceInstance::A_KRAKEN, ExchangeId::KRAKEN, __VA_ARGS__)
 #define ERROR(...) ERROR_THIS(TraceInstance::A_KRAKEN, ExchangeId::KRAKEN, __VA_ARGS__)
+#define ERROR_CNT(_id, ...) ERROR_COUNT(TraceInstance::A_KRAKEN, _id, ExchangeId::KRAKEN, __VA_ARGS__)
 #define TRACE_CNT(_id, ...) TRACE_COUNT(TraceInstance::A_KRAKEN, _id, ExchangeId::KRAKEN, __VA_ARGS__)
 
 ApiKraken::ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode)
@@ -105,7 +106,7 @@ void ApiKraken::processMessage(const std::string& message) {
         // {"channel":"book","type":"update","data":[{"symbol":"ETH/USD","bids":[],"asks":[{"price":1797.29,"qty":0.00000000},{"price":1797.52,"qty":1.56601318}],"checksum":3329440863,"timestamp":"2025-05-06T09:17:26.208075Z"}]}
 
         if (!data.is_object()) {
-            TRACE("ERROR: Invalid message format: ", data.dump());
+            ERROR("Invalid message format: ", data.dump());
             return;
         }
 
@@ -114,7 +115,7 @@ void ApiKraken::processMessage(const std::string& message) {
                 if (data["success"] == true) {
                     TRACE("Subscription successful: ", data.dump());
                 } else {
-                    TRACE("ERROR: Subscription failed: ", data.dump());
+                    ERROR("Subscription failed: ", data.dump());
                 }
             }
             return;
@@ -128,11 +129,11 @@ void ApiKraken::processMessage(const std::string& message) {
             } else if (data["channel"] == "book") {
                 processOrderBookUpdate(data);
             } else {
-                TRACE("ERROR: Unknown channel: ", data.dump());
+                ERROR("Unknown channel: ", data.dump());
             }
         }
     } catch (const std::exception& e) {
-        TRACE("Error processing message: ", e.what());
+        ERROR("Error processing message: ", e.what());
     }
 }
 
@@ -145,7 +146,7 @@ void ApiKraken::processOrderBookUpdate(const json& data) {
         !data["data"][0].contains("asks") ||
         !data["data"][0].contains("bids") ||
         !data["data"][0].contains("checksum")) {
-        TRACE("ERROR: Invalid order book update: ", data.dump());
+        ERROR("Invalid order book update: ", data.dump());
         return;
     }
 
@@ -193,12 +194,15 @@ void ApiKraken::processOrderBookUpdate(const json& data) {
     }
 
     try {
-        TRACE_CNT(CountableTrace::A_KRAKEN_ORDERBOOK_UPDATE, "Updating order book for ", symbol, " with ", bids.size(), " bids and ", asks.size(), " asks");
+        static int count = 0;
         m_orderBookManager.updateOrderBook(ExchangeId::KRAKEN, pair, bids, asks, isCompleteUpdate);
 
         uint32_t receivedChecksum = data["data"][0]["checksum"];
-        if (!isOrderBookValid(pair, receivedChecksum)) {
-            ERROR("Invalid order book checksum: ", receivedChecksum, " for ", symbol, " - ", data.dump().substr(0, 300));
+        // performance optimization as validation is slow
+        if (count++ % Config::KRAKEN_CHECKSUM_CHECK_PERIOD == 1 && !isOrderBookValid(pair, receivedChecksum)) {
+            auto& book = m_orderBookManager.getOrderBook(ExchangeId::KRAKEN, pair);
+            ERROR_CNT(CountableTrace::A_KRAKEN_ORDERBOOK_CHECKSUM, 
+                "Invalid order book checksum: ", receivedChecksum, " for ", symbol, " - ", data.dump().substr(0, 300), " ", book);
             return;
         }
 

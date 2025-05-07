@@ -18,6 +18,7 @@ using tcp = boost::asio::ip::tcp;
 
 #define TRACE(...) TRACE_THIS(TraceInstance::A_BINANCE, ExchangeId::BINANCE, __VA_ARGS__)
 #define DEBUG(...) DEBUG_THIS(TraceInstance::A_BINANCE, ExchangeId::BINANCE, __VA_ARGS__)
+#define ERROR(...) ERROR_BASE(TraceInstance::A_BINANCE, ExchangeId::BINANCE, __VA_ARGS__)
 
 constexpr const char* REST_ENDPOINT = "https://api.binance.com/api/v3";
 
@@ -60,10 +61,10 @@ void ApiBinance::processMessage(const std::string& message) {
             if (eventType == "depthUpdate") {
                 processOrderBookUpdate(data);
             } else if (eventType == "executionReport") {
-                TRACE("ERROR, not implemented: Execution report: ", data.dump());
+                ERROR("not implemented: Execution report: ", data.dump());
                 // processExecutionReport(data);
             } else {
-                TRACE("ERROR: Unhandled event type: ", eventType);
+                ERROR("Unhandled event type: ", eventType);
             }
         } else if (data.contains("b") && data.contains("a") && data.contains("B") && data.contains("A")) {
             DEBUG("received bookTicker: ", data.dump().substr(0, 300));
@@ -75,10 +76,10 @@ void ApiBinance::processMessage(const std::string& message) {
             // This is a subscription response
             TRACE("Subscription response: ", data.dump());
         } else {
-            TRACE("ERROR: Unhandled message type: ", message);
+            ERROR("Unhandled message type: ", message);
         }
     } catch (const std::exception& e) {
-        TRACE("ERROR processing message: ", e.what());
+        ERROR("Error processing message: ", e.what());
     }
 }
 
@@ -87,7 +88,7 @@ void ApiBinance::processBookTicker(const json& data) {
         std::string symbol = data["s"];
         TradingPair pair = symbolToTradingPair(symbol);
         if (pair == TradingPair::UNKNOWN) {
-            TRACE("ERROR: Unknown trading pair in bookTicker: ", symbol);
+            ERROR("Unknown trading pair in bookTicker: ", symbol);
             return;
         }
 
@@ -100,7 +101,7 @@ void ApiBinance::processBookTicker(const json& data) {
         m_orderBookManager.updateOrderBookBestBidAsk(ExchangeId::BINANCE, pair, bidPrice, bidQuantity, askPrice, askQuantity);
     
     } catch (const std::exception& e) {
-        TRACE("Error processing bookTicker: ", data.dump().substr(0, 300), " ", e.what());
+        ERROR("Error processing bookTicker: ", data.dump().substr(0, 300), " ", e.what());
     }
 }
 
@@ -194,7 +195,7 @@ void ApiBinance::processOrderBookUpdate(const json& data) {
             m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
         }
     } catch (const std::exception& e) {
-        TRACE("Error processing order book update: ", e.what());
+        ERROR("Error processing order book update: ", e.what());
     }
 }
 
@@ -239,7 +240,7 @@ void ApiBinance::processOrderBookSnapshot(const json& data, TradingPair pair) {
             m_snapshotCallback(true);
         }
     } catch (const std::exception& e) {
-        TRACE("Error processing order book snapshot: ", e.what());
+        ERROR("Error processing order book snapshot: ", e.what());
         if (m_snapshotCallback) {
             m_snapshotCallback(false);
         }
@@ -268,7 +269,7 @@ bool ApiBinance::placeOrder(TradingPair pair, OrderType type, double price, doub
         TRACE("Order placed successfully: ", response.dump());
         return true;
     } catch (const std::exception& e) {
-        TRACE("Error placing order: ", e.what());
+        ERROR("Error placing order: ", e.what());
         return false;
     }
 }
@@ -285,7 +286,7 @@ bool ApiBinance::cancelOrder(const std::string& orderId) {
         TRACE("Order cancelled successfully: ", response.dump());
         return true;
     } catch (const std::exception& e) {
-        TRACE("Error cancelling order: ", e.what());
+        ERROR("Error cancelling order: ", e.what());
         return false;
     }
 }
@@ -310,7 +311,7 @@ bool ApiBinance::getBalance(const std::string& asset) {
         TRACE("No balance found for asset: ", asset);
         return false;
     } catch (const std::exception& e) {
-        TRACE("Error getting balance: ", e.what());
+        ERROR("Error getting balance: ", e.what());
         return false;
     }
 }
@@ -345,7 +346,7 @@ bool ApiBinance::subscribeOrderBook(std::vector<TradingPair> pairs) {
         
         return true;
     } catch (const std::exception& e) {
-        TRACE("Error subscribing to order book: ", e.what());
+        ERROR("Error subscribing to order book: ", e.what());
         return false;
     }
 }
@@ -367,7 +368,7 @@ bool ApiBinance::getOrderBookSnapshot(TradingPair pair) {
         
         return true;
     } catch (const std::exception& e) {
-        TRACE("Error getting order book snapshot: ", e.what());
+        ERROR("Error getting order book snapshot: ", e.what());
         if (m_snapshotCallback) {
             m_snapshotCallback(false);
         }

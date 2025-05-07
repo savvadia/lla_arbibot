@@ -8,6 +8,7 @@
 // Define TRACE macro for ApiExchange
 #define TRACE(...) TRACE_THIS(TraceInstance::A_EXCHANGE, this->getExchangeId(), __VA_ARGS__)
 #define DEBUG(...) DEBUG_THIS(TraceInstance::A_EXCHANGE, this->getExchangeId(), __VA_ARGS__)
+#define ERROR(...) ERROR_BASE(TraceInstance::A_EXCHANGE, this->getExchangeId(), __VA_ARGS__)
 
 ApiExchange::ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
     const std::string& host, const std::string& port,
@@ -127,7 +128,7 @@ bool ApiExchange::connect() {
         TRACE("Successfully connected to ", getExchangeName(), " WebSocket at ", m_host, ":", m_port);
         return true;
     } catch (const std::exception& e) {
-        TRACE("Error in connect: ", e.what());
+        ERROR("Error in connect: ", e.what());
         return false;
     }
 }

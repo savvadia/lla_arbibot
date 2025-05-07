@@ -36,6 +36,7 @@ enum class TraceInstance {
 enum class CountableTrace {
     S_POPLAVKI_OPPORTUNITY,
     A_KRAKEN_ORDERBOOK_UPDATE,
+    A_KRAKEN_ORDERBOOK_CHECKSUM,
     COUNT,
 };
 
