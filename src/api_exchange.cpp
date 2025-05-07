@@ -12,10 +12,12 @@
 
 ApiExchange::ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
     const std::string& host, const std::string& port,
-    const std::string& restEndpoint, const std::string& wsEndpoint, bool testMode)
+    const std::string& restEndpoint, const std::string& wsEndpoint,
+    const std::vector<TradingPair> pairs, bool testMode)
     : m_testMode(testMode), m_inCooldown(false), m_cooldownEndTime(std::chrono::steady_clock::now()), 
     m_timersMgr(timersMgr), m_orderBookManager(orderBookManager), m_keepaliveTimerId(0),
-    m_host(host), m_port(port), m_restEndpoint(restEndpoint), m_wsEndpoint(wsEndpoint) {
+    m_host(host), m_port(port), m_restEndpoint(restEndpoint), m_wsEndpoint(wsEndpoint),
+    m_pairs(pairs) {
         // Initialize CURL
         m_curl = curl_easy_init();
         if (!m_curl) {
@@ -31,11 +33,12 @@ ApiExchange::~ApiExchange() {
 }
 
 // Factory function to create exchange API instances
-std::unique_ptr<ApiExchange> createApiExchange(ExchangeId exchangeId, OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode) {
+std::unique_ptr<ApiExchange> createApiExchange(ExchangeId exchangeId, OrderBookManager& orderBookManager, TimersMgr& timersMgr,
+    const std::vector<TradingPair> pairs, bool testMode) {
     if (exchangeId == ExchangeId::BINANCE) {
-        return std::make_unique<ApiBinance>(orderBookManager, timersMgr, testMode);
+        return std::make_unique<ApiBinance>(orderBookManager, timersMgr, pairs, testMode);
     } else if (exchangeId == ExchangeId::KRAKEN) {
-        return std::make_unique<ApiKraken>(orderBookManager, timersMgr, testMode);
+        return std::make_unique<ApiKraken>(orderBookManager, timersMgr, pairs, testMode);
     }
     // Add more exchanges here as we implement them
     TRACE_BASE(TraceInstance::A_EXCHANGE, exchangeId, "ERROR: Unsupported exchange");

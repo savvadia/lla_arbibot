@@ -7,12 +7,12 @@
 #include <vector>
 #include <memory>
 #include <map>
-#include <string>
 #include "tracer.h"
 
 class ExchangeManager : public Traceable {
 public:
-    ExchangeManager(TimersMgr& timersMgr, OrderBookManager& orderBookManager);
+    ExchangeManager(TimersMgr& timersMgr, OrderBookManager& orderBookManager,
+        const std::vector<TradingPair> pairs);
     ~ExchangeManager();
 
     // Initialize and connect to exchanges
@@ -31,7 +31,7 @@ public:
     void disconnectAll();
     
     // Subscribe to order book for all exchanges
-    bool subscribeAllOrderBooks(std::vector<TradingPair> pairs);
+    bool subscribeAllOrderBooks();
     
     // Get order book snapshots for all exchanges
     bool getOrderBookSnapshots(TradingPair pair);
@@ -51,4 +51,5 @@ private:
     std::vector<ExchangeId> exchangeIds;
     TimersMgr& m_timersMgr;
     OrderBookManager& m_orderBookManager;
+    std::vector<TradingPair> m_pairs;
 }; 

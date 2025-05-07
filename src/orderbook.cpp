@@ -1,6 +1,7 @@
 #include "orderbook.h"
 #include <algorithm>
 #include "tracer.h"
+#include "types.h"
 
 
 #define TRACE(...) TRACE_THIS(TraceInstance::ORDERBOOK, exchangeId, __VA_ARGS__)

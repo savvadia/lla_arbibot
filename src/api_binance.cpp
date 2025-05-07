@@ -22,9 +22,11 @@ using tcp = boost::asio::ip::tcp;
 
 constexpr const char* REST_ENDPOINT = "https://api.binance.com/api/v3";
 
-ApiBinance::ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode)
-    : ApiExchange(orderBookManager, timersMgr,  
-    "stream.binance.com", "9443", REST_ENDPOINT, "/ws/stream", testMode) {
+ApiBinance::ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
+        const std::vector<TradingPair> pairs, bool testMode)
+        : ApiExchange(orderBookManager, timersMgr,  
+        "stream.binance.com", "9443", REST_ENDPOINT, "/ws/stream",
+        pairs, testMode) {
     // Initialize symbol map with only BTC, ETH, and XTZ
     m_symbolMap[TradingPair::BTC_USDT] = "BTCUSDT";
     m_symbolMap[TradingPair::ETH_USDT] = "ETHUSDT";
@@ -316,7 +318,7 @@ bool ApiBinance::getBalance(const std::string& asset) {
     }
 }
 
-bool ApiBinance::subscribeOrderBook(std::vector<TradingPair> pairs) {
+bool ApiBinance::subscribeOrderBook() {
     if (!m_connected) {
         TRACE("Not connected to Binance");
         return false;
@@ -327,7 +329,7 @@ bool ApiBinance::subscribeOrderBook(std::vector<TradingPair> pairs) {
         message["id"] = 1;
         message["method"] = "SUBSCRIBE";
         message["params"] = json::array();
-        for (const auto& pair : pairs) {
+        for (const auto& pair : m_pairs) {
             std::string symbol = toLower(tradingPairToSymbol(pair));
             message["params"].emplace_back(symbol + "@bookTicker");
         }
@@ -336,7 +338,7 @@ bool ApiBinance::subscribeOrderBook(std::vector<TradingPair> pairs) {
         doWrite(message.dump());  
 
         // Store the subscription state
-        for (const auto& pair : pairs) {
+        for (const auto& pair : m_pairs) {
             auto& state = symbolStates[pair];
             std::string symbol = tradingPairToSymbol(pair);    
             state.subscribed = true;

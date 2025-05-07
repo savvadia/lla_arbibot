@@ -1,20 +1,19 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include "api_binance.h"
+#include "../src/api_binance.h"
+#include "../src/tracer.h"
 #include <memory>
 #include <chrono>
 #include <nlohmann/json.hpp>
 
 using namespace std::chrono_literals;
-using ::testing::_;
-using ::testing::Return;
 using json = nlohmann::json;
 
 // Test class to expose protected methods for testing
 class TestApiBinance : public ApiBinance {
 public:
     TestApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode = true)
-        : ApiBinance(orderBookManager, timersMgr, testMode) {}
+        : ApiBinance(orderBookManager, timersMgr, {TradingPair::BTC_USDT}, testMode) {}
 
     // Expose protected methods for testing
     using ApiBinance::processMessage;
@@ -34,6 +33,9 @@ protected:
 
     void TearDown() override {
         api->disconnect();
+        api.reset();
+        orderBookManager.reset();
+        timersMgr.reset();
     }
 
     std::unique_ptr<OrderBookManager> orderBookManager;

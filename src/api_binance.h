@@ -26,10 +26,11 @@ using json = nlohmann::json;
 
 class ApiBinance : public ApiExchange {
 public:
-    ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode = true);
+    ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
+        const std::vector<TradingPair> pairs, bool testMode = true);
 
     // Subscribe to order book updates for a trading pair
-    bool subscribeOrderBook(std::vector<TradingPair> pairs) override;
+    bool subscribeOrderBook() override;
 
     // Get current order book snapshot
     bool getOrderBookSnapshot(TradingPair pair) override;

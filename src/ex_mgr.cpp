@@ -5,8 +5,9 @@
 #define TRACE(...) TRACE_THIS(TraceInstance::EX_MGR, ExchangeId::UNKNOWN, __VA_ARGS__)
 
 ExchangeManager::ExchangeManager(TimersMgr &timersMgr,
-                                 OrderBookManager &orderBookManager)
-    : m_timersMgr(timersMgr), m_orderBookManager(orderBookManager) {
+                                 OrderBookManager &orderBookManager,
+                                 const std::vector<TradingPair> pairs)
+    : m_timersMgr(timersMgr), m_orderBookManager(orderBookManager), m_pairs(pairs) {
   TRACE("initializing");
 }
 
@@ -24,7 +25,7 @@ bool ExchangeManager::initializeExchanges(
     TRACE("creating exchange API for: ", exchangeId);
 
     std::unique_ptr<ApiExchange> api =
-        createApiExchange(exchangeId, m_orderBookManager, m_timersMgr, true);
+        createApiExchange(exchangeId, m_orderBookManager, m_timersMgr, m_pairs, true);
     if (!api) {
       TRACE("failed to create exchange API for: ", exchangeId);
       return false;
@@ -62,10 +63,10 @@ void ExchangeManager::disconnectAll() {
   }
 }
 
-bool ExchangeManager::subscribeAllOrderBooks(std::vector<TradingPair> pairs) {
+bool ExchangeManager::subscribeAllOrderBooks() {
   for (const auto &[exchangeId, api] : exchanges) {
     TRACE("subscribing to order book for ", exchangeId);
-    if (!api->subscribeOrderBook(pairs)) {
+    if (!api->subscribeOrderBook()) {
       TRACE("failed to subscribe to order book for ", exchangeId);
       return false;
     }

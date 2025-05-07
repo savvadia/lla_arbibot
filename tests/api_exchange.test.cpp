@@ -14,7 +14,7 @@ using json = nlohmann::json;
 class TestApiExchange : public ApiExchange {
 public:
     TestApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode = true)
-        : ApiExchange(orderBookManager, timersMgr, "test.com", "443", "https://test.com/api", "/ws", testMode) {}
+        : ApiExchange(orderBookManager, timersMgr, "test.com", "443", "https://test.com/api", "/ws", {TradingPair::BTC_USDT}, testMode) {}
 
     bool connect() override { 
         m_connected = true;
@@ -25,7 +25,7 @@ public:
         m_connected = false; 
     }
 
-    bool subscribeOrderBook(std::vector<TradingPair> pairs) override { 
+    bool subscribeOrderBook() override { 
         return true; 
     }
 

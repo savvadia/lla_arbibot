@@ -73,7 +73,8 @@ int main() {
     
     // Create exchange manager
     TRACE("Initializing ExchangeManager...");
-    ExchangeManager exchangeManager(timersMgr, orderBookManager);
+    std::vector<TradingPair> pairs = {TradingPair::BTC_USDT, TradingPair::ETH_USDT, TradingPair::XTZ_USDT};
+    ExchangeManager exchangeManager(timersMgr, orderBookManager, pairs);
     
     // Define exchanges to use
     vector<ExchangeId> exchanges = {ExchangeId::KRAKEN, ExchangeId::BINANCE};
@@ -95,7 +96,7 @@ int main() {
 
     // Subscribe to order books
     TRACE("Subscribing to order books...");
-    if (!exchangeManager.subscribeAllOrderBooks({TradingPair::BTC_USDT, TradingPair::ETH_USDT, TradingPair::XTZ_USDT})) {
+    if (!exchangeManager.subscribeAllOrderBooks()) {
         TRACE("Failed to subscribe to order books");
         return 1;
     }

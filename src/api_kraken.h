@@ -16,10 +16,11 @@ using tcp = boost::asio::ip::tcp;
 
 class ApiKraken : public ApiExchange {
 public:
-    ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode = false);
+    ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
+        const std::vector<TradingPair> pairs, bool testMode = false);
 
     // Subscribe to order book updates for a trading pair
-    bool subscribeOrderBook(std::vector<TradingPair> pairs) override;
+    bool subscribeOrderBook() override;
 
     // Get current order book snapshot
     bool getOrderBookSnapshot(TradingPair pair) override;

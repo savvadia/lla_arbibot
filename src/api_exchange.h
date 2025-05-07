@@ -33,8 +33,9 @@ using json = nlohmann::json;
 class ApiExchange : public Traceable {
 public:
     ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr, 
-    const std::string& host, const std::string& port,
-    const std::string& restEndpoint, const std::string& wsEndpoint, bool testMode = true);
+        const std::string& host, const std::string& port,
+        const std::string& restEndpoint, const std::string& wsEndpoint,
+        const std::vector<TradingPair> pairs, bool testMode = true);
     virtual ~ApiExchange();
 
     // Connect to the exchange
@@ -42,7 +43,7 @@ public:
     virtual void disconnect();
 
     // Subscribe to order book updates for a trading pair
-    virtual bool subscribeOrderBook(std::vector<TradingPair> pairs) = 0;
+    virtual bool subscribeOrderBook() = 0;
 
     // Get order book snapshot for a trading pair
     virtual bool getOrderBookSnapshot(TradingPair pair) = 0;
@@ -158,18 +159,13 @@ protected:
     std::string m_restEndpoint;
     std::string m_wsEndpoint;
 
-    std::map<TradingPair, int> m_pricePrecision = {
-        {TradingPair::BTC_USDT, 1},
-        {TradingPair::XTZ_USDT, 4},
-        {TradingPair::ETH_USDT, 2}
-    };
-
     int getPricePrecision(TradingPair pair) const {
-        auto it = m_pricePrecision.find(pair);
-        return it != m_pricePrecision.end() ? it->second : 1; // default to 1 if not found
+        return PricePrecision::getPrecision(pair);
     }
+
+    std::vector<TradingPair> m_pairs;
 };
 
 // Factory function to create exchange API instances
 std::unique_ptr<ApiExchange> createApiExchange(const ExchangeId exchangeId, OrderBookManager& orderBookManager, 
-    TimersMgr& timersMgr, bool testMode); 
+    TimersMgr& timersMgr, const std::vector<TradingPair> pairs, bool testMode); 

@@ -25,9 +25,10 @@ constexpr const char* REST_ENDPOINT = "https://api.kraken.com/0/public";
 #define ERROR_CNT(_id, ...) ERROR_COUNT(TraceInstance::A_KRAKEN, _id, ExchangeId::KRAKEN, __VA_ARGS__)
 #define TRACE_CNT(_id, ...) TRACE_COUNT(TraceInstance::A_KRAKEN, _id, ExchangeId::KRAKEN, __VA_ARGS__)
 
-ApiKraken::ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode)
+ApiKraken::ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
+    const std::vector<TradingPair> pairs, bool testMode)
     : ApiExchange(orderBookManager, timersMgr, "ws.kraken.com", "443", 
-    REST_ENDPOINT, "/v2", testMode) {
+    REST_ENDPOINT, "/v2", pairs, testMode) {
     // Initialize symbol map
     m_symbolMap[TradingPair::BTC_USDT] = "BTC/USD";
     m_symbolMap[TradingPair::ETH_USDT] = "ETH/USD";
@@ -53,14 +54,14 @@ std::string ApiKraken::tradingPairToSymbol(TradingPair pair) const {
     throw std::runtime_error("Unsupported trading pair");
 }
 
-bool ApiKraken::subscribeOrderBook(std::vector<TradingPair> pairs) {
+bool ApiKraken::subscribeOrderBook() {
     if (!m_connected) {
         ERROR("Not connected to Kraken");
         return false;
     }
 
     std::vector<std::string> symbols;
-    for (const auto& pair : pairs) {
+    for (const auto& pair : m_pairs) {
         symbols.push_back(tradingPairToSymbol(pair));
     }
 
@@ -138,6 +139,7 @@ void ApiKraken::processMessage(const std::string& message) {
 }
 
 void ApiKraken::processOrderBookUpdate(const json& data) {
+    static int countCalls = 0;
     if (!data.contains("type") ||
         !data.contains("data") ||
         !data["data"].is_array() ||
@@ -158,6 +160,7 @@ void ApiKraken::processOrderBookUpdate(const json& data) {
     bool isCompleteUpdate = (data["type"] == "snapshot") ? true : false;
         
     try {
+        // keep the examples for ease of debugging. it will be easy to spot if the sample not parsed is not the same as the examples
         // example:
         // {"channel":"book","data":[{"asks":[{"price":93888.1,"qty":0.06918769},{"price":93888.2,"qty":0.0066583},{"price":93889.9,"qty":0.01161697},{"price":93890.2,"qty":0.84329594},{"price":93891.1,"qty":0.053},{"price":93892.7,"qty":0.01017287},{"price":93896.4,"qty":0.03184175},{"price":93898.0,"qty":5.325e-05},{"price":93901.8,"qty":0.135},{"price":93903.4,"qty":0.0339}],"bids":[{"price":93888.0,"qty":7.04391006},{"price":93887.5,"qty":3.08880155},{"price":93886.7,"qty":2.66278352},{"price":93886.5,"qty":5.072e-05},{"price":93886.2,"qty":1.63973},{"price":93886.1,"qty":2.76930693},{"price":93885.7,"qty":0.00803005},{"price":93885.0,"qty":0.10585564},{"price":93884.2,"qty":0.10650715},{"price":93882.6,"qty":5.3257969}],"checksum":2610022218,"symbol":"BTC/USD"}],"type":"snapshot"}
 
@@ -172,6 +175,17 @@ void ApiKraken::processOrderBookUpdate(const json& data) {
         ERROR("Error processing order book update: ", e.what());
         return;
     }
+
+    // Store previous state for debugging
+    auto& book = m_orderBookManager.getOrderBook(ExchangeId::KRAKEN, pair);
+    std::vector<PriceLevel> prevBids, prevAsks;
+    uint32_t prevChecksum = 0;
+    if (++countCalls % Config::KRAKEN_CHECKSUM_CHECK_PERIOD == 1) {
+        prevBids = book.getBids();
+        prevAsks = book.getAsks();
+        prevChecksum = computeChecksum(buildChecksumString(pair, prevAsks) + buildChecksumString(pair, prevBids));
+    }
+    
     try {
         // Process asks
         for (const auto& ask : data["data"][0]["asks"]) {
@@ -194,15 +208,47 @@ void ApiKraken::processOrderBookUpdate(const json& data) {
     }
 
     try {
-        static int count = 0;
         m_orderBookManager.updateOrderBook(ExchangeId::KRAKEN, pair, bids, asks, isCompleteUpdate);
 
         uint32_t receivedChecksum = data["data"][0]["checksum"];
-        // performance optimization as validation is slow
-        if (count++ % Config::KRAKEN_CHECKSUM_CHECK_PERIOD == 1 && !isOrderBookValid(pair, receivedChecksum)) {
-            auto& book = m_orderBookManager.getOrderBook(ExchangeId::KRAKEN, pair);
-            ERROR_CNT(CountableTrace::A_KRAKEN_ORDERBOOK_CHECKSUM, 
-                "Invalid order book checksum: ", receivedChecksum, " for ", symbol, " - ", data.dump().substr(0, 300), " ", book);
+        // performance optimization as validation is slow. countCalls is increased above
+        if (countCalls % Config::KRAKEN_CHECKSUM_CHECK_PERIOD == 1 && !isOrderBookValid(pair, receivedChecksum)) {
+            // Get current state after update
+            auto& currentBook = m_orderBookManager.getOrderBook(ExchangeId::KRAKEN, pair);
+            auto currentBids = currentBook.getBids();
+            auto currentAsks = currentBook.getAsks();
+            std::string currentChecksumStr = buildChecksumString(pair, currentAsks) + buildChecksumString(pair, currentBids);
+            uint32_t currentChecksum = computeChecksum(currentChecksumStr);
+
+            // Print detailed debug info
+            ERROR_CNT(CountableTrace::A_KRAKEN_ORDERBOOK_CHECKSUM_CHECK,    
+                "Invalid order book checksum for ", symbol, "\n"
+                "Previous checksum: ", prevChecksum, "\n"
+                "Received checksum: ", receivedChecksum, "\n",  
+                "Current checksum:  ", currentChecksum, "\n",
+                "Previous asks: ", book.traceBidsAsks(prevAsks), 
+                "\nPrevious bids: ", book.traceBidsAsks(prevBids), 
+                "\nCurrent asks: ", book.traceBidsAsks(currentAsks), 
+                "\nCurrent bids: ", book.traceBidsAsks(currentBids), 
+                "\nUpdate data: ", data.dump());
+
+            // Reset state and reconnect
+            symbolStates[pair].hasSnapshot = false;
+            
+            // Disconnect and reconnect
+            disconnect();
+            if (!connect()) {
+                ERROR("Failed to reconnect after checksum mismatch for ", symbol);
+                return;
+            }
+            
+            // Resubscribe to get a fresh snapshot
+            if (!subscribeOrderBook()) {
+                ERROR("Failed to resubscribe after checksum mismatch for ", symbol);
+                return;
+            }
+            
+            ERROR("RESTORED after error. Reconnected and resubscribed for ", symbol, " after checksum mismatch");
             return;
         }
 
@@ -267,7 +313,8 @@ bool ApiKraken::isOrderBookValid(TradingPair pair, uint32_t receivedChecksum) {
     uint32_t localChecksum = computeChecksum(str);
     
     if (localChecksum != receivedChecksum) {
-        ERROR("Invalid order book checksum: ", receivedChecksum, " local: ", localChecksum, " for ", pair, " - [", str, "]");
+        ERROR_CNT(CountableTrace::A_KRAKEN_ORDERBOOK_CHECKSUM_CHECK2,
+            "Invalid order book checksum: ", receivedChecksum, " local: ", localChecksum, " for ", pair, " - [", str, "]");
         return false;
     }
     return true;

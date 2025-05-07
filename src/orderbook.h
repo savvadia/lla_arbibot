@@ -9,7 +9,6 @@
 #include "tracer.h"
 #include "types.h"
 #include <unordered_map>
-#include "config.h"
 
 struct PriceLevel {
     double price;
@@ -186,21 +185,23 @@ public:
 
     void mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<PriceLevel>& newList, bool isBid);
 
-protected:
     void trace(std::ostream& os) const override {
         os << pair << " " << bids.size() << "/" << asks.size() << " " << std::fixed << std::setprecision(3) <<
             getBestPrices() << "u: " << (lastUpdate);
     }
     std::string traceBidsAsks(std::vector<PriceLevel>& list) const {
         std::stringstream ss;
-        ss << std::fixed << std::setprecision(3);
+        auto precision = PricePrecision::getPrecision(pair);
+        ss << std::fixed;
         ss << "[";
         for(const auto& entry : list) {
-            ss << entry.price << "/" << entry.quantity << " ";
+            ss << std::setprecision(precision) << entry.price << "/" << std::setprecision(8) << entry.quantity << " ";
         }
         ss << "]";
         return ss.str();
     }
+
+protected:
 
 private:
     std::vector<PriceLevel> bids;

@@ -15,5 +15,5 @@ namespace Config {
     constexpr int RESET_INTERVAL_MS = 600000; // 10 minutes
 
     // Exchange settings
-    constexpr int KRAKEN_CHECKSUM_CHECK_PERIOD = 100; // check checksum every 100th update as it is slow
+    constexpr int KRAKEN_CHECKSUM_CHECK_PERIOD = 10; // check checksum every 100th update as it is slow
 } 

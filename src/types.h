@@ -33,7 +33,8 @@ enum class TradingPair {
     UNKNOWN = 0,
     BTC_USDT = 1,
     ETH_USDT = 2,
-    XTZ_USDT = 3
+    XTZ_USDT = 3,
+    COUNT = 4
 };
 
 // Convert TradingPair to string
@@ -86,5 +87,22 @@ struct OrderBookData {
     double bestAskQuantity;
     std::chrono::system_clock::time_point lastUpdate;
 }; 
+
+// Price precision utility class
+class PricePrecision {
+public:
+    static int getPrecision(TradingPair pair) {
+        switch (pair) {
+            case TradingPair::BTC_USDT:
+                return 1;
+            case TradingPair::ETH_USDT:
+                return 2;
+            case TradingPair::XTZ_USDT:
+                return 4;
+            default:
+                return 8;
+        }
+    }
+};
 
 #endif // TYPES_H

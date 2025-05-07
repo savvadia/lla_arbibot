@@ -13,8 +13,8 @@ using json = nlohmann::json;
 // Create a test class that inherits from ApiKraken to access protected members
 class TestApiKraken : public ApiKraken {
 public:
-    TestApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr) 
-        : ApiKraken(orderBookManager, timersMgr, true) {}
+    TestApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode = true)
+        : ApiKraken(orderBookManager, timersMgr, {TradingPair::BTC_USDT}, testMode) {}
 
     // Expose protected methods for testing
     using ApiKraken::processOrderBookUpdate;
@@ -27,13 +27,16 @@ protected:
     void SetUp() override {
         orderBookManager = std::make_unique<OrderBookManager>();
         timersMgr = std::make_unique<TimersMgr>();
-        api = std::make_unique<TestApiKraken>(*orderBookManager, *timersMgr);
+        api = std::make_unique<TestApiKraken>(*orderBookManager, *timersMgr, true);
         // Connect immediately in setup to avoid repeated connection delays
         EXPECT_TRUE(api->connect());
     }
 
     void TearDown() override {
         api->disconnect();
+        api.reset();
+        orderBookManager.reset();
+        timersMgr.reset();
     }
 
     std::unique_ptr<OrderBookManager> orderBookManager;
