@@ -42,6 +42,7 @@ int main() {
     
     // Enable specific trace types
     FastTraceLogger::setLoggingEnabled(TraceInstance::EVENT_LOOP, true);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::TRACES, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::TIMER, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::STRAT, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::BALANCE, true);
@@ -55,7 +56,7 @@ int main() {
     FastTraceLogger::setLoggingEnabled(ExchangeId::BINANCE, false);
     FastTraceLogger::setLoggingEnabled(ExchangeId::KRAKEN, true);
 
-    TRACE("Trace types enabled: EVENT_LOOP, STRAT, BALANCE, ORDERBOOK, A_EXCHANGE, A_KRAKEN, A_BINANCE, MAIN");
+    TRACE("Trace types enabled: EVENT_LOOP, TRACES, STRAT, BALANCE, ORDERBOOK, A_EXCHANGE, A_KRAKEN, A_BINANCE, MAIN");
     TRACE("Exchange logging enabled: BINANCE");
 
     // Set up signal handlers

@@ -18,6 +18,7 @@ class TimersMgr;
 
 // Enum for logging types
 enum class TraceInstance {
+    TRACES,
     TIMER,
     BALANCE,
     EVENT_LOOP,
@@ -238,7 +239,7 @@ public:
         for (int traceId = 0; traceId < n; traceId++) {
             auto& cnt = countableTraces()[traceId];
             if (cnt > 0) {
-                TRACE_BASE(TraceInstance::TIMER, ExchangeId::UNKNOWN, "Resetting countable trace: ", mapIdToString[traceId], " ", cnt.load(std::memory_order_relaxed));
+                TRACE_BASE(TraceInstance::TRACES, ExchangeId::UNKNOWN, "Resetting countable trace: ", mapIdToString[traceId], " ", cnt.load(std::memory_order_relaxed));
                 cnt.store(0, std::memory_order_relaxed);
             }
         }

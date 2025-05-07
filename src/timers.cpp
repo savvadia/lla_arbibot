@@ -1,5 +1,4 @@
 #include "timers.h"
-#include "event_loop.h"
 #include <sstream>
 #include <iomanip>
 #include <thread>
