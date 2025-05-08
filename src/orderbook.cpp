@@ -273,10 +273,10 @@ void OrderBook::setBestBidAsk(double bidPrice, double bidQuantity, double askPri
 }
 
 OrderBookManager::OrderBookManager() {
-    // Initialize order books for each exchange and trading pair
-    for (const auto& exchangeId : {ExchangeId::BINANCE, ExchangeId::KRAKEN}) {
-        for (const auto& pair : {TradingPair::BTC_USDT, TradingPair::ETH_USDT, TradingPair::XTZ_USDT}) {
-            orderBooks[exchangeId][pair] = OrderBook(exchangeId, pair);
+    for (int pair = 0; pair < static_cast<int>(TradingPair::COUNT); pair++) {
+        if (pair == static_cast<int>(TradingPair::UNKNOWN)) continue;
+        for (const auto& exchangeId : {ExchangeId::BINANCE, ExchangeId::KRAKEN}) {
+            orderBooks[exchangeId][static_cast<TradingPair>(pair)] = OrderBook(exchangeId, static_cast<TradingPair>(pair));
         }
     }
 }

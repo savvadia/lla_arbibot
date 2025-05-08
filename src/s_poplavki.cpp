@@ -114,10 +114,10 @@ void StrategyPoplavki::scanOpportunities() {
             // Try both directions
             Opportunity opp1 = calculateProfit(exchangeIds[i], exchangeIds[j], pair);
             if (opp1.amount > 0 && opp1.profit() > Config::MIN_MARGIN) {
-                TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY, "Found opportunity: ", opp1);
+                DEBUG("Found opportunity: ", opp1);
                 // TODO: Execute opportunity
                 if (bestOpportunity1.amount == 0 || opp1.profit() > bestOpportunity1.profit()) {
-                    TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY, "Updating best seen opportunity: ", opp1);
+                    TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY, "Updating best opp1: ", opp1);
                     bestOpportunity1 = opp1;
                 } else {
                     DEBUG("Best seen opportunity is better: ", bestOpportunity1, " vs ", opp1);
@@ -126,10 +126,10 @@ void StrategyPoplavki::scanOpportunities() {
 
             Opportunity opp2 = calculateProfit(exchangeIds[j], exchangeIds[i], pair);
             if (opp2.amount > 0 && opp2.profit() > Config::MIN_MARGIN) {
-                TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY, "Found opportunity: ", opp2);
+                DEBUG("Found opportunity: ", opp2);
                 // TODO: Execute opportunity
                 if (bestOpportunity2.amount == 0 || opp2.profit() > bestOpportunity2.profit()) {
-                    TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY, "Updating best seen opportunity: ", opp2);
+                    TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY, "Updating best opp2: ", opp2);
                     bestOpportunity2 = opp2;
                 } else {
                     DEBUG("Best seen opportunity is better: ", bestOpportunity2, " vs ", opp2);

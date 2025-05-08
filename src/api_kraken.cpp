@@ -30,19 +30,41 @@ ApiKraken::ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
     : ApiExchange(orderBookManager, timersMgr, "ws.kraken.com", "443", 
     REST_ENDPOINT, "/v2", pairs, testMode) {
     // Initialize symbol map
+    m_symbolMap[TradingPair::ADA_USDT] = "ADA/USD";
+    m_symbolMap[TradingPair::ALGO_USDT] = "ALGO/USD";
+    m_symbolMap[TradingPair::ATOM_USDT] = "ATOM/USD";
+    m_symbolMap[TradingPair::AVAX_USDT] = "AVAX/USD";
+    m_symbolMap[TradingPair::BCH_USDT] = "BCH/USD";
     m_symbolMap[TradingPair::BTC_USDT] = "BTC/USD";
+    m_symbolMap[TradingPair::DOGE_USDT] = "DOGE/USD";
+    m_symbolMap[TradingPair::DOT_USDT] = "DOT/USD";
+    m_symbolMap[TradingPair::EOS_USDT] = "EOS/USD";
     m_symbolMap[TradingPair::ETH_USDT] = "ETH/USD";
+    m_symbolMap[TradingPair::LINK_USDT] = "LINK/USD";
+    m_symbolMap[TradingPair::SOL_USDT] = "SOL/USD";
+    m_symbolMap[TradingPair::XRP_USDT] = "XRP/USD";
     m_symbolMap[TradingPair::XTZ_USDT] = "XTZ/USD";
 }
 
 // Kraken-specific symbol mapping
 TradingPair ApiKraken::symbolToTradingPair(const std::string& symbol) const {
-    std::string lowerSymbol = toLower(symbol);
-    
+    std::string lowerSymbol = symbol;
+    std::transform(lowerSymbol.begin(), lowerSymbol.end(), lowerSymbol.begin(), ::tolower);
+
+    if (lowerSymbol == "ada/usd" || lowerSymbol == "adausd") return TradingPair::ADA_USDT;
+    if (lowerSymbol == "algo/usd" || lowerSymbol == "algousd") return TradingPair::ALGO_USDT;
+    if (lowerSymbol == "atom/usd" || lowerSymbol == "atomusd") return TradingPair::ATOM_USDT;
+    if (lowerSymbol == "avax/usd" || lowerSymbol == "avaxusd") return TradingPair::AVAX_USDT;
+    if (lowerSymbol == "bch/usd" || lowerSymbol == "bchusd") return TradingPair::BCH_USDT;
     if (lowerSymbol == "btc/usd" || lowerSymbol == "btcczusd") return TradingPair::BTC_USDT;
+    if (lowerSymbol == "dot/usd" || lowerSymbol == "dotusd") return TradingPair::DOT_USDT;
+    if (lowerSymbol == "eos/usd" || lowerSymbol == "eosusd") return TradingPair::EOS_USDT;
     if (lowerSymbol == "eth/usd" || lowerSymbol == "xethzusd") return TradingPair::ETH_USDT;
+    if (lowerSymbol == "link/usd" || lowerSymbol == "linkusd") return TradingPair::LINK_USDT;
+    if (lowerSymbol == "sol/usd" || lowerSymbol == "solusd") return TradingPair::SOL_USDT;
+    if (lowerSymbol == "doge/usd" || lowerSymbol == "dogeusd") return TradingPair::DOGE_USDT;
+    if (lowerSymbol == "xrp/usd" || lowerSymbol == "xrpusd") return TradingPair::XRP_USDT;
     if (lowerSymbol == "xtz/usd" || lowerSymbol == "xtzusdt") return TradingPair::XTZ_USDT;
-    
     return TradingPair::UNKNOWN;
 }
 
@@ -51,6 +73,7 @@ std::string ApiKraken::tradingPairToSymbol(TradingPair pair) const {
     if (it != m_symbolMap.end()) {
         return it->second;
     }
+    ERROR("Unsupported trading pair: ", pair);
     throw std::runtime_error("Unsupported trading pair");
 }
 
@@ -60,8 +83,10 @@ bool ApiKraken::subscribeOrderBook() {
         return false;
     }
 
+    TRACE("Subscribing to Kraken order book for ", m_pairs.size(), " pairs");
     std::vector<std::string> symbols;
     for (const auto& pair : m_pairs) {
+        TRACE("Subscribing to Kraken order book for ", pair);
         symbols.push_back(tradingPairToSymbol(pair));
     }
 
