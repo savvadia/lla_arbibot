@@ -44,6 +44,7 @@ public:
 
     // Subscribe to order book updates for a trading pair
     virtual bool subscribeOrderBook() = 0;
+    bool resubscribeOrderBook();
 
     // Get order book snapshot for a trading pair
     virtual bool getOrderBookSnapshot(TradingPair pair) = 0;

@@ -257,22 +257,10 @@ void ApiKraken::processOrderBookUpdate(const json& data) {
                 "\nCurrent bids: ", book.traceBidsAsks(currentBids), 
                 "\nUpdate data: ", data.dump());
 
-            // Reset state and reconnect
-            symbolStates[pair].hasSnapshot = false;
-            
-            // Disconnect and reconnect
-            disconnect();
-            if (!connect()) {
-                ERROR("Failed to reconnect after checksum mismatch for ", symbol);
-                return;
-            }
-            
-            // Resubscribe to get a fresh snapshot
-            if (!subscribeOrderBook()) {
+            if (!resubscribeOrderBook()) {
                 ERROR("Failed to resubscribe after checksum mismatch for ", symbol);
                 return;
             }
-            
             ERROR("RESTORED after error. Reconnected and resubscribed for ", symbol, " after checksum mismatch");
             return;
         }

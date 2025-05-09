@@ -175,6 +175,27 @@ void ApiExchange::disconnect() {
     }
 }
 
+bool ApiExchange::resubscribeOrderBook() {
+    // Reset state and reconnect
+    for (auto& pair : m_pairs) {
+        symbolStates[pair].hasSnapshot = false;
+    }
+            
+    // Disconnect and reconnect
+    disconnect();
+    if (!connect()) {
+        ERROR("Failed to reconnect");
+        return false;
+    }
+    
+    // Resubscribe to get a fresh snapshot
+    if (!subscribeOrderBook()) {
+        ERROR("Failed to resubscribe");
+        return false;
+    }
+    return true;
+}
+
 // Common HTTP request handling
 json ApiExchange::makeHttpRequest(const std::string& endpoint, const std::string& params, const std::string& method) {
     // Check if we're in a cooldown period
