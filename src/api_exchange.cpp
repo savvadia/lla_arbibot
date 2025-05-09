@@ -1,35 +1,46 @@
 #include "api_exchange.h"
 #include "api_binance.h"
 #include "api_kraken.h"
-#include "tracer.h"
 #include <stdexcept>
 #include <algorithm>
+#include "tracer.h"
+#include "config.h"
 
 // Define TRACE macro for ApiExchange
 #define TRACE(...) TRACE_THIS(TraceInstance::A_EXCHANGE, this->getExchangeId(), __VA_ARGS__)
 #define DEBUG(...) DEBUG_THIS(TraceInstance::A_EXCHANGE, this->getExchangeId(), __VA_ARGS__)
 #define ERROR(...) ERROR_BASE(TraceInstance::A_EXCHANGE, this->getExchangeId(), __VA_ARGS__)
 
+// Timer callback for snapshot validity check
+void snapshotValidityCheckCallback(int id, void* data) {
+    auto* exchange = static_cast<ApiExchange*>(data);
+    TRACE_BASE(TraceInstance::A_EXCHANGE, exchange->getExchangeId(), "Checking snapshot validity");
+    exchange->checkSnapshotValidity();
+    exchange->startSnapshotValidityTimer();
+}
+
 ApiExchange::ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
     const std::string& host, const std::string& port,
     const std::string& restEndpoint, const std::string& wsEndpoint,
     const std::vector<TradingPair> pairs, bool testMode)
     : m_testMode(testMode), m_inCooldown(false), m_cooldownEndTime(std::chrono::steady_clock::now()), 
-    m_timersMgr(timersMgr), m_orderBookManager(orderBookManager), m_keepaliveTimerId(0),
+    m_timersMgr(timersMgr), m_orderBookManager(orderBookManager), 
     m_host(host), m_port(port), m_restEndpoint(restEndpoint), m_wsEndpoint(wsEndpoint),
     m_pairs(pairs) {
-        // Initialize CURL
-        m_curl = curl_easy_init();
-        if (!m_curl) {
-            throw std::runtime_error("Failed to initialize CURL");
-        }
+    
+    // Initialize symbol states
+    for (const auto& pair : pairs) {
+        symbolStates[pair] = SymbolState{};
     }
 
+    // Initialize CURL
+    initCurl();
+}
+
 ApiExchange::~ApiExchange() {
-    if (m_curl) {
-        curl_easy_cleanup(m_curl);
-        m_curl = nullptr;
-    }
+    disconnect();
+    cleanupCurl();
+    m_timersMgr.stopTimer(m_snapshotValidityTimerId);
 }
 
 // Factory function to create exchange API instances
@@ -147,18 +158,10 @@ void ApiExchange::disconnect() {
             m_work.reset();
         }
 
-        // Stop the IO context
-        m_ioc.stop();
+        // update state now in case of faults below
+        m_connected = false;
 
-        // Wait for the IO thread to finish
-        if (m_thread.joinable()) {
-            m_thread.join();
-        }
-
-        // Reset the IO context for potential reconnection
-        m_ioc.restart();
-
-        // Now it's safe to close the WebSocket
+        // Close the WebSocket connection first
         if (m_ws) {
             boost::beast::error_code ec;
             m_ws->close(websocket::close_code::normal, ec);
@@ -168,32 +171,34 @@ void ApiExchange::disconnect() {
             m_ws.reset();
         }
 
-        m_connected = false;
+        // Stop the IO context
+        m_ioc.stop();
+
+        // Wait for the IO thread to finish with a timeout
+        if (m_thread.joinable()) {
+            auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            while (m_thread.joinable() && std::chrono::steady_clock::now() < timeout) {
+                try {
+                    m_thread.join();
+                    break;
+                } catch (const std::exception& e) {
+                    TRACE("Warning: Error joining thread: ", e.what());
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+            }
+            if (m_thread.joinable()) {
+                TRACE("Warning: Could not join thread within timeout");
+                m_thread.detach();
+            }
+        }
+
+        // Reset the IO context for potential reconnection
+        m_ioc.restart();
+
         TRACE("Disconnected from ", getExchangeName());
     } catch (const std::exception& e) {
         TRACE("Warning: Error in disconnect: ", e.what());
     }
-}
-
-bool ApiExchange::resubscribeOrderBook() {
-    // Reset state and reconnect
-    for (auto& pair : m_pairs) {
-        symbolStates[pair].hasSnapshot = false;
-    }
-            
-    // Disconnect and reconnect
-    disconnect();
-    if (!connect()) {
-        ERROR("Failed to reconnect");
-        return false;
-    }
-    
-    // Resubscribe to get a fresh snapshot
-    if (!subscribeOrderBook()) {
-        ERROR("Failed to resubscribe");
-        return false;
-    }
-    return true;
 }
 
 // Common HTTP request handling
@@ -270,6 +275,9 @@ json ApiExchange::makeHttpRequest(const std::string& endpoint, const std::string
 }
 
 void ApiExchange::doRead() {
+    std::lock_guard<std::mutex> lock(m_wsMutex);
+    if (!m_ws) return;
+
     m_ws->async_read(m_buffer,
         [this](boost::beast::error_code ec, std::size_t bytes_transferred) {
             if (ec) {
@@ -293,13 +301,41 @@ void ApiExchange::doRead() {
 }
 
 void ApiExchange::doWrite(std::string message) {
-    TRACE("Sending WebSocket message: ", message);
+    std::lock_guard<std::mutex> lock(m_wsMutex);
+    if (!m_ws) return;
+
+    TRACE_BASE(TraceInstance::A_WRITER, getExchangeId(), "Sending: ", message);
+    
+    // Add message to queue
+    m_writeQueue.push(std::move(message));
+    
+    // If not already writing, start the write chain
+    if (!m_isWriting) {
+        writeNext();
+    }
+}
+
+void ApiExchange::writeNext() {
+    if (!m_ws || m_writeQueue.empty()) {
+        m_isWriting = false;
+        return;
+    }
+
+    m_isWriting = true;
+    std::string message = std::move(m_writeQueue.front());
+    m_writeQueue.pop();
+
     m_ws->async_write(net::buffer(message),
         [this, message](beast::error_code ec, std::size_t bytes_transferred) {
             if (ec) {
                 TRACE("Write error: ", ec.message(), " for message: ", message);
+                m_isWriting = false;
                 return;
             }
+
+            // Write next message if any
+            std::lock_guard<std::mutex> lock(m_wsMutex);
+            writeNext();
         });
 }
 
@@ -418,4 +454,49 @@ void ApiExchange::setOrderCallback(std::function<void(bool)> callback) {
 
 void ApiExchange::setBalanceCallback(std::function<void(bool)> callback) {
     m_balanceCallback = callback;
+}
+
+void ApiExchange::startSnapshotValidityTimer() {
+    m_snapshotValidityTimerId = m_timersMgr.addTimer(
+        Config::SNAPSHOT_VALIDITY_CHECK_INTERVAL_MS,
+        snapshotValidityCheckCallback,
+        this,
+        TimerType::EXCHANGE_CHECK_SNAPSHOT_VALIDITY
+    );
+}
+
+void ApiExchange::checkSnapshotValidity() {
+    if (!m_connected) {
+        return;
+    }
+
+    auto now = std::chrono::system_clock::now();
+    std::vector<TradingPair> needResubscribe;
+    std::ostringstream needResubscribeStr;
+    for (const auto& pair : m_pairs) {
+        auto& state = symbolStates[pair];
+        if (!state.hasSnapshot()) {
+            ERROR("Snapshot for ", pair, " is missing");
+            needResubscribe.push_back(pair);
+            continue;
+        }
+
+        // Get the last update time from the order book
+        auto lastUpdate = m_orderBookManager.getOrderBook(getExchangeId(), pair).getLastUpdate();
+        auto timeSinceLastUpdate = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate).count();
+
+        if (timeSinceLastUpdate > Config::SNAPSHOT_VALIDITY_TIMEOUT_MS) {
+            ERROR("Snapshot for ", pair, " is stale (", timeSinceLastUpdate, "ms old). Resubscribing...");
+            setSymbolSnapshotState(pair, false);
+            needResubscribe.push_back(pair);
+            needResubscribeStr << pair << ", ";
+        } else {
+            DEBUG("Snapshot for ", pair, " is valid (", timeSinceLastUpdate, "ms old)");
+        }
+    }
+
+    if (!needResubscribe.empty()) {
+        resubscribeOrderBook(needResubscribe);
+        TRACE("re-subscribed: ", needResubscribeStr.str());
+    }
 }

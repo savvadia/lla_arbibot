@@ -29,7 +29,7 @@ void Strategy::setBalances(BalanceData balances) {
     for (const auto &exchange : balances) {
         for (const auto &coin : exchange.second) {
             if (coin.first != this->coin && coin.first != this->stableCoin) {
-                TRACE("Ignored coin in balances: " + coin.first + ", expected: " + this->coin + " or " + this->stableCoin);
+                DEBUG("Ignored coin in balances: " + coin.first + ", expected: " + this->coin + " or " + this->stableCoin);
             }
         }
     }

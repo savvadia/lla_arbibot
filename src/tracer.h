@@ -27,6 +27,7 @@ enum class TraceInstance {
     ORDERBOOK,
     EVENTLOOP,
     A_EXCHANGE,
+    A_WRITER,
     A_KRAKEN,
     A_BINANCE,
     MAIN,  // For main function logging

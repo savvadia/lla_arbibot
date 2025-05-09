@@ -3,7 +3,6 @@
 #include <string>
 #include <unordered_map>
 #include <iostream>
-#include <iomanip>
 #include "tracer.h"
 
 using BalanceData = std::unordered_map<std::string, std::unordered_map<std::string, double>>;

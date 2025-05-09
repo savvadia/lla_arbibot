@@ -21,6 +21,7 @@
 #include <boost/beast/websocket/ssl.hpp>
 #include <boost/asio/strand.hpp>
 #include <nlohmann/json.hpp>
+#include <queue>
 
 namespace beast = boost::beast;
 namespace websocket = beast::websocket;
@@ -44,7 +45,7 @@ public:
 
     // Subscribe to order book updates for a trading pair
     virtual bool subscribeOrderBook() = 0;
-    bool resubscribeOrderBook();
+    virtual bool resubscribeOrderBook(const std::vector<TradingPair>& pairs) = 0;
 
     // Get order book snapshot for a trading pair
     virtual bool getOrderBookSnapshot(TradingPair pair) = 0;
@@ -109,17 +110,41 @@ public:
     virtual bool checkCooldownExpired();
     virtual void updateRateLimit(const std::string& endpoint, int limit, int remaining, int reset);
     
+    // Snapshot validity check
+    void startSnapshotValidityTimer();
+    void checkSnapshotValidity();
+    static void snapshotValidityCheckCallback(int id, void* data) {
+        auto* exchange = static_cast<ApiExchange*>(data);
+        exchange->checkSnapshotValidity();
+        exchange->startSnapshotValidityTimer();
+    }
+
 protected:
     struct SymbolState {
         bool subscribed{false};
-        bool hasSnapshot{false};
         int64_t lastUpdateId{0};
         bool hasProcessedFirstUpdate{false};  // Track if we've processed the first update after snapshot
+    private:
+        bool m_hasSnapshot{false};
+    public:
+        bool hasSnapshot() const { return m_hasSnapshot; }
+        void setHasSnapshot(bool value) { m_hasSnapshot = value; }
     };
 
     void doRead();
     void doWrite(std::string message);
+    void writeNext();
     virtual void processMessage(const std::string& message) = 0;
+
+    // Helper method to set snapshot state and manage timer
+    void setSymbolSnapshotState(TradingPair pair, bool hasSnapshot) {
+        symbolStates[pair].setHasSnapshot(hasSnapshot);
+        if (hasSnapshot) {
+            // Restart the snapshot validity check timer when we get a new snapshot
+            m_timersMgr.stopTimer(m_snapshotValidityTimerId);
+            startSnapshotValidityTimer();
+        }
+    }
 
     bool m_connected{false};
     bool m_subscribed{false};
@@ -130,7 +155,7 @@ protected:
     std::map<std::string, int> m_rateLimits;
     TimersMgr& m_timersMgr;
     OrderBookManager& m_orderBookManager;
-    uint64_t m_keepaliveTimerId;
+    uint64_t m_snapshotValidityTimerId;  // Timer ID for snapshot validity check
     
     // CURL callback functions
     static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
@@ -165,6 +190,11 @@ protected:
     }
 
     std::vector<TradingPair> m_pairs;
+
+    // WebSocket synchronization
+    std::mutex m_wsMutex;
+    std::queue<std::string> m_writeQueue;
+    bool m_isWriting{false};
 };
 
 // Factory function to create exchange API instances

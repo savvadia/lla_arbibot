@@ -29,6 +29,10 @@ public:
         return true; 
     }
 
+    bool resubscribeOrderBook(const std::vector<TradingPair>& pairs) override {
+        return true;
+    }
+
     bool getOrderBookSnapshot(TradingPair pair) override { 
         // In test mode, simulate getting a snapshot by updating the order book
         std::vector<PriceLevel> bids = {

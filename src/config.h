@@ -16,4 +16,8 @@ namespace Config {
 
     // Exchange settings
     constexpr int KRAKEN_CHECKSUM_CHECK_PERIOD = 10; // check checksum every 100th update as it is slow
+
+    // New configuration constants
+    constexpr int SNAPSHOT_VALIDITY_CHECK_INTERVAL_MS = 1000;  // Check every second
+    constexpr int SNAPSHOT_VALIDITY_TIMEOUT_MS = 7000;  // Snapshot is invalid after 5 seconds
 } 

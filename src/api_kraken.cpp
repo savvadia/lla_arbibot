@@ -77,38 +77,66 @@ std::string ApiKraken::tradingPairToSymbol(TradingPair pair) const {
     throw std::runtime_error("Unsupported trading pair");
 }
 
+bool ApiKraken::handleSubscribeUnsubscribe(const std::vector<TradingPair>& pairs, bool subscribe) {
+    if (pairs.empty()) {
+        ERROR("No pairs to subscribe/unsubscribe");
+        return false;
+    }
+    std::vector<std::string> symbols;
+    std::string symbolsStr;
+    for (const auto& pair : pairs) {
+        symbols.push_back(tradingPairToSymbol(pair));
+        symbolsStr += tradingPairToSymbol(pair) + ", ";
+
+        symbolStates[pair].subscribed = subscribe;
+    }
+
+    TRACE(subscribe ? "Subscribing to " : "Unsubscribing from ", symbolsStr);
+
+    json request = {
+        {"method", subscribe ? "subscribe" : "unsubscribe"},
+        {"params", {
+            {"channel", "book"},
+            {"symbol", symbols}
+        }}
+    };
+
+    try  {
+        doWrite(request.dump());
+        return true;
+    } catch (const std::exception& e) {
+        ERROR("Error ", subscribe ? "subscribing to" : "unsubscribing from", " order book: ", e.what());
+        return false;
+    }
+}
 bool ApiKraken::subscribeOrderBook() {
+    return handleSubscribeUnsubscribe(m_pairs, true);
+}
+
+bool ApiKraken::resubscribeOrderBook(const std::vector<TradingPair>& pairs) {
     if (!m_connected) {
         ERROR("Not connected to Kraken");
         return false;
     }
-
-    TRACE("Subscribing to Kraken order book for ", m_pairs.size(), " pairs");
-    std::vector<std::string> symbols;
-    for (const auto& pair : m_pairs) {
-        TRACE("Subscribing to Kraken order book for ", pair);
-        symbols.push_back(tradingPairToSymbol(pair));
+    std::vector<TradingPair> pairsToUnsubscribe;
+    for (const auto& pair : pairs) {
+        // if subscribed, unsubscribe
+        if (symbolStates[pair].subscribed) {
+            pairsToUnsubscribe.push_back(pair);
+        }
     }
 
-    try {
-        // kraken doesn't support subscription for best bid/ask only
-        // so we need to subscribe to the order book
-        json subscription = {
-            {"method", "subscribe"},
-            {"params", {
-                {"channel", "book"},
-                {"symbol", symbols},
-                {"depth", 10}
-            }}
-        };
-
-        TRACE("Subscribing to Kraken order book: ", subscription.dump());
-        doWrite(subscription.dump());
-        return true;
-    } catch (const std::exception& e) {
-        ERROR("Error subscribing to order book: ", e.what());
+    // unsubscribe first
+    if (pairsToUnsubscribe.size() > 0 && !handleSubscribeUnsubscribe(pairsToUnsubscribe, false)) {
+        ERROR("Failed to unsubscribe from Kraken order book");
         return false;
     }
+    // subscribe again
+    if (!handleSubscribeUnsubscribe(pairs, true)) {
+        ERROR("Failed to subscribe to Kraken order book");
+        return false;
+    }
+    return true;
 }
 
 bool ApiKraken::getOrderBookSnapshot(TradingPair pair) {
@@ -257,18 +285,18 @@ void ApiKraken::processOrderBookUpdate(const json& data) {
                 "\nCurrent bids: ", book.traceBidsAsks(currentBids), 
                 "\nUpdate data: ", data.dump());
 
-            if (!resubscribeOrderBook()) {
+            if (!resubscribeOrderBook({pair})) {
                 ERROR("Failed to resubscribe after checksum mismatch for ", symbol);
                 return;
             }
-            ERROR("RESTORED after error. Reconnected and resubscribed for ", symbol, " after checksum mismatch");
+            ERROR("RESTORED after error. Resubscribed for ", symbol, " after checksum mismatch");
             return;
         }
 
         if (isCompleteUpdate) {
-            auto& state = symbolStates[pair];
-            state.hasSnapshot = true;
-            TRACE("Snapshot received for ", symbol);
+            // Mark that we have a snapshot for this symbol
+            setSymbolSnapshotState(pair, true);
+            TRACE("Got order book snapshot for ", symbol);
         }
     } catch (const std::exception& e) {
         ERROR("Error processing order book update: ", e.what());

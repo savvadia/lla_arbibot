@@ -31,6 +31,7 @@ public:
 
     // Subscribe to order book updates for a trading pair
     bool subscribeOrderBook() override;
+    bool resubscribeOrderBook(const std::vector<TradingPair>& pairs) override;
 
     // Get current order book snapshot
     bool getOrderBookSnapshot(TradingPair pair) override;

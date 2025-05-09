@@ -95,6 +95,7 @@ std::string_view FastTraceLogger::traceTypeToStr(TraceInstance type) {
         case TraceInstance::ORDERBOOK:  return "ORDERBOOK";
         case TraceInstance::EVENTLOOP:  return "EVENTLOOP";
         case TraceInstance::A_EXCHANGE: return "A_EXCHANGE";
+        case TraceInstance::A_WRITER:   return "A_WRITER";
         case TraceInstance::A_KRAKEN:   return "A_KRAKEN";
         case TraceInstance::A_BINANCE:  return "A_BINANCE";
         case TraceInstance::MAIN:       return "MAIN";

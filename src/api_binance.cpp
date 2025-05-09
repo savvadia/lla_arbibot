@@ -144,9 +144,12 @@ void ApiBinance::processOrderBookUpdate(const json& data) {
         }
 
         auto& state = symbolStates[pair];
-        if (!state.hasSnapshot) {
-            TRACE("Skipping update for ", symbol, " - no snapshot yet");
-            return;
+        if (!state.hasSnapshot()) {
+            TRACE("No snapshot for ", symbol, " yet, requesting...");
+            if (!getOrderBookSnapshot(pair)) {
+                ERROR("Failed to get order book snapshot for ", symbol);
+                return;
+            }
         }
 
         // Check if this update is after our last snapshot
@@ -219,6 +222,10 @@ void ApiBinance::processOrderBookUpdate(const json& data) {
             TRACE("First ask: ", (asks.empty() ? "none" : std::to_string(asks[0].price) + "@" + std::to_string(asks[0].quantity)));
             m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
         }
+
+        // Mark that we have a snapshot for this symbol
+        setSymbolSnapshotState(pair, true);
+        TRACE("Got order book snapshot for ", symbol);
     } catch (const std::exception& e) {
         ERROR("Error processing order book update: ", e.what());
     }
@@ -230,7 +237,7 @@ void ApiBinance::processOrderBookSnapshot(const json& data, TradingPair pair) {
 
         auto& state = symbolStates[pair];
         state.lastUpdateId = data["lastUpdateId"];
-        state.hasSnapshot = true;
+        state.setHasSnapshot(true);
         
         std::vector<PriceLevel> bids;
         std::vector<PriceLevel> asks;
@@ -257,13 +264,18 @@ void ApiBinance::processOrderBookSnapshot(const json& data, TradingPair pair) {
         if (!bids.empty() || !asks.empty()) {
             TRACE("Updating order book for ", tradingPairToSymbol(pair), " with ", bids.size(), " bids and ", asks.size(), " asks");
             m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
+            
+            TRACE("Processed order book snapshot for ", tradingPairToSymbol(pair),
+                " last update: ", m_orderBookManager.getOrderBook(ExchangeId::BINANCE, pair).getLastUpdate());
+            if (m_snapshotCallback) {
+                m_snapshotCallback(true);
+            }
+
+            // Reset subscription state
+            setSymbolSnapshotState(pair, true);
+            TRACE("Subscription state for ", tradingPairToSymbol(pair), ": subscribed=", state.subscribed, " hasSnapshot=", state.hasSnapshot());
         }
         
-        TRACE("Processed order book snapshot for ", tradingPairToSymbol(pair),
-            " last update: ", m_orderBookManager.getOrderBook(ExchangeId::BINANCE, pair).getLastUpdate());
-        if (m_snapshotCallback) {
-            m_snapshotCallback(true);
-        }
     } catch (const std::exception& e) {
         ERROR("Error processing order book snapshot: ", e.what());
         if (m_snapshotCallback) {
@@ -367,8 +379,8 @@ bool ApiBinance::subscribeOrderBook() {
             auto& state = symbolStates[pair];
             std::string symbol = tradingPairToSymbol(pair);    
             state.subscribed = true;
-            state.hasSnapshot = false;
-            TRACE("Subscription state for ", symbol, ": subscribed=", state.subscribed, " hasSnapshot=", state.hasSnapshot);
+            state.setHasSnapshot(false);
+            TRACE("Subscription state for ", symbol, ": subscribed=", state.subscribed, " hasSnapshot=", state.hasSnapshot());
         }
         
         return true;
@@ -376,6 +388,15 @@ bool ApiBinance::subscribeOrderBook() {
         ERROR("Error subscribing to order book: ", e.what());
         return false;
     }
+}
+
+bool ApiBinance::resubscribeOrderBook(const std::vector<TradingPair>& pairs) {
+    if (!m_connected) {
+        TRACE("Not connected to Binance");
+        return false;
+    }
+    ERROR("Not implemented: resubscribeOrderBook");
+    return false;
 }
 
 bool ApiBinance::getOrderBookSnapshot(TradingPair pair) {
