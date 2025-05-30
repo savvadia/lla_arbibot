@@ -16,8 +16,11 @@
 void snapshotValidityCheckCallback(int id, void* data) {
     auto* exchange = static_cast<ApiExchange*>(data);
     TRACE_BASE(TraceInstance::A_EXCHANGE, exchange->getExchangeId(), "Checking snapshot validity");
-    exchange->checkSnapshotValidity();
-    exchange->startSnapshotValidityTimer();
+    if(exchange->checkSnapshotValidity() == ApiExchange::SnapshotRestoring::IN_PROGRESS) {
+        exchange->startSnapshotValidityTimer(Config::SNAPSHOT_VALIDITY_CHECK_INTERVAL_PROLONGED_MS);
+    } else {
+        exchange->startSnapshotValidityTimer();
+    }
 }
 
 ApiExchange::ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
@@ -457,18 +460,20 @@ void ApiExchange::setBalanceCallback(std::function<void(bool)> callback) {
     m_balanceCallback = callback;
 }
 
-void ApiExchange::startSnapshotValidityTimer() {
+void ApiExchange::startSnapshotValidityTimer(int intervalMs) {
     m_snapshotValidityTimerId = m_timersMgr.addTimer(
-        Config::SNAPSHOT_VALIDITY_CHECK_INTERVAL_MS,
+        intervalMs,
         snapshotValidityCheckCallback,
         this,
         TimerType::EXCHANGE_CHECK_SNAPSHOT_VALIDITY
     );
 }
 
-void ApiExchange::checkSnapshotValidity() {
+ApiExchange::SnapshotRestoring ApiExchange::checkSnapshotValidity() {
     if (!m_connected) {
-        return;
+        ERROR_CNT(CountableTrace::A_EXCHANGE_NOT_CONNECTED,
+            getExchangeName(), ": Not connected to ", getExchangeName(), ". Skipping snapshot validity check");
+        return ApiExchange::SnapshotRestoring::NONE;
     }
 
     auto now = std::chrono::system_clock::now();
@@ -477,7 +482,7 @@ void ApiExchange::checkSnapshotValidity() {
     for (const auto& pair : m_pairs) {
         auto& state = symbolStates[pair];
         if (!state.hasSnapshot()) {
-            ERROR_CNT(CountableTrace::A_EXCHANGE_SNAPSHOT_MISSING, pair);
+            ERROR_CNT(CountableTrace::A_EXCHANGE_SNAPSHOT_MISSING, pair, ": Snapshot missing");
             needResubscribe.push_back(pair);
             continue;
         }
@@ -487,7 +492,8 @@ void ApiExchange::checkSnapshotValidity() {
         auto timeSinceLastUpdate = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate).count();
 
         if (timeSinceLastUpdate > Config::SNAPSHOT_VALIDITY_TIMEOUT_MS) {
-            ERROR("Snapshot for ", pair, " is stale (", timeSinceLastUpdate, "ms old). Resubscribing...");
+            ERROR_CNT(CountableTrace::A_EXCHANGE_SNAPSHOT_STALE,
+                pair, ": Snapshot for ", pair, " is stale (", timeSinceLastUpdate, "ms old). Resubscribing...");
             setSymbolSnapshotState(pair, false);
             needResubscribe.push_back(pair);
             needResubscribeStr << pair << ", ";
@@ -499,5 +505,8 @@ void ApiExchange::checkSnapshotValidity() {
     if (!needResubscribe.empty()) {
         resubscribeOrderBook(needResubscribe);
         TRACE("re-subscribed: ", needResubscribeStr.str());
+        return ApiExchange::SnapshotRestoring::IN_PROGRESS;
     }
+
+    return ApiExchange::SnapshotRestoring::NONE;
 }

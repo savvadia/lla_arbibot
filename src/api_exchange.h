@@ -111,8 +111,13 @@ public:
     virtual void updateRateLimit(const std::string& endpoint, int limit, int remaining, int reset);
     
     // Snapshot validity check
-    void startSnapshotValidityTimer();
-    void checkSnapshotValidity();
+    enum class SnapshotRestoring {
+        NONE,
+        IN_PROGRESS,
+    };
+    SnapshotRestoring m_snapshotRestoring;
+    void startSnapshotValidityTimer(int intervalMs = Config::SNAPSHOT_VALIDITY_CHECK_INTERVAL_MS);
+    SnapshotRestoring checkSnapshotValidity();
     static void snapshotValidityCheckCallback(int id, void* data) {
         auto* exchange = static_cast<ApiExchange*>(data);
         exchange->checkSnapshotValidity();
@@ -190,6 +195,7 @@ protected:
     std::string m_host;
     std::string m_port;
     std::string m_restEndpoint;
+    std::string m_wsHost;
     std::string m_wsEndpoint;
 
     int getPricePrecision(TradingPair pair) const {
