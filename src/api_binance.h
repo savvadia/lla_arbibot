@@ -1,26 +1,17 @@
 #pragma once
 
 #include "api_exchange.h"
-#include "orderbook.h"
-#include "trading_pair_format.h"
+#include "orderbook_mgr.h"
 #include "timers.h"
 #include <string>
-#include <functional>
-#include <memory>
-#include <thread>
 #include <boost/beast/core.hpp>
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/websocket.hpp>
 #include <boost/beast/websocket/ssl.hpp>
 #include <boost/asio/strand.hpp>
 #include <nlohmann/json.hpp>
-#include <map>
 #include <curl/curl.h>
 
-namespace beast = boost::beast;
-namespace websocket = beast::websocket;
-namespace net = boost::asio;
-namespace ssl = boost::asio::ssl;
 using tcp = boost::asio::ip::tcp;
 using json = nlohmann::json;
 

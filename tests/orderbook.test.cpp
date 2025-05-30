@@ -1,12 +1,9 @@
 #include <gtest/gtest.h>
-#include "../src/orderbook.h"
+#include "../src/orderbook_mgr.h"
 #include "../src/tracer.h"
 #include <vector>
 #include <thread>
 #include <chrono>
-#include <atomic>
-
-#include "../src/tracer.h"
 
 using namespace std;
 
