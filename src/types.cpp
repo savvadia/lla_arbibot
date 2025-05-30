@@ -7,7 +7,9 @@ const std::array<TradingPairInfo, static_cast<size_t>(TradingPair::COUNT)>
 TradingPairData::pairData = {{
     {"UNKNOWN", "UNKNOWN", "UNKNOWN", 8, {}},
     {"ADA/USDT", "ADA", "USDT", 6, {{ExchangeId::BINANCE, "ADAUSDT"}, {ExchangeId::KRAKEN, "ADA/USD"}}},
+    {"ALGO/USDT", "ALGO", "USDT", 5, {{ExchangeId::BINANCE, "ALGOUSDT"}, {ExchangeId::KRAKEN, "ALGO/USD"}}},
     {"ATOM/USDT", "ATOM", "USDT", 4, {{ExchangeId::BINANCE, "ATOMUSDT"}, {ExchangeId::KRAKEN, "ATOM/USD"}}},
+    {"AVAX/USDT", "AVAX", "USDT", 2, {{ExchangeId::BINANCE, "AVAXUSDT"}, {ExchangeId::KRAKEN, "AVAX/USD"}}},
     {"BCH/USDT", "BCH", "USDT", 2, {{ExchangeId::BINANCE, "BCHUSDT"}, {ExchangeId::KRAKEN, "BCH/USD"}}},
     {"BTC/USDT", "BTC", "USDT", 1, {{ExchangeId::BINANCE, "BTCUSDT"}, {ExchangeId::KRAKEN, "BTC/USD"}}},
     {"DOGE/USDT", "DOGE", "USDT", 7, {{ExchangeId::BINANCE, "DOGEUSDT"}, {ExchangeId::KRAKEN, "DOGE/USD"}}},

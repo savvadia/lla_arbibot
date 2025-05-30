@@ -40,7 +40,9 @@ struct TradingPairCoins {
 enum class TradingPair {
     UNKNOWN = 0,
     ADA_USDT,
+    ALGO_USDT,
     ATOM_USDT,
+    AVAX_USDT,
     BCH_USDT,
     BTC_USDT,
     DOGE_USDT,

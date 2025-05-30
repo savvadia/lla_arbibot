@@ -186,7 +186,6 @@ protected:
     std::thread m_thread;
     CURL* m_curl{nullptr};
 
-    std::map<TradingPair, std::string> m_symbolMap;
     std::map<TradingPair, SymbolState> symbolStates;
     std::string m_host;
     std::string m_port;
