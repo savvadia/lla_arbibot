@@ -32,9 +32,7 @@ inline std::ostream& operator<<(std::ostream& os, ExchangeId id) {
 enum class TradingPair {
     UNKNOWN = 0,
     ADA_USDT,
-    ALGO_USDT,
     ATOM_USDT,
-    AVAX_USDT,
     BCH_USDT,
     BTC_USDT,
     DOGE_USDT,
@@ -52,9 +50,7 @@ enum class TradingPair {
 inline const char* toString(TradingPair pair) {
     switch (pair) {
         case TradingPair::ADA_USDT: return "ADA/USDT";
-        case TradingPair::ALGO_USDT: return "ALGO/USDT";
         case TradingPair::ATOM_USDT: return "ATOM/USDT";
-        case TradingPair::AVAX_USDT: return "AVAX/USDT";
         case TradingPair::BCH_USDT: return "BCH/USDT";
         case TradingPair::BTC_USDT: return "BTC/USDT";
         case TradingPair::DOGE_USDT: return "DOGE/USDT";
@@ -111,9 +107,7 @@ public:
     static int getPrecision(TradingPair pair) {
         switch (pair) {
             case TradingPair::ADA_USDT: return 6;   // ADA
-            case TradingPair::ALGO_USDT: return 5;  // ALGO
             case TradingPair::ATOM_USDT: return 4;  // ATOM
-            case TradingPair::AVAX_USDT: return 2;  // AVAX
             case TradingPair::BCH_USDT: return 2;   // BCH
             case TradingPair::BTC_USDT: return 1;   // BTC
             case TradingPair::DOGE_USDT: return 7;  // DOGE

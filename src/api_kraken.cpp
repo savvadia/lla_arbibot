@@ -31,9 +31,7 @@ ApiKraken::ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
     REST_ENDPOINT, "/v2", pairs, testMode) {
     // Initialize symbol map
     m_symbolMap[TradingPair::ADA_USDT] = "ADA/USD";
-    m_symbolMap[TradingPair::ALGO_USDT] = "ALGO/USD";
     m_symbolMap[TradingPair::ATOM_USDT] = "ATOM/USD";
-    m_symbolMap[TradingPair::AVAX_USDT] = "AVAX/USD";
     m_symbolMap[TradingPair::BCH_USDT] = "BCH/USD";
     m_symbolMap[TradingPair::BTC_USDT] = "BTC/USD";
     m_symbolMap[TradingPair::DOGE_USDT] = "DOGE/USD";
@@ -52,9 +50,7 @@ TradingPair ApiKraken::symbolToTradingPair(const std::string& symbol) const {
     std::transform(lowerSymbol.begin(), lowerSymbol.end(), lowerSymbol.begin(), ::tolower);
 
     if (lowerSymbol == "ada/usd" || lowerSymbol == "adausd") return TradingPair::ADA_USDT;
-    if (lowerSymbol == "algo/usd" || lowerSymbol == "algousd") return TradingPair::ALGO_USDT;
     if (lowerSymbol == "atom/usd" || lowerSymbol == "atomusd") return TradingPair::ATOM_USDT;
-    if (lowerSymbol == "avax/usd" || lowerSymbol == "avaxusd") return TradingPair::AVAX_USDT;
     if (lowerSymbol == "bch/usd" || lowerSymbol == "bchusd") return TradingPair::BCH_USDT;
     if (lowerSymbol == "btc/usd" || lowerSymbol == "btcczusd") return TradingPair::BTC_USDT;
     if (lowerSymbol == "dot/usd" || lowerSymbol == "dotusd") return TradingPair::DOT_USDT;
@@ -223,7 +219,7 @@ void ApiKraken::processOrderBookUpdate(const json& data) {
             ERROR("Unknown trading pair: ", symbol, " - ", data.dump().substr(0, 300));
             return;
         }
-        TRACE("Processing order book ", data["type"], " for ", symbol, " - ", data.dump().substr(0, 3000));  
+        DEBUG("Processing order book ", data["type"], " for ", symbol, " - ", data.dump().substr(0, 3000));  
     } catch (const std::exception& e) {
         ERROR("Error processing order book update: ", e.what());
         return;
@@ -274,7 +270,7 @@ void ApiKraken::processOrderBookUpdate(const json& data) {
             uint32_t currentChecksum = computeChecksum(currentChecksumStr);
 
             // Print detailed debug info
-            ERROR_CNT(CountableTrace::A_KRAKEN_ORDERBOOK_CHECKSUM_CHECK,    
+            TRACE_CNT(CountableTrace::A_KRAKEN_ORDERBOOK_CHECKSUM_CHECK,    
                 "Invalid order book checksum for ", symbol, "\n"
                 "Previous checksum: ", prevChecksum, "\n"
                 "Received checksum: ", receivedChecksum, "\n",  
@@ -289,7 +285,8 @@ void ApiKraken::processOrderBookUpdate(const json& data) {
                 ERROR("Failed to resubscribe after checksum mismatch for ", symbol);
                 return;
             }
-            ERROR("RESTORED after error. Resubscribed for ", symbol, " after checksum mismatch");
+            ERROR_CNT(CountableTrace::A_KRAKEN_CHECKSUM_MISMATCH_RESTORED,
+                "Resubscribed for ", symbol, " after checksum mismatch");
             return;
         }
 
@@ -355,8 +352,11 @@ bool ApiKraken::isOrderBookValid(TradingPair pair, uint32_t receivedChecksum) {
     
     if (localChecksum != receivedChecksum) {
         ERROR_CNT(CountableTrace::A_KRAKEN_ORDERBOOK_CHECKSUM_CHECK2,
-            "Invalid order book checksum: ", receivedChecksum, " local: ", localChecksum, " for ", pair, " - [", str, "]");
+            "Invalid order book checksum: ", receivedChecksum, " local: ", localChecksum, " for ", pair, " - [", str, "] ");
         return false;
+    } else {
+        TRACE_CNT(CountableTrace::A_KRAKEN_ORDERBOOK_CHECKSUM_CHECK_OK, "[", pair, "]",
+            "Valid order book checksum: ", receivedChecksum);
     }
     return true;
 }

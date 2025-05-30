@@ -29,9 +29,7 @@ ApiBinance::ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
         pairs, testMode) {
     // Initialize symbol map
     m_symbolMap[TradingPair::ADA_USDT] = "ADAUSDT";
-    m_symbolMap[TradingPair::ALGO_USDT] = "ALGOUSDT";
     m_symbolMap[TradingPair::ATOM_USDT] = "ATOMUSDT";
-    m_symbolMap[TradingPair::AVAX_USDT] = "AVAXUSDT";
     m_symbolMap[TradingPair::BCH_USDT] = "BCHUSDT";
     m_symbolMap[TradingPair::BTC_USDT] = "BTCUSDT";
     m_symbolMap[TradingPair::DOGE_USDT] = "DOGEUSDT";
@@ -50,9 +48,7 @@ TradingPair ApiBinance::symbolToTradingPair(const std::string& symbol) const {
     std::transform(lowerSymbol.begin(), lowerSymbol.end(), lowerSymbol.begin(), ::tolower);
 
     if (lowerSymbol == "adausdt") return TradingPair::ADA_USDT;
-    if (lowerSymbol == "algousdt") return TradingPair::ALGO_USDT;
     if (lowerSymbol == "atomusdt") return TradingPair::ATOM_USDT;
-    if (lowerSymbol == "avaxusdt") return TradingPair::AVAX_USDT;
     if (lowerSymbol == "bchusdt") return TradingPair::BCH_USDT;
     if (lowerSymbol == "btcusdt") return TradingPair::BTC_USDT;
     if (lowerSymbol == "dogeusdt") return TradingPair::DOGE_USDT;
@@ -237,7 +233,7 @@ void ApiBinance::processOrderBookSnapshot(const json& data, TradingPair pair) {
 
         auto& state = symbolStates[pair];
         state.lastUpdateId = data["lastUpdateId"];
-        state.setHasSnapshot(true);
+        setSymbolSnapshotState(pair, true);
         
         std::vector<PriceLevel> bids;
         std::vector<PriceLevel> asks;
@@ -379,7 +375,7 @@ bool ApiBinance::subscribeOrderBook() {
             auto& state = symbolStates[pair];
             std::string symbol = tradingPairToSymbol(pair);    
             state.subscribed = true;
-            state.setHasSnapshot(false);
+            setSymbolSnapshotState(pair, false);
             TRACE("Subscription state for ", symbol, ": subscribed=", state.subscribed, " hasSnapshot=", state.hasSnapshot());
         }
         
