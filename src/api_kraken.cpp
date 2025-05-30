@@ -351,7 +351,7 @@ bool ApiKraken::isOrderBookValid(TradingPair pair, uint32_t receivedChecksum) {
     uint32_t localChecksum = computeChecksum(str);
     
     if (localChecksum != receivedChecksum) {
-        ERROR_CNT(CountableTrace::A_KRAKEN_ORDERBOOK_CHECKSUM_CHECK2,
+        TRACE_CNT(CountableTrace::A_KRAKEN_ORDERBOOK_CHECKSUM_CHECK2,
             "Invalid order book checksum: ", receivedChecksum, " local: ", localChecksum, " for ", pair, " - [", str, "] ");
         return false;
     } else {

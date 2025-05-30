@@ -47,11 +47,20 @@ public:
     
     ~OrderBook() = default;
 
+    enum class UpdateOutcome {
+        BEST_PRICES_CHANGED,
+        NO_CHANGES_TO_BEST_PRICES,
+        UPDATE_ERROR
+    };
+
     // Update the order book with new price levels (assumes sorted input)
-    void update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>& newAsks, bool isCompleteUpdate = false, int maxDepth = 10);
+    UpdateOutcome update(TradingPair pair,
+                        std::vector<PriceLevel>& newBids,
+                        std::vector<PriceLevel>& newAsks,
+                        bool isCompleteUpdate = false, int maxDepth = 10);
 
     // Set best bid and ask prices directly (for bookTicker style updates)
-    void setBestBidAsk(double bidPrice, double bidQuantity, double askPrice, double askQuantity);
+    UpdateOutcome setBestBidAsk(double bidPrice, double bidQuantity, double askPrice, double askQuantity);
 
     // Get best bid price
     double getBestBid() const {

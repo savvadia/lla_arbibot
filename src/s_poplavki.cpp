@@ -113,7 +113,7 @@ void StrategyPoplavki::scanOpportunities() {
         for (size_t j = i + 1; j < exchangeIds.size(); ++j) {
             // Try both directions
             Opportunity opp1 = calculateProfit(exchangeIds[i], exchangeIds[j], pair);
-            if (opp1.amount > 0 && opp1.profit() > Config::MIN_MARGIN) {
+            if (opp1.amount > 0 && opp1.profit() > Config::MIN_TRACEABLE_MARGIN) {
                 DEBUG("Found opportunity: ", opp1);
                 // TODO: Execute opportunity
                 if (bestOpportunity1.amount == 0 || opp1.profit() > bestOpportunity1.profit()) {
@@ -122,10 +122,13 @@ void StrategyPoplavki::scanOpportunities() {
                 } else {
                     DEBUG("Best seen opportunity is better: ", bestOpportunity1, " vs ", opp1);
                 }
+                if (bestOpportunity1.profit() > Config::MIN_MARGIN) {
+                    TRACE("EXECUTABLE: Best seen opportunity: ", bestOpportunity1);
+                }
             }
 
             Opportunity opp2 = calculateProfit(exchangeIds[j], exchangeIds[i], pair);
-            if (opp2.amount > 0 && opp2.profit() > Config::MIN_MARGIN) {
+            if (opp2.amount > 0 && opp2.profit() > Config::MIN_TRACEABLE_MARGIN) {
                 DEBUG("Found opportunity: ", opp2);
                 // TODO: Execute opportunity
                 if (bestOpportunity2.amount == 0 || opp2.profit() > bestOpportunity2.profit()) {
@@ -134,7 +137,9 @@ void StrategyPoplavki::scanOpportunities() {
                 } else {
                     DEBUG("Best seen opportunity is better: ", bestOpportunity2, " vs ", opp2);
                 }
-
+                if (bestOpportunity2.profit() > Config::MIN_MARGIN) {
+                    TRACE("EXECUTABLE: Best seen opportunity: ", bestOpportunity2);
+                }
             }
         }
     }

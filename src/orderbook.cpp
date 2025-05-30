@@ -154,7 +154,7 @@ void OrderBook::mergeSortedLists(std::vector<PriceLevel>& oldList, std::vector<P
         isBid ? " bids" : " asks", " ", traceBidsAsks(oldList));
 }
 
-void OrderBook::update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>& newAsks, bool isCompleteUpdate, int maxDepth) {
+OrderBook::UpdateOutcome OrderBook::update(TradingPair pair, std::vector<PriceLevel>& newBids, std::vector<PriceLevel>& newAsks, bool isCompleteUpdate, int maxDepth) {
     BestPrices oldPrices = getBestPrices();
     bool pricesChanged = false;
     TRACE("OrderBook update - Bids: ", newBids.size(), " Asks: ", newAsks.size(), " Complete update: ", isCompleteUpdate);
@@ -170,8 +170,8 @@ void OrderBook::update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>
             
             // Validate bids are sorted in descending order
             if (!newBids.empty() && newBids.front().price < newBids.back().price) {
-                ERROR("Bids are not sorted in descending order");
-                return;
+                ERROR(pair, ": Bids are not sorted in descending order");
+                return UpdateOutcome::UPDATE_ERROR;
             }
             
             // Process bids (descending order)
@@ -183,8 +183,8 @@ void OrderBook::update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>
             
             // Validate asks are sorted in ascending order
             if (!newAsks.empty() && newAsks.front().price > newAsks.back().price) {
-                ERROR("Asks are not sorted in ascending order");
-                return;
+                ERROR(pair, ": Asks are not sorted in ascending order");
+                return UpdateOutcome::UPDATE_ERROR;
             }
             
             // Process asks (ascending order)
@@ -203,7 +203,7 @@ void OrderBook::update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>
             mergeSortedLists(asks, newAsks, false);
             bids.resize(std::min(size_t(maxDepth), bids.size()));
             asks.resize(std::min(size_t(maxDepth), asks.size()));
-            DEBUG("After merge - Bids size: ", bids.size(), " ask size: ", asks.size());
+            DEBUG(pair, ": After merge - Bids size: ", bids.size(), " ask size: ", asks.size());
         }
         
         // Check if prices changed
@@ -211,17 +211,21 @@ void OrderBook::update(std::vector<PriceLevel>& newBids, std::vector<PriceLevel>
         pricesChanged = hasPricesChanged(oldPrices, newPrices);
     }
     
+    {
+        MUTEX_LOCK(mutex);
+        lastUpdate = std::chrono::system_clock::now();
+    }
+
     // Update lastUpdate only if prices changed
     if (pricesChanged) {
-        {
-            MUTEX_LOCK(mutex);
-            lastUpdate = std::chrono::system_clock::now();
-        }
-        TRACE("Order book updated");
+        TRACE(pair, ": Order book updated - Best prices changed");
+        return UpdateOutcome::BEST_PRICES_CHANGED;
     }
+    DEBUG(pair, ": Order book updated - No changes to best prices");
+    return UpdateOutcome::NO_CHANGES_TO_BEST_PRICES;
 }
 
-void OrderBook::setBestBidAsk(double bidPrice, double bidQuantity, double askPrice, double askQuantity) {
+OrderBook::UpdateOutcome OrderBook::setBestBidAsk(double bidPrice, double bidQuantity, double askPrice, double askQuantity) {
     BestPrices oldPrices = getBestPrices();
     bool pricesChanged = false;
     DEBUG("setBestBidAsk - Bid: ", bidPrice, "@", bidQuantity, " Ask: ", askPrice, "@", askQuantity);
@@ -261,15 +265,19 @@ void OrderBook::setBestBidAsk(double bidPrice, double bidQuantity, double askPri
     BestPrices newPrices = getBestPrices();
     pricesChanged = hasPricesChanged(oldPrices, newPrices);
     
+    {
+        MUTEX_LOCK(mutex);
+        lastUpdate = std::chrono::system_clock::now();
+    }
+
     // Update lastUpdate only if prices changed
     if (pricesChanged) {
-        {
-            MUTEX_LOCK(mutex);
-            lastUpdate = std::chrono::system_clock::now();
-        }
+        
         // no traces under nutex
         TRACE("setBestBidAsk updated - b/a: ", bidPrice, "@", bidQuantity, " ", askPrice, "@", askQuantity, " u: ", lastUpdate);
+        return UpdateOutcome::BEST_PRICES_CHANGED;
     }
+    return UpdateOutcome::NO_CHANGES_TO_BEST_PRICES;
 }
 
 OrderBookManager::OrderBookManager() {
@@ -287,20 +295,21 @@ void OrderBookManager::updateOrderBook(ExchangeId exchangeId, TradingPair pair, 
         MUTEX_LOCK(mutex);
     
         auto& book = orderBooks[exchangeId][pair];
-        std::chrono::system_clock::time_point prevLastUpdate = book.getLastUpdate();
         
         // Update the order book
-        book.update(bids, asks, isCompleteUpdate, maxDepth);
+        auto result = book.update(pair, bids, asks, isCompleteUpdate, maxDepth);
+        if(result == OrderBook::UpdateOutcome::UPDATE_ERROR) {
+            return;
+        }
         
         // Only trigger callback if the lastUpdate timestamp changed
-        if (book.getLastUpdate() > prevLastUpdate) {
+        if (result == OrderBook::UpdateOutcome::BEST_PRICES_CHANGED) {
             changed = true;
         }
 
         NOTICE("Update order book - Exchange: ", exchangeId, " Pair: ", pair, 
                " calling callback: ", changed, 
-               " last update: ", prevLastUpdate, 
-               " new update: ", book.getLastUpdate());
+               " updated: ", book.getLastUpdate());
     }
 
     if (changed) {        
@@ -319,13 +328,15 @@ void OrderBookManager::updateOrderBookBestBidAsk(ExchangeId exchangeId, TradingP
         MUTEX_LOCK(mutex);
     
         auto& book = orderBooks[exchangeId][pair];
-        std::chrono::system_clock::time_point lastUpdate = book.getLastUpdate();
         
         // Update the order book with best bid/ask
-        book.setBestBidAsk(bidPrice, bidQuantity, askPrice, askQuantity);
+        auto result = book.setBestBidAsk(bidPrice, bidQuantity, askPrice, askQuantity);
+        if(result == OrderBook::UpdateOutcome::UPDATE_ERROR) {
+            return;
+        }
         
         // Only trigger callback if the lastUpdate timestamp changed
-        if (book.getLastUpdate() > lastUpdate) {
+        if (result == OrderBook::UpdateOutcome::BEST_PRICES_CHANGED) {
             changed = true;
         }
 
@@ -333,15 +344,14 @@ void OrderBookManager::updateOrderBookBestBidAsk(ExchangeId exchangeId, TradingP
                " Bid: ", bidPrice, "@", bidQuantity,
                " Ask: ", askPrice, "@", askQuantity,
                " calling callback: ", changed, 
-               " last update: ", lastUpdate, 
-               " new update: ", book.getLastUpdate());
+               " updated: ", book.getLastUpdate());
     }
 
     if (changed) {        
-    if (updateCallback) {
-            TRACE("Calling update callback for exchange: ", exchangeId, " pair: ", pair);
-            updateCallback(exchangeId, pair);
-    } else {
+        if (updateCallback) {
+                TRACE("Calling update callback for exchange: ", exchangeId, " pair: ", pair);
+                updateCallback(exchangeId, pair);
+        } else {
             TRACE("No update callback for exchange: ", exchangeId, " pair: ", pair);
         }
     }
