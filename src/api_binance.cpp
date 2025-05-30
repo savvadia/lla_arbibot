@@ -27,48 +27,6 @@ ApiBinance::ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
         : ApiExchange(orderBookManager, timersMgr,  
         "stream.binance.com", "9443", REST_ENDPOINT, "/ws/stream",
         pairs, testMode) {
-    // Initialize symbol map
-    m_symbolMap[TradingPair::ADA_USDT] = "ADAUSDT";
-    m_symbolMap[TradingPair::ATOM_USDT] = "ATOMUSDT";
-    m_symbolMap[TradingPair::BCH_USDT] = "BCHUSDT";
-    m_symbolMap[TradingPair::BTC_USDT] = "BTCUSDT";
-    m_symbolMap[TradingPair::DOGE_USDT] = "DOGEUSDT";
-    m_symbolMap[TradingPair::DOT_USDT] = "DOTUSDT";
-    m_symbolMap[TradingPair::EOS_USDT] = "EOSUSDT";
-    m_symbolMap[TradingPair::ETH_USDT] = "ETHUSDT";
-    m_symbolMap[TradingPair::LINK_USDT] = "LINKUSDT";
-    m_symbolMap[TradingPair::SOL_USDT] = "SOLUSDT";
-    m_symbolMap[TradingPair::XRP_USDT] = "XRPUSDT";
-    m_symbolMap[TradingPair::XTZ_USDT] = "XTZUSDT";
-}
-
-// Binance-specific symbol mapping
-TradingPair ApiBinance::symbolToTradingPair(const std::string& symbol) const {
-    std::string lowerSymbol = symbol;
-    std::transform(lowerSymbol.begin(), lowerSymbol.end(), lowerSymbol.begin(), ::tolower);
-
-    if (lowerSymbol == "adausdt") return TradingPair::ADA_USDT;
-    if (lowerSymbol == "atomusdt") return TradingPair::ATOM_USDT;
-    if (lowerSymbol == "bchusdt") return TradingPair::BCH_USDT;
-    if (lowerSymbol == "btcusdt") return TradingPair::BTC_USDT;
-    if (lowerSymbol == "dogeusdt") return TradingPair::DOGE_USDT;
-    if (lowerSymbol == "dotusdt") return TradingPair::DOT_USDT;
-    if (lowerSymbol == "eosusdt") return TradingPair::EOS_USDT;
-    if (lowerSymbol == "ethusdt") return TradingPair::ETH_USDT;
-    if (lowerSymbol == "linkusdt") return TradingPair::LINK_USDT;
-    if (lowerSymbol == "solusdt") return TradingPair::SOL_USDT;
-    if (lowerSymbol == "xrpusdt") return TradingPair::XRP_USDT;
-    if (lowerSymbol == "xtzusdt") return TradingPair::XTZ_USDT;
-    return TradingPair::UNKNOWN;
-}
-
-std::string ApiBinance::tradingPairToSymbol(TradingPair pair) const {
-    auto it = m_symbolMap.find(pair);
-    if (it != m_symbolMap.end()) {
-        return it->second;
-    }
-    ERROR("Unsupported trading pair: ", pair);
-    throw std::runtime_error("Unsupported trading pair");
 }
 
 void ApiBinance::processMessage(const std::string& message) {

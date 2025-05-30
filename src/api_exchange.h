@@ -157,6 +157,14 @@ protected:
     OrderBookManager& m_orderBookManager;
     uint64_t m_snapshotValidityTimerId;  // Timer ID for snapshot validity check
     
+    TradingPair symbolToTradingPair(const std::string& symbol) const {
+        return TradingPairData::fromSymbol(getExchangeId(), symbol);
+    }
+
+    std::string tradingPairToSymbol(TradingPair pair) const {
+        return TradingPairData::getSymbol(getExchangeId(), pair);
+    }
+
     // CURL callback functions
     static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
     
@@ -186,7 +194,7 @@ protected:
     std::string m_wsEndpoint;
 
     int getPricePrecision(TradingPair pair) const {
-        return PricePrecision::getPrecision(pair);
+        return TradingPairData::getPrecision(pair);
     }
 
     std::vector<TradingPair> m_pairs;

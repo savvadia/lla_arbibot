@@ -272,7 +272,7 @@ PriceLevel makePriceLevel(double price, double quantity) {
 TEST_F(OrderBookTest, MergeEmptyLists) {
     std::vector<PriceLevel> oldList;
     std::vector<PriceLevel> newList;
-    OrderBook book;
+    OrderBook book(ExchangeId::BINANCE, TradingPair::BTC_USDT);
     book.mergeSortedLists(oldList, newList, true);
     EXPECT_TRUE(oldList.empty());
     EXPECT_TRUE(OrderBook::isSorted(oldList, true));
@@ -281,7 +281,7 @@ TEST_F(OrderBookTest, MergeEmptyLists) {
 TEST_F(OrderBookTest, MergeEmptyOldList) {
     std::vector<PriceLevel> oldList;
     std::vector<PriceLevel> newList = {{50000.0, 1.0}};
-    OrderBook book;
+    OrderBook book(ExchangeId::BINANCE, TradingPair::BTC_USDT);
     book.mergeSortedLists(oldList, newList, true);
     EXPECT_EQ(oldList.size(), 1);
     EXPECT_EQ(oldList[0].price, 50000.0);
@@ -290,7 +290,7 @@ TEST_F(OrderBookTest, MergeEmptyOldList) {
 TEST_F(OrderBookTest, MergeEmptyNewList) {
     std::vector<PriceLevel> oldList = {{50000.0, 1.0}};
     std::vector<PriceLevel> newList;
-    OrderBook book;
+    OrderBook book(ExchangeId::BINANCE, TradingPair::BTC_USDT);
     book.mergeSortedLists(oldList, newList, true);
     EXPECT_EQ(oldList.size(), 1);
     EXPECT_EQ(oldList[0].price, 50000.0);
@@ -299,7 +299,7 @@ TEST_F(OrderBookTest, MergeEmptyNewList) {
 TEST_F(OrderBookTest, MergeWithUpdates) {
     std::vector<PriceLevel> oldList = {{50000.0, 1.0}, {49900.0, 2.0}};
     std::vector<PriceLevel> newList = {{50000.0, 2.0}, {49800.0, 3.0}};
-    OrderBook book;
+    OrderBook book(ExchangeId::BINANCE, TradingPair::BTC_USDT);
     book.mergeSortedLists(oldList, newList, true);
     EXPECT_EQ(oldList.size(), 3);
     EXPECT_EQ(oldList[0].price, 50000.0);
@@ -309,7 +309,7 @@ TEST_F(OrderBookTest, MergeWithUpdates) {
 TEST_F(OrderBookTest, MergeWithZeroQuantitiesInNewList) {
     std::vector<PriceLevel> oldList = {{50000.0, 1.0}};
     std::vector<PriceLevel> newList = {{50000.0, 0.0}};
-    OrderBook book;
+    OrderBook book(ExchangeId::BINANCE, TradingPair::BTC_USDT);
     book.mergeSortedLists(oldList, newList, true);
     EXPECT_EQ(oldList.size(), 0);
 }
@@ -317,7 +317,7 @@ TEST_F(OrderBookTest, MergeWithZeroQuantitiesInNewList) {
 TEST_F(OrderBookTest, MergeWithZeroQuantitiesInOldList) {
     std::vector<PriceLevel> oldList = {{50000.0, 0.0}};
     std::vector<PriceLevel> newList = {{50000.0, 1.0}};
-    OrderBook book;
+    OrderBook book(ExchangeId::BINANCE, TradingPair::BTC_USDT);
     book.mergeSortedLists(oldList, newList, true);
     EXPECT_EQ(oldList.size(), 1);
     EXPECT_EQ(oldList[0].price, 50000.0);

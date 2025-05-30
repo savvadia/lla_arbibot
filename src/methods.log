@@ -1,0 +1,52 @@
+{ "method": "SUBSCRIBE", "params": [ "xtzusdt@bookTicker" ], "id": 1 }
+
+
+// Kraken
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["BTC/USD","ETH/USD","XTZ/USD"]}}
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["ETH/USD"]}}
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["DOGE/USD"]}}
+{"method": "subscribe","params": {"channel": "book","symbol": ["ETH/USD"], "depth": 10}}
+{"method": "subscribe","params": {"channel": "book","symbol": ["BTC/USD"], "depth": 10}}
+
+ {     "method": "subscribe",     "params": {         "channel": "instrument"     },     "req/id": 79 }
+
+
+
+// kraken
+
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["AAVE/USDT"]}}
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["ADA/USDT"]}}  6 
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["ALGO/USDT"]}} 5
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["ATOM/USDT"]}} 4
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["AVAX/USDT"]}} 2
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["BCH/USDT"]}} 2
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["BTC/USDT"]}} 1
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["DOGE/USDT"]}} 5
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["DOT/USDT"]}} 4
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["EOS/USDT"]}} 4
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["ETH/USDT"]}} 2
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["LINK/USDT"]}} 5
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["LTC/USDT"]}} 5
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["SOL/USDT"]}} - 2
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["XRP/USDT"]}} - 5
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["XTZ/USDT"]}} - 4
+
+// binance
+
+{ "method": "SUBSCRIBE", "params": [ "BTCUSDT@bookTicker" ], "id": 1 }
+
+{ "method": "SUBSCRIBE", "params": [ "aaveusdt@bookTicker" ], "id": 1 }
+{ "method": "SUBSCRIBE", "params": [ "adausdt@bookTicker" ], "id": 1 }
+{ "method": "SUBSCRIBE", "params": [ "algousdt@bookTicker" ], "id": 1 }
+{ "method": "SUBSCRIBE", "params": [ "atomusdt@bookTicker" ], "id": 1 }
+{ "method": "SUBSCRIBE", "params": [ "avaxusdt@bookTicker" ], "id": 1 }
+{ "method": "SUBSCRIBE", "params": [ "bchusdt@bookTicker" ], "id": 1 }
+{ "method": "SUBSCRIBE", "params": [ "btcusdt@bookTicker" ], "id": 1 }
+{ "method": "SUBSCRIBE", "params": [ "dogeusdt@bookTicker" ], "id": 1 }
+{ "method": "SUBSCRIBE", "params": [ "dotusdt@bookTicker" ], "id": 1 }
+{ "method": "SUBSCRIBE", "params": [ "eosusdt@bookTicker" ], "id": 1 }
+{ "method": "SUBSCRIBE", "params": [ "ethusdt@bookTicker" ], "id": 1 }
+{ "method": "SUBSCRIBE", "params": [ "linkusdt@bookTicker" ], "id": 1 }
+{ "method": "SUBSCRIBE", "params": [ "solusdt@bookTicker" ], "id": 1 }
+{ "method": "SUBSCRIBE", "params": [ "xrpusdt@bookTicker" ], "id": 1 }
+{ "method": "SUBSCRIBE", "params": [ "xtzusdt@bookTicker" ], "id": 1 }

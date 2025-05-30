@@ -198,7 +198,7 @@ public:
     }
     std::string traceBidsAsks(std::vector<PriceLevel>& list) const {
         std::stringstream ss;
-        auto precision = PricePrecision::getPrecision(pair);
+        auto precision = TradingPairData::getPrecision(pair);
         ss << std::fixed;
         ss << "[";
         for(const auto& entry : list) {

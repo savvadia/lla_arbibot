@@ -3,8 +3,6 @@
 #include <atomic>
 #include <mutex>
 #include <ctime>
-#include <sstream>
-#include <iomanip>
 #include "tracer.h"
 #include "types.h"
 

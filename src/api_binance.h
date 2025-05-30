@@ -49,8 +49,4 @@ protected:
     void processMessage(const std::string& message) override;
     void processOrderBookUpdate(const json& data);
     void processOrderBookSnapshot(const json& data, TradingPair pair);
-    
-    // Internal symbol conversion methods
-    TradingPair symbolToTradingPair(const std::string& symbol) const;
-    std::string tradingPairToSymbol(TradingPair pair) const;
 }; 

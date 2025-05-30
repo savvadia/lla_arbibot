@@ -3,6 +3,9 @@
 
 #include <iostream>
 #include <chrono>
+#include <array>
+#include <unordered_map>
+#include <string>
 
 enum class ExchangeId {
     UNKNOWN = 0,
@@ -29,6 +32,11 @@ inline std::ostream& operator<<(std::ostream& os, ExchangeId id) {
     return os;
 }
 
+struct TradingPairCoins {
+    std::string base;
+    std::string quote;
+};
+
 enum class TradingPair {
     UNKNOWN = 0,
     ADA_USDT,
@@ -46,23 +54,48 @@ enum class TradingPair {
     COUNT
 };
 
-// Convert TradingPair to string
-inline const char* toString(TradingPair pair) {
-    switch (pair) {
-        case TradingPair::ADA_USDT: return "ADA/USDT";
-        case TradingPair::ATOM_USDT: return "ATOM/USDT";
-        case TradingPair::BCH_USDT: return "BCH/USDT";
-        case TradingPair::BTC_USDT: return "BTC/USDT";
-        case TradingPair::DOGE_USDT: return "DOGE/USDT";
-        case TradingPair::DOT_USDT: return "DOT/USDT";
-        case TradingPair::EOS_USDT: return "EOS/USDT";
-        case TradingPair::ETH_USDT: return "ETH/USDT";
-        case TradingPair::LINK_USDT: return "LINK/USDT";
-        case TradingPair::SOL_USDT: return "SOL/USDT";
-        case TradingPair::XRP_USDT: return "XRP/USDT";
-        case TradingPair::XTZ_USDT: return "XTZ/USDT";
-        default: return "UNKNOWN";
+// Central data structure
+struct TradingPairInfo {
+    std::string displayName;
+    std::string baseSymbol;
+    std::string quoteSymbol;
+    int precision;
+    std::unordered_map<ExchangeId, std::string> exchangeSymbols;
+};
+
+// Global lookup tables
+class TradingPairData {
+public:
+    static const TradingPairInfo& get(TradingPair pair);
+    static const std::string& getSymbol(ExchangeId ex, TradingPair pair);
+    static TradingPair fromSymbol(ExchangeId ex, const std::string& symbol);
+    static int getPrecision(TradingPair pair);
+
+private:
+    static const std::array<TradingPairInfo, static_cast<size_t>(TradingPair::COUNT)> pairData;
+    static const std::array<std::unordered_map<std::string, TradingPair>, static_cast<size_t>(ExchangeId::COUNT)> symbolMaps;
+};
+
+inline std::ostream& operator<<(std::ostream& os, const TradingPairInfo& info) {
+    os << 
+        info.displayName << " " << 
+        info.baseSymbol << " " << 
+        info.quoteSymbol << " [";
+    for(const auto& [ex, symbol] : info.exchangeSymbols) {
+        os << ex << " " << symbol << " ";
     }
+    os << "]";
+    return os;
+}
+
+// Convert TradingPair to string
+inline std::string toString(TradingPair pair) {
+    return TradingPairData::get(pair).displayName;
+}
+
+inline const TradingPairCoins getTradingPairCoins(TradingPair pair) {
+    auto& data = TradingPairData::get(pair);
+    return TradingPairCoins{data.baseSymbol, data.quoteSymbol};
 }
 
 // Stream operator for TradingPair
@@ -100,27 +133,6 @@ struct OrderBookData {
     double bestBidQuantity;
     double bestAskQuantity;
     std::chrono::system_clock::time_point lastUpdate;
-}; 
-
-class PricePrecision {
-public:
-    static int getPrecision(TradingPair pair) {
-        switch (pair) {
-            case TradingPair::ADA_USDT: return 6;   // ADA
-            case TradingPair::ATOM_USDT: return 4;  // ATOM
-            case TradingPair::BCH_USDT: return 2;   // BCH
-            case TradingPair::BTC_USDT: return 1;   // BTC
-            case TradingPair::DOGE_USDT: return 7;  // DOGE
-            case TradingPair::DOT_USDT: return 4;   // DOT
-            case TradingPair::EOS_USDT: return 4;   // EOS
-            case TradingPair::ETH_USDT: return 2;   // ETH
-            case TradingPair::LINK_USDT: return 5;  // LINK
-            case TradingPair::SOL_USDT: return 2;   // SOL
-            case TradingPair::XRP_USDT: return 5;   // XRP
-            case TradingPair::XTZ_USDT: return 4;   // XTZ
-            default: return 8;
-        }
-    }
 };
 
 #endif // TYPES_H

@@ -1,6 +1,5 @@
 #include <iostream>
 #include <vector>
-#include <memory>
 #include <thread>
 #include <chrono>
 #include <csignal>
@@ -109,25 +108,7 @@ int main() {
     }
 
     // Get initial order book snapshots with timeout
-    // TRACE("Getting initial order book snapshots...");
     auto startTime = std::chrono::steady_clock::now();
-    // bool snapshotsReceived = false;
-    
-    // // no timeout
-    // if (exchangeManager.getOrderBookSnapshots(TradingPair::BTC_USDT)) {
-    //     snapshotsReceived = true;
-    // }
-    // if (exchangeManager.getOrderBookSnapshots(TradingPair::ETH_USDT)) {
-    //     snapshotsReceived = true;
-    // }
-    // if (exchangeManager.getOrderBookSnapshots(TradingPair::XTZ_USDT)) {
-    //     snapshotsReceived = true;
-    // }
-    // if (!snapshotsReceived) {
-    //     TRACE("Failed to get order book snapshots");
-    //     return 1;
-    // }
-    
 
     // Create balance manager
     TRACE("Initializing Balance manager...");
@@ -137,35 +118,18 @@ int main() {
     TRACE("Retrieving initial balances...");
     balance.retrieveBalances();
 
-    // Create strategy
-    auto strategy1 = std::make_unique<StrategyPoplavki>("BTC", "USDT", TradingPair::BTC_USDT, timersMgr, exchangeManager, exchanges);
-    auto strategy2 = std::make_unique<StrategyPoplavki>("ETH", "USDT", TradingPair::ETH_USDT, timersMgr, exchangeManager, exchanges);
-    auto strategy3 = std::make_unique<StrategyPoplavki>("XTZ", "USDT", TradingPair::XTZ_USDT, timersMgr, exchangeManager, exchanges);
-    auto strategy4 = std::make_unique<StrategyPoplavki>("SOL", "USDT", TradingPair::SOL_USDT, timersMgr, exchangeManager, exchanges);
-    auto strategy5 = std::make_unique<StrategyPoplavki>("XRP", "USDT", TradingPair::XRP_USDT, timersMgr, exchangeManager, exchanges);
-    auto strategy6 = std::make_unique<StrategyPoplavki>("ADA", "USDT", TradingPair::ADA_USDT, timersMgr, exchangeManager, exchanges);
-    auto strategy8 = std::make_unique<StrategyPoplavki>("DOGE", "USDT", TradingPair::DOGE_USDT, timersMgr, exchangeManager, exchanges);
-    auto strategy10 = std::make_unique<StrategyPoplavki>("DOT", "USDT", TradingPair::DOT_USDT, timersMgr, exchangeManager, exchanges);
-    auto strategy11 = std::make_unique<StrategyPoplavki>("LINK", "USDT", TradingPair::LINK_USDT, timersMgr, exchangeManager, exchanges);
-    auto strategy13 = std::make_unique<StrategyPoplavki>("ATOM", "USDT", TradingPair::ATOM_USDT, timersMgr, exchangeManager, exchanges);
-    auto strategy14 = std::make_unique<StrategyPoplavki>("BCH", "USDT", TradingPair::BCH_USDT, timersMgr, exchangeManager, exchanges);
-    auto strategy17 = std::make_unique<StrategyPoplavki>("EOS", "USDT", TradingPair::EOS_USDT, timersMgr, exchangeManager, exchanges);
+    TRACE("Initializing strategies...");
+    vector<StrategyPoplavki*> strategies;
+    for (int i = 0; i < static_cast<int>(TradingPair::COUNT); i++) {
+        if (i == static_cast<int>(TradingPair::UNKNOWN)) continue;
+        TradingPair pair = static_cast<TradingPair>(i);
+        TradingPairCoins coins = getTradingPairCoins(pair);
+        strategies.emplace_back(new StrategyPoplavki(
+            coins.base, coins.quote, pair, timersMgr, exchangeManager, exchanges));
 
-    
-    // Set balances for strategy
-    TRACE("Setting strategy balances...");
-    strategy1->setBalances(balance.getBalances());
-    strategy2->setBalances(balance.getBalances());
-    strategy3->setBalances(balance.getBalances());
-    strategy4->setBalances(balance.getBalances());
-    strategy5->setBalances(balance.getBalances());
-    strategy6->setBalances(balance.getBalances());
-    strategy8->setBalances(balance.getBalances());
-    strategy10->setBalances(balance.getBalances());
-    strategy11->setBalances(balance.getBalances());
-    strategy13->setBalances(balance.getBalances());
-    strategy14->setBalances(balance.getBalances());
-    strategy17->setBalances(balance.getBalances());
+        strategies.back()->setBalances(balance.getBalances());
+    }
+
     TRACE("System initialization complete, starting main loop...");
     
     // Main event loop

@@ -19,9 +19,6 @@ MockApi::MockApi(OrderBookManager& orderBookManager, TimersMgr& timersMgr, const
     
     // Initialize symbol map
     std::cout << "[" << getTestTimestamp() << "] MockApi: Initializing symbol map..." << std::endl << std::flush;
-    m_symbolMap[TradingPair::BTC_USDT] = name == "Binance" ? "BTCUSDT" : "XBT/USD";
-    m_symbolMap[TradingPair::ETH_USDT] = name == "Binance" ? "ETHUSDT" : "ETH/USD";
-    m_symbolMap[TradingPair::XTZ_USDT] = name == "Binance" ? "XTZUSDT" : "XTZ/USD";
     std::cout << "[" << getTestTimestamp() << "] MockApi: Symbol map initialized" << std::endl << std::flush;
 }
 
@@ -62,7 +59,7 @@ void MockApi::disconnect() {
 bool MockApi::subscribeOrderBook(std::vector<TradingPair> pairs) {
     std::string symbols = "";
     for (const auto& pair : pairs) {
-        symbols += tradingPairToSymbol(pair) + ",";
+        symbols += toString(pair) + ",";
     }
 
     std::cout << "[" << getTestTimestamp() << "] MockApi: Starting subscribe to order book for " << symbols << "..." << std::endl;
@@ -199,14 +196,6 @@ TradingPair MockApi::symbolToTradingPair(const std::string& symbol) const {
     }
     
     return TradingPair::UNKNOWN;
-}
-
-std::string MockApi::tradingPairToSymbol(TradingPair pair) {
-    auto it = m_symbolMap.find(pair);
-    if (it != m_symbolMap.end()) {
-        return it->second;
-    }
-    throw std::runtime_error("Unknown trading pair");
 }
 
 void MockApi::simulateOrderBookUpdate(const std::vector<PriceLevel>& bids, const std::vector<PriceLevel>& asks) {

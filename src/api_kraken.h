@@ -52,8 +52,4 @@ protected:
     // WebSocket callbacks
     void processMessage(const std::string& message) override;
     void processOrderBookUpdate(const json& data);
-
-    // Internal symbol conversion methods
-    TradingPair symbolToTradingPair(const std::string& symbol) const;
-    std::string tradingPairToSymbol(TradingPair pair) const;
 }; 

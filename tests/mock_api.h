@@ -17,14 +17,8 @@ public:
     bool connect() override;
     void disconnect() override;
 
-    // Subscribe to order book updates for a trading pair
-    bool subscribeOrderBook(std::vector<TradingPair> pairs) override;
-
     // Get current order book snapshot
     bool getOrderBookSnapshot(TradingPair pair) override;
-
-    // Process incoming messages
-    void processMessages() override;
 
     // Order management
     bool placeOrder(TradingPair pair, OrderType type, double price, double amount) override;
@@ -40,12 +34,10 @@ public:
 protected:
     // Override the cooldown method for mock-specific rate limiting
     void processRateLimitHeaders(const std::string& headers) override;
-    void doRead() override {};
 
 private:
     // Internal symbol conversion methods
     TradingPair symbolToTradingPair(const std::string& symbol) const;
-    std::string tradingPairToSymbol(TradingPair pair);
 
     // Mock WebSocket event handlers
     void handleMockMessage(const std::string& msg);
