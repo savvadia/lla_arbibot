@@ -10,6 +10,7 @@
 #define TRACE(...) TRACE_THIS(TraceInstance::A_EXCHANGE, this->getExchangeId(), __VA_ARGS__)
 #define DEBUG(...) DEBUG_THIS(TraceInstance::A_EXCHANGE, this->getExchangeId(), __VA_ARGS__)
 #define ERROR(...) ERROR_BASE(TraceInstance::A_EXCHANGE, this->getExchangeId(), __VA_ARGS__)
+#define ERROR_CNT(_id, ...) ERROR_COUNT(TraceInstance::A_EXCHANGE, _id, this->getExchangeId(), __VA_ARGS__)
 
 // Timer callback for snapshot validity check
 void snapshotValidityCheckCallback(int id, void* data) {
@@ -476,7 +477,7 @@ void ApiExchange::checkSnapshotValidity() {
     for (const auto& pair : m_pairs) {
         auto& state = symbolStates[pair];
         if (!state.hasSnapshot()) {
-            ERROR("Snapshot for ", pair, " is missing");
+            ERROR_CNT(CountableTrace::A_EXCHANGE_SNAPSHOT_MISSING, pair);
             needResubscribe.push_back(pair);
             continue;
         }
