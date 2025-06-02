@@ -27,8 +27,10 @@ constexpr const char* REST_ENDPOINT = "https://api.kraken.com/0/public";
 
 ApiKraken::ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
     const std::vector<TradingPair> pairs, bool testMode)
-    : ApiExchange(orderBookManager, timersMgr, "ws.kraken.com", "443", 
-    REST_ENDPOINT, "/v2", pairs, testMode) {
+    : ApiExchange(orderBookManager, timersMgr, 
+        REST_ENDPOINT,
+        "ws.kraken.com", "443", "/ws/v2",
+        pairs, testMode) {
 }
 
 bool ApiKraken::handleSubscribeUnsubscribe(const std::vector<TradingPair>& pairs, bool subscribe) {

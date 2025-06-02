@@ -12,8 +12,11 @@ namespace Config {
     constexpr double MIN_TRACEABLE_MARGIN = 0.02;  // Minimum margin to trace, %
 
     // Traces settings
-    constexpr int COUNTABLE_TRACES_PRINT_INTERVAL = 10;
-    constexpr int RESET_INTERVAL_MS = 600000; // 10 minutes
+    constexpr int COUNTABLE_TRACES_PRINT_INTERVAL1 = 10;
+    constexpr int COUNTABLE_TRACES_PRINT_INTERVAL2 = 100;
+    constexpr int COUNTABLE_TRACES_PRINT_INTERVAL3 = 1000;
+    constexpr int COUNTABLE_TRACES_PRINT_INTERVAL4 = 50000;
+    constexpr int COUNTABLE_TRACES_RESET_INTERVAL_MS = 600000; // 10 minutes
 
     // Exchange settings
     constexpr int KRAKEN_CHECKSUM_CHECK_PERIOD = 10; // check checksum every 100th update as it is slow

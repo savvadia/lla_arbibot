@@ -47,18 +47,19 @@ int main() {
     FastTraceLogger::setLoggingEnabled(TraceInstance::BALANCE, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK_MGR, false);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::A_EXCHANGE, false);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::A_WRITER, false);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_EXCHANGE, true);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_IO, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_KRAKEN, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_BINANCE, false);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_KUCOIN, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::MAIN, true);
 
     // Enable exchange-specific logging
-    FastTraceLogger::setLoggingEnabled(ExchangeId::BINANCE, true);
-    FastTraceLogger::setLoggingEnabled(ExchangeId::KRAKEN, true);
-
-    TRACE("Trace types enabled: EVENT_LOOP, TRACES, TIMER, STRAT, BALANCE, ORDERBOOK, A_EXCHANGE, A_KRAKEN, A_BINANCE, MAIN");
-    TRACE("Exchange logging enabled: BINANCE");
+    FastTraceLogger::setLoggingEnabled(ExchangeId::BINANCE, false);
+    FastTraceLogger::setLoggingEnabled(ExchangeId::KRAKEN, false);
+    FastTraceLogger::setLoggingEnabled(ExchangeId::KUCOIN, true);
+    TRACE("Trace types enabled: EVENT_LOOP, TRACES, TIMER, STRAT, BALANCE, ORDERBOOK, A_EXCHANGE, A_KRAKEN, A_BINANCE, A_KUCOIN, MAIN");
+    TRACE("Exchange logging enabled: BINANCE, KRAKEN, KUCOIN");
 
     // Set up signal handlers
     TRACE("Setting up signal handlers...");
@@ -83,8 +84,8 @@ int main() {
     ExchangeManager exchangeManager(timersMgr, orderBookManager, pairs);
     
     // Define exchanges to use
-    vector<ExchangeId> exchanges = {ExchangeId::KRAKEN, ExchangeId::BINANCE};
-    TRACE("Using exchanges: ", exchanges[0], ", ", exchanges[1]);
+    vector<ExchangeId> exchanges = {ExchangeId::KRAKEN, ExchangeId::BINANCE, ExchangeId::KUCOIN};
+    TRACE("Using exchanges: ", exchanges[0], ", ", exchanges[1], ", ", exchanges[2]);
     
     // Initialize exchanges
     TRACE("Initializing exchanges...");

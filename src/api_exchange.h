@@ -34,8 +34,8 @@ using json = nlohmann::json;
 class ApiExchange : public Traceable {
 public:
     ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr, 
-        const std::string& host, const std::string& port,
-        const std::string& restEndpoint, const std::string& wsEndpoint,
+        const std::string& restEndpoint,
+        const std::string& wsHost, const std::string& wsPort, const std::string& wsEndpoint,
         const std::vector<TradingPair> pairs, bool testMode = true);
     virtual ~ApiExchange();
 
@@ -94,7 +94,7 @@ public:
     }
 
     // Common HTTP request handling
-    json makeHttpRequest(const std::string& endpoint, const std::string& params = "", const std::string& method = "GET");
+    json makeHttpRequest(const std::string& endpoint, const std::string& params = "", const std::string& method = "GET", bool addJsonHeader = false);
     
     // Initialize CURL
     virtual bool initCurl();
@@ -172,7 +172,8 @@ protected:
 
     // CURL callback functions
     static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
-    
+    static size_t WriteHeaderCallback(char* buffer, size_t size, size_t nitems, void* userdata);
+    std::string formatCurlHeaders(struct curl_slist* headers);
     // Helper methods for derived classes
     virtual void processRateLimitHeaders(const std::string& headers) = 0;
     
@@ -192,10 +193,9 @@ protected:
     CURL* m_curl{nullptr};
 
     std::map<TradingPair, SymbolState> symbolStates;
-    std::string m_host;
-    std::string m_port;
     std::string m_restEndpoint;
     std::string m_wsHost;
+    std::string m_wsPort;
     std::string m_wsEndpoint;
 
     int getPricePrecision(TradingPair pair) const {

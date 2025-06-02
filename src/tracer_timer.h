@@ -10,7 +10,7 @@
 inline void resetCountableTracesTimerCallback(int id, void* data) {
     TimersMgr* timersMgr = static_cast<TimersMgr*>(data);
     if (timersMgr) {
-        timersMgr->addTimer(Config::RESET_INTERVAL_MS, resetCountableTracesTimerCallback, timersMgr, TimerType::PRICE_CHECK);
+        timersMgr->addTimer(Config::COUNTABLE_TRACES_RESET_INTERVAL_MS, resetCountableTracesTimerCallback, timersMgr, TimerType::PRICE_CHECK);
     }
     FastTraceLogger::resetCountableTraces();
 }

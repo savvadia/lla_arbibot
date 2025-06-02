@@ -5,13 +5,22 @@
 #include <thread>
 #include <nlohmann/json.hpp>
 
+/*
+ApiBinance::ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
+        const std::vector<TradingPair> pairs, bool testMode)
+        : ApiExchange(orderBookManager, timersMgr,  
+        REST_ENDPOINT,
+        "stream.binance.com", "9443", "/ws/stream",
+        pairs, testMode) {
+}
+*/
 MockApi::MockApi(OrderBookManager& orderBookManager, TimersMgr& timersMgr, const std::string& name, bool testMode)
     : ApiExchange(orderBookManager, timersMgr, 
+    name == "Binance" ? "https://api.binance.com/api/v3" : "https://api.kraken.com/0/public",
     name == "Binance" ? "stream.binance.com" : "ws.kraken.com",
     name == "Binance" ? "9443" : "443",
-    name == "Binance" ? "https://api.binance.com/api/v3" : "https://api.kraken.com/0/public",
     name == "Binance" ? "/ws/stream" : "/ws",
-    testMode)
+    {}, testMode)
     , m_name(name)
     , m_id(name == "Binance" ? ExchangeId::BINANCE : ExchangeId::KRAKEN) {
     
@@ -56,9 +65,9 @@ void MockApi::disconnect() {
     std::cout << "[" << getTestTimestamp() << "] MockApi: Disconnected successfully" << std::endl;
 }
 
-bool MockApi::subscribeOrderBook(std::vector<TradingPair> pairs) {
+bool MockApi::subscribeOrderBook() {
     std::string symbols = "";
-    for (const auto& pair : pairs) {
+    for (const auto& pair : m_pairs) {
         symbols += toString(pair) + ",";
     }
 
@@ -70,7 +79,7 @@ bool MockApi::subscribeOrderBook(std::vector<TradingPair> pairs) {
 
     try {
         std::vector<std::string> symbols;
-        for (const auto& pair : pairs) {
+        for (const auto& pair : m_pairs) {
             symbols.push_back(tradingPairToSymbol(pair));
         }
         
@@ -278,10 +287,6 @@ void MockApi::handleMockMessage(const std::string& msg) {
     } catch (const std::exception& e) {
         std::cerr << "[" << getTestTimestamp() << "] MockApi: Error processing message: " << e.what() << std::endl;
     }
-}
-
-void MockApi::processMessages() {
-    // All messages are processed asynchronously via callbacks in tests
 }
 
 void MockApi::processRateLimitHeaders(const std::string& headers) {

@@ -16,6 +16,7 @@ public:
     // Initialize WebSocket connection
     bool connect() override;
     void disconnect() override;
+    bool subscribeOrderBook() override;
 
     // Get current order book snapshot
     bool getOrderBookSnapshot(TradingPair pair) override;

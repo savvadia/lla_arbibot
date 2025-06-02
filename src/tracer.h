@@ -28,9 +28,10 @@ enum class TraceInstance {
     ORDERBOOK_MGR,
     EVENTLOOP,
     A_EXCHANGE,
-    A_WRITER,
+    A_IO,
     A_KRAKEN,
     A_BINANCE,
+    A_KUCOIN,
     MAIN,  // For main function logging
     MUTEX,
     COUNT,  // To track the number of log types
@@ -47,6 +48,7 @@ enum class CountableTrace {
     A_KRAKEN_ORDERBOOK_CHECKSUM_CHECK2,
     A_KRAKEN_ORDERBOOK_CHECKSUM_CHECK_OK,
     A_KRAKEN_CHECKSUM_MISMATCH_RESTORED,
+    A_UNKNOWN_MESSAGE_RECEIVED,
     COUNT,
 };
 
@@ -233,7 +235,11 @@ public:
         // increase countable trace
         countableTraces()[static_cast<int>(countableTrace)].fetch_add(1, std::memory_order_relaxed);
         int cnt = countableTraces()[static_cast<int>(countableTrace)].load(std::memory_order_relaxed);
-        if (cnt == 1 || cnt % Config::COUNTABLE_TRACES_PRINT_INTERVAL == 0) { // print only first time and every 100th time
+        if (cnt == 1 ||
+            cnt % Config::COUNTABLE_TRACES_PRINT_INTERVAL4 == 0 ||
+            (cnt < Config::COUNTABLE_TRACES_PRINT_INTERVAL4 && cnt % Config::COUNTABLE_TRACES_PRINT_INTERVAL3 == 0) ||
+            (cnt < Config::COUNTABLE_TRACES_PRINT_INTERVAL3 && cnt % Config::COUNTABLE_TRACES_PRINT_INTERVAL2 == 0) ||
+            (cnt < Config::COUNTABLE_TRACES_PRINT_INTERVAL2 && cnt % Config::COUNTABLE_TRACES_PRINT_INTERVAL1 == 0)) {
             log(level, instance, type, exchangeId, file, line, "[ cnt:", cnt, "] ", std::forward<Args>(args)...);
         }
     }

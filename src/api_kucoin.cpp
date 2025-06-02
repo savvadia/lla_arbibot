@@ -1,7 +1,6 @@
-#include "api_binance.h"
-#include "orderbook_mgr.h"
 #include <iostream>
 #include <sstream>
+#include <regex>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <boost/beast/http.hpp>
@@ -11,26 +10,121 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <nlohmann/json.hpp>
+#include "api_kucoin.h"
+#include "orderbook_mgr.h"
 #include "tracer.h"
 
 using json = nlohmann::json;
 using tcp = boost::asio::ip::tcp;
 
-#define TRACE(...) TRACE_THIS(TraceInstance::A_BINANCE, ExchangeId::BINANCE, __VA_ARGS__)
-#define DEBUG(...) DEBUG_THIS(TraceInstance::A_BINANCE, ExchangeId::BINANCE, __VA_ARGS__)
-#define ERROR(...) ERROR_BASE(TraceInstance::A_BINANCE, ExchangeId::BINANCE, __VA_ARGS__)
+#define TRACE(...) TRACE_THIS(TraceInstance::A_KUCOIN, ExchangeId::KUCOIN, __VA_ARGS__)
+#define DEBUG(...) DEBUG_THIS(TraceInstance::A_KUCOIN, ExchangeId::KUCOIN, __VA_ARGS__)
+#define ERROR(...) ERROR_BASE(TraceInstance::A_KUCOIN, ExchangeId::KUCOIN, __VA_ARGS__)
 
-constexpr const char* REST_ENDPOINT = "https://api.binance.com/api/v3";
+#define ERROR_CNT(_id, ...) ERROR_COUNT(TraceInstance::A_KUCOIN, _id, ExchangeId::KUCOIN, __VA_ARGS__)
 
-ApiBinance::ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
+constexpr const char* REST_ENDPOINT = "https://api.kucoin.com";
+
+ApiKucoin::ApiKucoin(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
         const std::vector<TradingPair> pairs, bool testMode)
         : ApiExchange(orderBookManager, timersMgr,  
         REST_ENDPOINT,
-        "stream.binance.com", "9443", "/ws/stream",
+        "to_be_read_from_rest_endpoint", "443", "to_be_read_from_rest_endpoint",
         pairs, testMode) {
 }
 
-void ApiBinance::processMessage(const std::string& message) {
+// Timer callback for pinging the server to keep the connection alive
+// ping message is: { "id": "ping-123", "type": "ping" }
+
+void timerPingCallback(int id, void* data) {
+    auto* exchange = static_cast<ApiKucoin*>(data);
+    exchange->sendPing();
+}
+
+void ApiKucoin::startPingTimer() {
+    m_pingTimerId = m_timersMgr.addTimer(m_pingIntervalMs, timerPingCallback, this, TimerType::EXCHANGE_PING);
+}
+
+bool ApiKucoin::connect() {
+    if (!initWebSocketEndpoint()) {
+        ERROR("Failed to initialize KuCoin WebSocket endpoint.");
+        return false;
+    }
+    if (!ApiExchange::connect()) {
+        ERROR("Failed to connect to KuCoin");
+        return false;
+    }
+    startPingTimer();
+    return true;
+}
+
+void ApiKucoin::sendPing() {
+    static int pingId = 1;
+    doWrite("{\"id\": \"" + std::to_string(pingId++) + "\", \"type\": \"ping\"}");
+    startPingTimer();
+}
+
+bool ApiKucoin::initWebSocketEndpoint() {
+    // Request WebSocket endpoint info
+    json response;
+    try {
+        response = makeHttpRequest("/api/v1/bullet-public", "", "POST", true);
+    } catch (const std::exception& ex) {
+        TRACE("Failed to get WebSocket endpoint: ", ex.what(), " response: ", response.dump());
+        return false;
+    }
+
+    DEBUG("Got response: ", response.dump());
+
+    // Validate response
+    if (response.is_discarded() || !response.contains("data")) {
+        ERROR("Response is discarded or missing 'data' field. ", response.dump());
+        return false;
+    }
+
+    const auto& data = response["data"];
+    if (!data.contains("instanceServers") || !data["instanceServers"].is_array() || data["instanceServers"].empty()) {
+        ERROR("No 'instanceServers' array in response. ", response.dump());
+        return false;
+    }
+
+    const auto& server = data["instanceServers"][0];
+    if (!server.contains("endpoint") || !server.contains("pingInterval") || !server.contains("pingTimeout")) {
+        ERROR("Missing required fields in 'instanceServers[0]'. ", response.dump());
+        return false;
+    }
+
+    // Extract values
+    m_token = data.value("token", "");
+    m_pingIntervalMs = server.value("pingInterval", 0);
+    m_pingTimeoutMs = server.value("pingTimeout", 0);
+    std::string endpoint = server.value("endpoint", "");
+
+    if (endpoint.empty() || m_token.empty()) {
+        ERROR("Endpoint or token is empty. ", response.dump());
+        return false;
+    }
+
+    // Build WebSocket URL
+    std::string wsUrl = endpoint + "?token=" + m_token;
+
+    // Parse wss://host/path
+    static const std::regex urlRegex(R"(wss:\/\/([^\/]+)(\/.*))");
+    std::smatch match;
+    if (std::regex_match(wsUrl, match, urlRegex)) {
+        m_wsHost = match[1];
+        m_wsPort = "443";
+        m_wsEndpoint = match[2];
+        TRACE("Got WebSocket endpoint: ", m_wsHost, ":", m_wsPort, " m_wsEndpoint: ", m_wsEndpoint);
+        return true;
+    }
+
+    ERROR("WebSocket URL did not match expected format: ", wsUrl);
+    return false;
+}
+
+
+void ApiKucoin::processMessage(const std::string& message) {
     try {
         DEBUG("Received message: ", message.substr(0, 300));
         json data = json::parse(message);
@@ -56,14 +150,14 @@ void ApiBinance::processMessage(const std::string& message) {
             // This is a subscription response
             TRACE("Subscription response: ", data.dump());
         } else {
-            ERROR("Unhandled message type: ", message);
+            ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Unhandled message type: ", message);
         }
     } catch (const std::exception& e) {
         ERROR("Error processing message: ", e.what());
     }
 }
 
-void ApiBinance::processBookTicker(const json& data) {
+void ApiKucoin::processBookTicker(const json& data) {
     try {
         std::string symbol = data["s"];
         TradingPair pair = symbolToTradingPair(symbol);
@@ -78,14 +172,14 @@ void ApiBinance::processBookTicker(const json& data) {
         double askQuantity = std::stod(data["A"].get<std::string>());
         std::vector<PriceLevel> bids({{bidPrice, bidQuantity}});
         std::vector<PriceLevel> asks({{askPrice, askQuantity}});
-        m_orderBookManager.updateOrderBookBestBidAsk(ExchangeId::BINANCE, pair, bidPrice, bidQuantity, askPrice, askQuantity);
+        m_orderBookManager.updateOrderBookBestBidAsk(ExchangeId::KUCOIN, pair, bidPrice, bidQuantity, askPrice, askQuantity);
     
     } catch (const std::exception& e) {
         ERROR("Error processing bookTicker: ", data.dump().substr(0, 300), " ", e.what());
     }
 }
 
-void ApiBinance::processOrderBookUpdate(const json& data) {
+void ApiKucoin::processOrderBookUpdate(const json& data) {
     try {
         if (!data.contains("e") || data["e"] != "depthUpdate") {
             return;
@@ -175,7 +269,7 @@ void ApiBinance::processOrderBookUpdate(const json& data) {
             TRACE("Updating order book for ", symbol, " with ", bids.size(), " bids and ", asks.size(), " asks");
             TRACE("First bid: ", (bids.empty() ? "none" : std::to_string(bids[0].price) + "@" + std::to_string(bids[0].quantity)));
             TRACE("First ask: ", (asks.empty() ? "none" : std::to_string(asks[0].price) + "@" + std::to_string(asks[0].quantity)));
-            m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
+            m_orderBookManager.updateOrderBook(ExchangeId::KUCOIN, pair, bids, asks);
         }
 
         // Mark that we have a snapshot for this symbol
@@ -186,7 +280,7 @@ void ApiBinance::processOrderBookUpdate(const json& data) {
     }
 }
 
-void ApiBinance::processOrderBookSnapshot(const json& data, TradingPair pair) {
+void ApiKucoin::processOrderBookSnapshot(const json& data, TradingPair pair) {
     try {
         TRACE("Processing order book snapshot for ", tradingPairToSymbol(pair));
 
@@ -218,10 +312,10 @@ void ApiBinance::processOrderBookSnapshot(const json& data, TradingPair pair) {
         // Update the order book with all bids and asks at once
         if (!bids.empty() || !asks.empty()) {
             TRACE("Updating order book for ", tradingPairToSymbol(pair), " with ", bids.size(), " bids and ", asks.size(), " asks");
-            m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
+            m_orderBookManager.updateOrderBook(ExchangeId::KUCOIN, pair, bids, asks);
             
             TRACE("Processed order book snapshot for ", tradingPairToSymbol(pair),
-                " last update: ", m_orderBookManager.getOrderBook(ExchangeId::BINANCE, pair).getLastUpdate());
+                " last update: ", m_orderBookManager.getOrderBook(ExchangeId::KUCOIN, pair).getLastUpdate());
             if (m_snapshotCallback) {
                 m_snapshotCallback(true);
             }
@@ -239,9 +333,9 @@ void ApiBinance::processOrderBookSnapshot(const json& data, TradingPair pair) {
     }
 }
 
-bool ApiBinance::placeOrder(TradingPair pair, OrderType type, double price, double quantity) {
+bool ApiKucoin::placeOrder(TradingPair pair, OrderType type, double price, double quantity) {
     if (!m_connected) {
-        TRACE("Not connected to Binance");
+        TRACE("Not connected to Kucoin");
         return false;
     }
 
@@ -266,9 +360,9 @@ bool ApiBinance::placeOrder(TradingPair pair, OrderType type, double price, doub
     }
 }
 
-bool ApiBinance::cancelOrder(const std::string& orderId) {
+bool ApiKucoin::cancelOrder(const std::string& orderId) {
     if (!m_connected) {
-        TRACE("Not connected to Binance");
+        TRACE("Not connected to Kucoin");
         return false;
     }
 
@@ -283,9 +377,9 @@ bool ApiBinance::cancelOrder(const std::string& orderId) {
     }
 }
 
-bool ApiBinance::getBalance(const std::string& asset) {
+bool ApiKucoin::getBalance(const std::string& asset) {
     if (!m_connected) {
-        TRACE("Not connected to Binance");
+        TRACE("Not connected to Kucoin");
         return false;
     }
 
@@ -308,55 +402,56 @@ bool ApiBinance::getBalance(const std::string& asset) {
     }
 }
 
-bool ApiBinance::subscribeOrderBook() {
+bool ApiKucoin::subscribeOrderBook() {
+    bool success = true;
     if (!m_connected) {
-        TRACE("Not connected to Binance");
+        TRACE("Not connected to Kucoin");
         return false;
     }
 
-    TRACE("Subscribing to Binance order book for ", m_pairs.size(), " pairs");
+    TRACE("Subscribing to Kucoin order book for ", m_pairs.size(), " pairs");
 
-    try {
-        json message;
-        message["id"] = 1;
-        message["method"] = "SUBSCRIBE";
-        message["params"] = json::array();
-        for (const auto& pair : m_pairs) {
-            std::string symbol = toLower(tradingPairToSymbol(pair));
-            message["params"].emplace_back(symbol + "@bookTicker");
-        }
+    for (const auto& pair : m_pairs) {
 
-        TRACE("Subscribing to Binance order book with message: ", message.dump());
-        doWrite(message.dump());  
+        try {
+            json message;
+            std::string symbol = tradingPairToSymbol(pair);  
+            message["id"] = "arbibot_id";
+            message["type"] = "subscribe";
+            message["topic"] = "/market/level2:" + symbol;
+            message["privateChannel"] = false;
+            message["response"] = true;
 
-        // Store the subscription state
-        for (const auto& pair : m_pairs) {
+            TRACE("Subscribing to Kucoin order book with message: ", message.dump());
+            doWrite(message.dump());  
+
+            // Store the subscription state
             auto& state = symbolStates[pair];
-            std::string symbol = tradingPairToSymbol(pair);    
+              
             state.subscribed = true;
             setSymbolSnapshotState(pair, false);
             TRACE("Subscription state for ", symbol, ": subscribed=", state.subscribed, " hasSnapshot=", state.hasSnapshot());
+        } catch (const std::exception& e) {
+            ERROR("Error subscribing to order book: ", e.what());
+            success = false;
         }
-        
-        return true;
-    } catch (const std::exception& e) {
-        ERROR("Error subscribing to order book: ", e.what());
-        return false;
     }
+
+    return success;
 }
 
-bool ApiBinance::resubscribeOrderBook(const std::vector<TradingPair>& pairs) {
+bool ApiKucoin::resubscribeOrderBook(const std::vector<TradingPair>& pairs) {
     if (!m_connected) {
-        TRACE("Not connected to Binance");
+        TRACE("Not connected to Kucoin");
         return false;
     }
     ERROR("Not implemented: resubscribeOrderBook");
     return false;
 }
 
-bool ApiBinance::getOrderBookSnapshot(TradingPair pair) {
+bool ApiKucoin::getOrderBookSnapshot(TradingPair pair) {
     if (!m_connected) {
-        TRACE("Not connected to Binance");
+        TRACE("Not connected to Kucoin");
         return false;
     }
 
@@ -379,19 +474,19 @@ bool ApiBinance::getOrderBookSnapshot(TradingPair pair) {
     }
 } 
 
-// Implement the cooldown method for Binance-specific rate limiting
-void ApiBinance::cooldown(int httpCode, const std::string& response, const std::string& endpoint) {
+// Implement the cooldown method for Kucoin-specific rate limiting
+void ApiKucoin::cooldown(int httpCode, const std::string& response, const std::string& endpoint) {
     bool shouldCooldown = false;
     int cooldownMinutes = 5; // Default cooldown time
 
-    // Binance-specific rate limit handling
+    // Kucoin-specific rate limit handling
     if (httpCode == 429) {
         // Try to parse the retryAfter field from the response
         try {
             json errorJson = json::parse(response);
             if (errorJson.contains("retryAfter")) {
                 int retryAfter = errorJson["retryAfter"].get<int>();
-                TRACE("Binance rate limit retry after ", retryAfter, " seconds");
+                TRACE("Kucoin rate limit retry after ", retryAfter, " seconds");
                 cooldownMinutes = std::max(1, retryAfter / 60);
                 shouldCooldown = true;
             }
@@ -423,14 +518,14 @@ void ApiBinance::cooldown(int httpCode, const std::string& response, const std::
     // Here we're just handling the cooldown based on the HTTP code
 
     if (shouldCooldown) {
-        TRACE("Binance entering cooldown for ", cooldownMinutes, " minutes due to HTTP ", httpCode);
+        TRACE("Kucoin entering cooldown for ", cooldownMinutes, " minutes due to HTTP ", httpCode);
         startCooldown(cooldownMinutes);
     }
 }
 
-void ApiBinance::processRateLimitHeaders(const std::string& headers) {
+void ApiKucoin::processRateLimitHeaders(const std::string& headers) {
     // Example header: "x-mbx-used-weight: 10"
-    // Parse rate limit headers from Binance
+    // Parse rate limit headers from Kucoin
     size_t pos = headers.find("x-mbx-used-weight:");
     if (pos != std::string::npos) {
         try {

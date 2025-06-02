@@ -168,38 +168,6 @@ TEST_F(ApiExchangeTest, ConnectionHandling) {
     EXPECT_TRUE(api->connect());
 }
 
-// TEST_F(ApiExchangeTest, ProcessOrderBookUpdate) {
-//     // Test that order book updates are correctly processed
-//     std::string message = R"({
-//         "channel": "orderbook",
-//         "data": {
-//             "bids": [["10000.0", "1.0"], ["9999.0", "2.0"]],
-//             "asks": [["10001.0", "0.5"], ["10002.0", "1.5"]]
-//         }
-//     })";
-
-//     // Queue the message for processing
-//     api->queueMessage(message);
-//     api->processMessages();
-
-//     // Verify the order book was updated correctly
-//     auto& orderBook = orderBookManager->getOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT);
-//     auto [bids, asks] = orderBook.getState();
-    
-//     EXPECT_EQ(bids.size(), 2);
-//     EXPECT_EQ(asks.size(), 2);
-    
-//     EXPECT_DOUBLE_EQ(bids[0].price, 10000.0);
-//     EXPECT_DOUBLE_EQ(bids[0].quantity, 1.0);
-//     EXPECT_DOUBLE_EQ(bids[1].price, 9999.0);
-//     EXPECT_DOUBLE_EQ(bids[1].quantity, 2.0);
-    
-//     EXPECT_DOUBLE_EQ(asks[0].price, 10001.0);
-//     EXPECT_DOUBLE_EQ(asks[0].quantity, 0.5);
-//     EXPECT_DOUBLE_EQ(asks[1].price, 10002.0);
-//     EXPECT_DOUBLE_EQ(asks[1].quantity, 1.5);
-// }
-
 TEST_F(ApiExchangeTest, ProcessOrderBookSnapshot) {
     // Test that order book snapshots are correctly processed
     json data = json::parse(R"({

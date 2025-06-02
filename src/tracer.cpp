@@ -94,9 +94,10 @@ std::string_view FastTraceLogger::traceTypeToStr(TraceInstance type) {
         case TraceInstance::ORDERBOOK_MGR:  return "ORDERBOOK_MGR";
         case TraceInstance::EVENTLOOP:  return "EVENTLOOP";
         case TraceInstance::A_EXCHANGE: return "A_EXCHANGE";
-        case TraceInstance::A_WRITER:   return "A_WRITER";
+        case TraceInstance::A_IO:       return "A_IO";
         case TraceInstance::A_KRAKEN:   return "A_KRAKEN";
         case TraceInstance::A_BINANCE:  return "A_BINANCE";
+        case TraceInstance::A_KUCOIN:   return "A_KUCOIN";
         case TraceInstance::MAIN:       return "MAIN";
         default: return "UNKNOWN";
     }
@@ -106,6 +107,7 @@ std::string_view FastTraceLogger::exchangeIdToStr(ExchangeId exchangeId) {
     switch (exchangeId) {
         case ExchangeId::BINANCE: return "BINANCE";
         case ExchangeId::KRAKEN: return "KRAKEN";
+        case ExchangeId::KUCOIN: return "KUCOIN";
         default: return "UNKNOWN";
     }
 }

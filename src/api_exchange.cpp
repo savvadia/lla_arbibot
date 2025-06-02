@@ -1,6 +1,7 @@
 #include "api_exchange.h"
 #include "api_binance.h"
 #include "api_kraken.h"
+#include "api_kucoin.h"
 #include <stdexcept>
 #include <algorithm>
 #include "tracer.h"
@@ -12,6 +13,8 @@
 #define ERROR(...) ERROR_BASE(TraceInstance::A_EXCHANGE, this->getExchangeId(), __VA_ARGS__)
 #define ERROR_CNT(_id, ...) ERROR_COUNT(TraceInstance::A_EXCHANGE, _id, this->getExchangeId(), __VA_ARGS__)
 
+#define TRACE_IO(...) TRACE_THIS(TraceInstance::A_IO, this->getExchangeId(), __VA_ARGS__)
+#define DEBUG_IO(...) DEBUG_THIS(TraceInstance::A_IO, this->getExchangeId(), __VA_ARGS__)
 // Timer callback for snapshot validity check
 void snapshotValidityCheckCallback(int id, void* data) {
     auto* exchange = static_cast<ApiExchange*>(data);
@@ -24,12 +27,13 @@ void snapshotValidityCheckCallback(int id, void* data) {
 }
 
 ApiExchange::ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
-    const std::string& host, const std::string& port,
-    const std::string& restEndpoint, const std::string& wsEndpoint,
+    const std::string& restEndpoint, 
+    const std::string& wsHost, const std::string& wsPort, const std::string& wsEndpoint,
     const std::vector<TradingPair> pairs, bool testMode)
     : m_testMode(testMode), m_inCooldown(false), m_cooldownEndTime(std::chrono::steady_clock::now()), 
     m_timersMgr(timersMgr), m_orderBookManager(orderBookManager), 
-    m_host(host), m_port(port), m_restEndpoint(restEndpoint), m_wsEndpoint(wsEndpoint),
+        m_restEndpoint(restEndpoint), 
+        m_wsHost(wsHost), m_wsPort(wsPort), m_wsEndpoint(wsEndpoint),
     m_pairs(pairs) {
     
     // Initialize symbol states
@@ -54,6 +58,8 @@ std::unique_ptr<ApiExchange> createApiExchange(ExchangeId exchangeId, OrderBookM
         return std::make_unique<ApiBinance>(orderBookManager, timersMgr, pairs, testMode);
     } else if (exchangeId == ExchangeId::KRAKEN) {
         return std::make_unique<ApiKraken>(orderBookManager, timersMgr, pairs, testMode);
+    } else if (exchangeId == ExchangeId::KUCOIN) {
+        return std::make_unique<ApiKucoin>(orderBookManager, timersMgr, pairs, testMode);
     }
     // Add more exchanges here as we implement them
     TRACE_BASE(TraceInstance::A_EXCHANGE, exchangeId, "ERROR: Unsupported exchange");
@@ -64,6 +70,26 @@ std::unique_ptr<ApiExchange> createApiExchange(ExchangeId exchangeId, OrderBookM
 size_t ApiExchange::WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
     ((std::string*)userp)->append((char*)contents, size * nmemb);
     return size * nmemb;
+}
+
+size_t ApiExchange::WriteHeaderCallback(char* buffer, size_t size, size_t nitems, void* userdata) {
+    size_t totalSize = size * nitems;
+    std::string* headers = static_cast<std::string*>(userdata);
+    headers->append(buffer, totalSize);
+    return totalSize;
+}
+
+std::string ApiExchange::formatCurlHeaders(struct curl_slist* headers) {
+    std::string result;
+    for (struct curl_slist* temp = headers; temp != nullptr; temp = temp->next) {
+        result += temp->data;
+        result += "; ";
+    }
+    if (!result.empty()) {
+        result.pop_back(); // remove last space
+        result.pop_back(); // remove last semicolon
+    }
+    return result;
 }
 
 // Initialize CURL
@@ -110,7 +136,7 @@ bool ApiExchange::connect() {
         m_ws = std::make_unique<websocket::stream<beast::ssl_stream<beast::tcp_stream>>>(m_ioc, m_ctx);
 
         // These two lines are needed for SSL
-        if (!SSL_set_tlsext_host_name(m_ws->next_layer().native_handle(), m_host.c_str())) {
+        if (!SSL_set_tlsext_host_name(m_ws->next_layer().native_handle(), m_wsHost.c_str())) {
             throw beast::system_error(
                 beast::error_code(static_cast<int>(::ERR_get_error()),
                                 net::error::get_ssl_category()),
@@ -119,7 +145,7 @@ bool ApiExchange::connect() {
 
         // Look up the domain name
         tcp::resolver resolver(m_ioc);
-        auto const results = resolver.resolve(m_host, m_port);
+        auto const results = resolver.resolve(m_wsHost, m_wsPort);
 
         // Connect to the IP address we get from a lookup
         beast::get_lowest_layer(*m_ws).connect(results);
@@ -128,7 +154,7 @@ bool ApiExchange::connect() {
         m_ws->next_layer().handshake(ssl::stream_base::client);
 
         // Perform the websocket handshake
-        m_ws->handshake(m_host, m_wsEndpoint);
+        m_ws->handshake(m_wsHost, m_wsEndpoint);
 
         m_connected = true;
 
@@ -143,7 +169,7 @@ bool ApiExchange::connect() {
         // Start reading
         doRead();
 
-        TRACE("Successfully connected to ", getExchangeName(), " WebSocket at ", m_host, ":", m_port);
+        TRACE("Successfully connected to ", getExchangeName(), " WebSocket at ", m_wsHost, ":", m_wsPort);
         return true;
     } catch (const std::exception& e) {
         ERROR("Error in connect: ", e.what());
@@ -206,7 +232,7 @@ void ApiExchange::disconnect() {
 }
 
 // Common HTTP request handling
-json ApiExchange::makeHttpRequest(const std::string& endpoint, const std::string& params, const std::string& method) {
+json ApiExchange::makeHttpRequest(const std::string& endpoint, const std::string& params, const std::string& method, bool addJsonHeader) {
     // Check if we're in a cooldown period
     if (isInCooldown()) {
         int remainingSeconds = getRemainingCooldownSeconds();
@@ -225,55 +251,98 @@ json ApiExchange::makeHttpRequest(const std::string& endpoint, const std::string
         url += "?" + params;
     }
 
-    TRACE("Making HTTP ", method, " request to: ", url);
-
     std::string response;
-    std::string headers;
+    std::string headerData;
     long httpCode = 0;
-    
+
+    // Initialize headers list
+    struct curl_slist* requestHeaders = nullptr;
+    if (addJsonHeader) {
+        requestHeaders = curl_slist_append(requestHeaders, "Content-Type: application/json");
+
+        if (!requestHeaders) {
+            throw std::runtime_error("Failed to create headers list");
+        }
+    }
+
+    TRACE_IO("Making HTTP ", method, " request to: ", url, " with params cnt: ", params.size(), " and headers: ", formatCurlHeaders(requestHeaders));
+
+    // Reset first if needed
+    curl_easy_reset(m_curl);
+    curl_easy_setopt(m_curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+
+
+    // Now set all options
     curl_easy_setopt(m_curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(m_curl, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(m_curl, CURLOPT_CONNECTTIMEOUT, 5L);
     curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &response);
-    curl_easy_setopt(m_curl, CURLOPT_HEADERFUNCTION, WriteCallback);
-    curl_easy_setopt(m_curl, CURLOPT_HEADERDATA, &headers);
+    curl_easy_setopt(m_curl, CURLOPT_HEADERFUNCTION, WriteHeaderCallback);
+    curl_easy_setopt(m_curl, CURLOPT_HEADERDATA, &headerData);
     curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(m_curl, CURLOPT_SSL_VERIFYHOST, 2L);
-    
+    curl_easy_setopt(m_curl, CURLOPT_HTTPHEADER, requestHeaders);
+
     if (method == "DELETE") {
         curl_easy_setopt(m_curl, CURLOPT_CUSTOMREQUEST, "DELETE");
     } else if (method == "POST") {
         curl_easy_setopt(m_curl, CURLOPT_POST, 1L);
-        if (!params.empty()) {
+        if (params.empty()) {
+            curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, "");
+        } else {
             curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, params.c_str());
         }
+        curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE, params.size());
     } else {
         curl_easy_setopt(m_curl, CURLOPT_HTTPGET, 1L);
     }
+
+    curl_easy_setopt(m_curl, CURLOPT_DNS_CACHE_TIMEOUT, 60L);
+    // curl_easy_setopt(m_curl, CURLOPT_VERBOSE, 1L);
     
+    DEBUG("Starting CURL request...");
+    
+    // Perform the request with error checking
     CURLcode res = curl_easy_perform(m_curl);
+
     if (res != CURLE_OK) {
+        ERROR("CURL request failed with code ", res, ": ", curl_easy_strerror(res));
+        
+        // Clean up headers list
+        if (requestHeaders) {
+            curl_slist_free_all(requestHeaders);
+        }
+        
         throw std::runtime_error(std::string("curl_easy_perform() failed: ") + curl_easy_strerror(res));
     }
-
+    
+    // Get response code
     curl_easy_getinfo(m_curl, CURLINFO_RESPONSE_CODE, &httpCode);
+    DEBUG_IO("HTTP response code: ", httpCode);
+    
+    // Clean up headers list
+    if (requestHeaders) {
+        curl_slist_free_all(requestHeaders);
+    }
     
     // Process rate limit headers
-    if (!headers.empty()) {
-        processRateLimitHeaders(headers);
+    if (!headerData.empty()) {
+        processRateLimitHeaders(headerData);
     }
     
     // Handle HTTP errors
     if (httpCode >= 400) {
+        ERROR("HTTP error ", httpCode, " for endpoint ", endpoint);
         handleHttpError(httpCode, response, endpoint);
     }
     
     // Parse response as JSON
     try {
-        TRACE("Response: ", response.substr(0, 500));
+        DEBUG_IO("Response: ", response.substr(0, 500));
         return json::parse(response);
     } catch (const json::parse_error& e) {
-        TRACE("Failed to parse JSON response: ", e.what());
-        TRACE("Response: ", response);
+        ERROR("Failed to parse JSON response: ", e.what(), " for response: ", response);
         throw std::runtime_error("Failed to parse JSON response");
     }
 }
@@ -308,7 +377,7 @@ void ApiExchange::doWrite(std::string message) {
     std::lock_guard<std::mutex> lock(m_wsMutex);
     if (!m_ws) return;
 
-    TRACE_BASE(TraceInstance::A_WRITER, getExchangeId(), "Sending: ", message);
+    TRACE_BASE(TraceInstance::A_IO, getExchangeId(), "Sending: ", message);
     
     // Add message to queue
     m_writeQueue.push(std::move(message));
