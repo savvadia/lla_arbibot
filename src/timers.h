@@ -65,9 +65,6 @@ struct Timer : public Traceable {
 
 class TimersMgr {
 public:
-    static constexpr int DEFAULT_CHECK_INTERVAL_MS = 20;   // Check timers every 20ms
-    static constexpr int MAX_CALLBACK_TIME_MS = 10;        // Callbacks must complete within 10ms
-
     TimersMgr() = default;
     
     // Thread-safe timer management:
@@ -75,6 +72,7 @@ public:
     // - stopTimer: Can be called from any thread
     // - checkTimers: Must be called only from the main thread
     int addTimer(int intervalMs, TimerCallback callback, void* data, TimerType type, bool isPeriodic = false);
+    int addTimer(std::chrono::steady_clock::time_point timeToFire, int intervalMs, TimerCallback callback, void* data, TimerType type, bool isPeriodic = false);
     void stopTimer(int id);
     void checkTimers();  // Called directly from main
 

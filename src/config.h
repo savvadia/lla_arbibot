@@ -4,6 +4,8 @@ namespace Config {
     // Execution settings
     constexpr int EVENT_LOOP_DELAY_MS = 10;  // Delay between event loop iterations
     constexpr int MAX_EXECUTION_TIME_MS = 0;  // Maximum time to run the bot (0 = run indefinitely)
+    constexpr int MAX_CALLBACK_EXECUTION_TIME_MS = 10;
+    constexpr int MAX_TIMER_DELAY_TRACE_MS = EVENT_LOOP_DELAY_MS * 1.5;
 
     // Strategy settings
     constexpr int STRATEGY_CHECK_TIMER_MS = 5000;  // How often to check for opportunities

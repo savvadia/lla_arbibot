@@ -1,14 +1,15 @@
-#include "timers.h"
 #include <sstream>
 #include <iomanip>
 #include <thread>
-
-#include "tracer.h"
 #include <iostream>
+
+#include "timers.h"
+#include "tracer.h"
+#include "config.h"
 
 // Define TRACE macro for TimersMgr
 #define TRACE(_timer, ...) TRACE_OBJ("INFO ", &_timer, TraceInstance::TIMER, ExchangeId::UNKNOWN, __VA_ARGS__)
-
+#define ERROR(_timer, ...) ERROR_OBJ(&_timer, TraceInstance::TIMER, ExchangeId::UNKNOWN, __VA_ARGS__)
 // Initialize static member
 int TimersMgr::nextId = 1;
 
@@ -47,10 +48,15 @@ bool Timer::isExpired(std::chrono::steady_clock::time_point now) const {
 }
 
 int TimersMgr::addTimer(int intervalMs, TimerCallback callback, void* data, TimerType type, bool isPeriodic) {
+    auto timeToFire = std::chrono::steady_clock::now() + std::chrono::milliseconds(intervalMs);
+    return addTimer(timeToFire, intervalMs, callback, data, type, isPeriodic);
+}
+
+int TimersMgr::addTimer(std::chrono::steady_clock::time_point timeToFire, int intervalMs, TimerCallback callback, void* data, TimerType type, bool isPeriodic) {
     Timer timer;
     timer.id = nextId++;
     timer.interval = intervalMs;
-    timer.timeToFire = std::chrono::steady_clock::now() + std::chrono::milliseconds(intervalMs);
+    timer.timeToFire = timeToFire;
     timer.callback = callback;
     timer.data = data;
     timer.type = type;
@@ -96,9 +102,14 @@ void TimersMgr::checkTimers() {
         auto delay_micros = std::chrono::duration_cast<std::chrono::microseconds>(now - timer.timeToFire).count();
         TRACE(timer, "fired (delay: ", delay_micros, " us)");
 
+        if (delay_micros > Config::MAX_TIMER_DELAY_TRACE_MS * 1000) {
+            ERROR(timer, "Timer fired with long delay: ", delay_micros, " us");
+        }
+        
         if (timer.isPeriodic) {
-            auto new_delay = timer.interval - delay_micros/1000;
-            addTimer(new_delay, timer.callback, timer.data, timer.type, true);
+            // Calculate next fire time based on the previous fire time
+            auto nextFireTime = timer.timeToFire + std::chrono::milliseconds(timer.interval);
+            addTimer(nextFireTime, timer.interval, timer.callback, timer.data, timer.type, true);
         }
         
         auto start = std::chrono::steady_clock::now();
@@ -106,10 +117,10 @@ void TimersMgr::checkTimers() {
         auto end = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         
-        if (duration > MAX_CALLBACK_TIME_MS * 1000) {
-            TRACE(timer, "callback took ", duration, "us (max: ", MAX_CALLBACK_TIME_MS * 1000, "us)");
+        if (duration > Config::MAX_CALLBACK_EXECUTION_TIME_MS * 1000) {
+            TRACE(timer, "callback took ", duration, "us (max: ", Config::MAX_CALLBACK_EXECUTION_TIME_MS * 1000, "us)");
         } else {
-            TRACE(timer, "callback took ", duration, "us (max: ", MAX_CALLBACK_TIME_MS * 1000, "us)");
+            TRACE(timer, "callback took ", duration, "us (max: ", Config::MAX_CALLBACK_EXECUTION_TIME_MS * 1000, "us)");
         }
     }
 }
