@@ -32,8 +32,6 @@ public:
     // Get current order book snapshot
     bool getOrderBookSnapshot(TradingPair pair) override;
 
-    // Process messages for all exchanges
-    void processBookTicker(const json& data);
 
     // Order management
     bool placeOrder(TradingPair pair, OrderType type, double price, double quantity) override;
@@ -57,7 +55,10 @@ protected:
     void processRateLimitHeaders(const std::string& headers) override;
 
     // Message processing methods
-    void processMessage(const std::string& message) override;
+    // Process messages for all exchanges
+    void processMessage(const json& data) override;
+    void processLevel1(const json& data);
+    void processSubscribeResponse(const json& data);
     void processOrderBookUpdate(const json& data);
     void processOrderBookSnapshot(const json& data, TradingPair pair);
 }; 

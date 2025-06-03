@@ -41,8 +41,8 @@ TradingPairData::symbolMaps = []{
 
 // ---- API ----
 const TradingPairInfo& TradingPairData::get(TradingPair pair) {
-    if (pair == TradingPair::UNKNOWN || pair >= TradingPair::COUNT) {
-        throw std::runtime_error("Invalid trading pair");
+    if (pair >= TradingPair::COUNT) {
+        throw std::runtime_error("Invalid trading pair " + std::to_string(static_cast<int>(pair)));
     }
     return pairData[static_cast<size_t>(pair)];
 }
@@ -51,7 +51,7 @@ const std::string& TradingPairData::getSymbol(ExchangeId ex, TradingPair pair) {
     const auto& info = get(pair);
     auto it = info.exchangeSymbols.find(ex);
     if (it == info.exchangeSymbols.end()) {
-        throw std::runtime_error("Symbol not found for exchange");
+        throw std::runtime_error("Symbol not found for exchange " + std::to_string(static_cast<int>(ex)) + " and trading pair " + std::to_string(static_cast<int>(pair)));
     }
     return it->second;
 }
@@ -63,11 +63,14 @@ int TradingPairData::getPrecision(TradingPair pair) {
 
 TradingPair TradingPairData::fromSymbol(ExchangeId ex, const std::string& symbol) {
     if (ex == ExchangeId::UNKNOWN || ex >= ExchangeId::COUNT) {
-        return TradingPair::UNKNOWN;
+        throw std::runtime_error("Invalid exchange " + std::to_string(static_cast<int>(ex)));
     }
     std::string lower = symbol;
     std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
     const auto& map = symbolMaps[static_cast<size_t>(ex)];
     auto it = map.find(lower);
-    return it != map.end() ? it->second : TradingPair::UNKNOWN;
+    if (it == map.end()) {
+        throw std::runtime_error("Symbol not found for exchange " + std::to_string(static_cast<int>(ex)) + " and symbol " + symbol);
+    }
+    return it->second;
 }

@@ -401,7 +401,7 @@ void ApiExchange::writeNext() {
     m_ws->async_write(net::buffer(message),
         [this, message](beast::error_code ec, std::size_t bytes_transferred) {
             if (ec) {
-                TRACE("Write error: ", ec.message(), " for message: ", message);
+                ERROR_CNT(CountableTrace::A_EXCHANGE_WRITE_ERROR, ec.message(), " for message: ", message);
                 m_isWriting = false;
                 return;
             }
@@ -578,4 +578,16 @@ ApiExchange::SnapshotRestoring ApiExchange::checkSnapshotValidity() {
     }
 
     return ApiExchange::SnapshotRestoring::NONE;
+}
+
+void ApiExchange::processMessage(std::string message) {
+    TRACE("Processing message: ", message.substr(0, 500));
+    try {
+        json parsedMessage = json::parse(message);
+        processMessage(parsedMessage);
+    } catch (const json::parse_error& e) {
+        ERROR("Error parsing message: ", e.what(), " message: ", message);
+    } catch (const std::exception& e) {
+        ERROR("Error processing message: ", e.what(), " message: ", message);
+    }
 }

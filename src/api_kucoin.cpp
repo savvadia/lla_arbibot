@@ -123,214 +123,253 @@ bool ApiKucoin::initWebSocketEndpoint() {
     return false;
 }
 
-
-void ApiKucoin::processMessage(const std::string& message) {
-    try {
-        DEBUG("Received message: ", message.substr(0, 300));
-        json data = json::parse(message);
-        
-        if (data.contains("e")) {
-            std::string eventType = data["e"];
-            TRACE("received message type: ", eventType, " ", data.dump().substr(0, 300));
-            if (eventType == "depthUpdate") {
-                processOrderBookUpdate(data);
-            } else if (eventType == "executionReport") {
-                ERROR("not implemented: Execution report: ", data.dump());
-                // processExecutionReport(data);
-            } else {
-                ERROR("Unhandled event type: ", eventType);
+void ApiKucoin::processSubscribeResponse(const json& data) {
+    TRACE("Subscription confirmed for topic: ", data["topic"]);
+    // topic contains: /market/level2:{symbol},{symbol}...
+    // we need to extract the symbols from the topic
+    std::string topic = data["topic"];
+    std::vector<TradingPair> symbols;
+    std::stringstream ss(topic);
+    std::string item;
+    while (std::getline(ss, item, ':')) {
+        if (item == "market") {
+            std::getline(ss, item, ':');
+            std::stringstream ss2(item);
+            std::string symbol;
+            while (std::getline(ss2, symbol, ',')) {
+                symbols.push_back(symbolToTradingPair(symbol));
             }
-        } else if (data.contains("b") && data.contains("a") && data.contains("B") && data.contains("A")) {
-            DEBUG("received bookTicker: ", data.dump().substr(0, 300));
-            processBookTicker(data);
-        } else if (data.contains("result") && data["result"] == nullptr) {
-            // This is a subscription response
-            TRACE("Subscription successful", data.dump());
-        } else if (data.contains("id")) {
-            // This is a subscription response
-            TRACE("Subscription response: ", data.dump());
-        } else {
-            ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Unhandled message type: ", message);
         }
-    } catch (const std::exception& e) {
-        ERROR("Error processing message: ", e.what());
     }
-}
-
-void ApiKucoin::processBookTicker(const json& data) {
-    try {
-        std::string symbol = data["s"];
-        TradingPair pair = symbolToTradingPair(symbol);
-        if (pair == TradingPair::UNKNOWN) {
-            ERROR("Unknown trading pair in bookTicker: ", symbol);
-            return;
-        }
-
-        double bidPrice = std::stod(data["b"].get<std::string>());
-        double bidQuantity = std::stod(data["B"].get<std::string>());
-        double askPrice = std::stod(data["a"].get<std::string>());
-        double askQuantity = std::stod(data["A"].get<std::string>());
-        std::vector<PriceLevel> bids({{bidPrice, bidQuantity}});
-        std::vector<PriceLevel> asks({{askPrice, askQuantity}});
-        m_orderBookManager.updateOrderBookBestBidAsk(ExchangeId::KUCOIN, pair, bidPrice, bidQuantity, askPrice, askQuantity);
-    
-    } catch (const std::exception& e) {
-        ERROR("Error processing bookTicker: ", data.dump().substr(0, 300), " ", e.what());
+    // set the subscription state for all symbols
+    for (const auto& pair : symbols) {
+        auto& state = symbolStates[pair];
+        state.subscribed = true;    
     }
 }
 
 void ApiKucoin::processOrderBookUpdate(const json& data) {
+    ERROR("Not implemented: processOrderBookUpdate");
+    // if (!data.contains("subject") || !data.contains("data") || data["subject"] != "trade.l2update") {
+    //     ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Missing subject or data: ", data.dump());
+    //     return;
+    // }
+
+    // const auto& updateData = data["data"];
+    // std::string symbol = updateData["symbol"];
+    // TradingPair pair = symbolToTradingPair(symbol);
+        
+    // if (pair == TradingPair::UNKNOWN) {
+    //     ERROR_CNT(CountableTrace::A_UNKNOWN_TRADING_PAIR, "Unknown trading pair in update: ", symbol, " data: ", data.dump());
+    //     return;
+    // }
+
+    // auto& state = symbolStates[pair];
+    // if (!state.hasSnapshot()) {
+    //     TRACE("No snapshot for ", symbol, " yet, requesting...");
+    //     bufferMessage(data);
+    //     return;
+    // }
+
+    // // Check sequence numbers
+    // int64_t sequenceStart = updateData["sequenceStart"];
+    // int64_t sequenceEnd = updateData["sequenceEnd"];
+    
+    // // Skip updates that are before or equal to our last snapshot
+    // if (sequenceEnd <= state.lastUpdateId) {
+    //     TRACE("Skipping update for ", symbol, " - sequence ", sequenceEnd, " is before or equal to last snapshot ID ", state.lastUpdateId);
+    //     return;
+    // }
+
+    // // some updates might be skipped but that's ok
+
+    // std::vector<PriceLevel> bids;
+    // std::vector<PriceLevel> asks;
+
+    // // Process bids
+    // if (updateData["changes"].contains("bids")) {
+    //     for (const auto& bid : updateData["changes"]["bids"]) {
+    //         double price = std::stod(bid[0].get<std::string>());
+    //         double quantity = std::stod(bid[1].get<std::string>());
+    //         if (quantity > 0) {
+    //             bids.push_back({price, quantity});
+    //         } else {
+    //             // If quantity is 0, it's a delete - we'll pass it through with 0 quantity
+    //             bids.push_back({price, 0});
+    //         }
+    //     }
+    // }
+
+    // // Process asks
+    // if (updateData["changes"].contains("asks")) {
+    //     for (const auto& ask : updateData["changes"]["asks"]) {
+    //         double price = std::stod(ask[0].get<std::string>());
+    //         double quantity = std::stod(ask[1].get<std::string>());
+    //         if (quantity > 0) {
+    //             asks.push_back({price, quantity});
+    //         } else {
+    //             // If quantity is 0, it's a delete - we'll pass it through with 0 quantity
+    //             asks.push_back({price, 0});
+    //         }
+    //     }
+    // }
+
+    // // Skip updates that would clear the entire order book
+    // if (bids.empty() && asks.empty()) {
+    //     TRACE("Skipping empty update for ", symbol);
+    //     return;
+    // }
+
+    // // Check if this update would clear all price levels
+    // bool allZeroBids = true;
+    // bool allZeroAsks = true;
+    // for (const auto& bid : bids) {
+    //     if (bid.quantity > 0) {
+    //         allZeroBids = false;
+    //         break;
+    //     }
+    // }
+    // for (const auto& ask : asks) {
+    //     if (ask.quantity > 0) {
+    //         allZeroAsks = false;
+    //         break;
+    //     }
+    // }
+
+    // if (allZeroBids && allZeroAsks) {
+    //     TRACE("Skipping update that would clear all price levels for ", symbol);
+    //     return;
+    // }
+
+    // if (!bids.empty() || !asks.empty()) {
+    //     TRACE("Updating order book for ", symbol, " with ", bids.size(), " bids and ", asks.size(), " asks (", sequenceStart, " - ", sequenceEnd, ")");
+    //     TRACE("First bid: ", (bids.empty() ? "none" : std::to_string(bids[0].price) + "@" + std::to_string(bids[0].quantity)));
+    //     TRACE("First ask: ", (asks.empty() ? "none" : std::to_string(asks[0].price) + "@" + std::to_string(asks[0].quantity)));
+    //     m_orderBookManager.updateOrderBook(ExchangeId::KUCOIN, pair, bids, asks);
+    // }
+
+    // // Update the last sequence number
+    // state.lastUpdateId = sequenceEnd;
+    
+    // // Mark that we have a snapshot for this symbol
+    // setSymbolSnapshotState(pair, true);
+    // TRACE("Processed order book update for ", symbol, " with sequence ", sequenceEnd);
+
+}
+
+void ApiKucoin::processLevel1(const json& data) {
+    if(!data.contains("topic")) {
+        ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Missing topic in level1 message: ", data.dump());
+        return;
+    }
+    std::string topic = data["topic"];
+    // example: "/spotMarket/level1:BTC-USDT"
+    std::string symbol = topic.substr(19);
+
+    TradingPair pair;
+    pair = symbolToTradingPair(symbol);
+    TRACE("Received level1 message for ", pair, " data: ", data.dump());
+
+    int64_t timestamp = data["data"]["timestamp"];
+    if(pair == TradingPair::UNKNOWN) {
+        ERROR_CNT(CountableTrace::A_UNKNOWN_TRADING_PAIR, "Unknown trading pair: ", symbol, " data: ", data.dump());
+        return;
+    }
+    if(!data.contains("data") || !data["data"].contains("asks") || !data["data"].contains("bids") 
+        || !data["data"]["asks"].is_array() || !data["data"]["bids"].is_array()
+        || data["data"]["asks"].size() != 2 || data["data"]["bids"].size() != 2
+    ) {
+        ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Missing asks or bids in level1 message: ", data.dump());
+        return;
+    }
+    double bidPrice = std::stod(data["data"]["bids"][0].get<std::string>());
+    double bidQuantity = std::stod(data["data"]["bids"][1].get<std::string>());
+    double askPrice = std::stod(data["data"]["asks"][0].get<std::string>());
+    double askQuantity = std::stod(data["data"]["asks"][1].get<std::string>());
+    std::vector<PriceLevel> bids({{bidPrice, bidQuantity}});
+    std::vector<PriceLevel> asks({{askPrice, askQuantity}});
     try {
-        if (!data.contains("e") || data["e"] != "depthUpdate") {
-            return;
-        }
-
-        std::string symbol = data["s"].get<std::string>();
-        TradingPair pair = symbolToTradingPair(symbol);
-        if (pair == TradingPair::UNKNOWN) {
-            TRACE("Unknown trading pair in update: ", symbol);
-            return;
-        }
-
-        auto& state = symbolStates[pair];
-        if (!state.hasSnapshot()) {
-            TRACE("No snapshot for ", symbol, " yet, requesting...");
-            if (!getOrderBookSnapshot(pair)) {
-                ERROR("Failed to get order book snapshot for ", symbol);
-                return;
-            }
-        }
-
-        // Check if this update is after our last snapshot
-        if (data.contains("u")) {
-            int64_t updateId = data["u"];
-            if (updateId <= state.lastUpdateId) {
-                TRACE("Skipping update for ", symbol, " - update ID ", updateId, " is before or equal to last snapshot ID ", state.lastUpdateId);
-                return;
-            }
-            TRACE("Processing update for ", symbol, " - update ID ", updateId, " is after last snapshot ID ", state.lastUpdateId);
-        }
-
-        std::vector<PriceLevel> bids;
-        std::vector<PriceLevel> asks;
-
-        // Process bids
-        for (const auto& bid : data["b"]) {
-            double price = std::stod(bid[0].get<std::string>());
-            double quantity = std::stod(bid[1].get<std::string>());
-            if (quantity > 0) {
-                bids.push_back({price, quantity});
-            } else {
-                // If quantity is 0, it's a delete - we'll pass it through with 0 quantity
-                bids.push_back({price, 0});
-            }
-        }
-
-        // Process asks
-        for (const auto& ask : data["a"]) {
-            double price = std::stod(ask[0].get<std::string>());
-            double quantity = std::stod(ask[1].get<std::string>());
-            if (quantity > 0) {
-                asks.push_back({price, quantity});
-            } else {
-                // If quantity is 0, it's a delete - we'll pass it through with 0 quantity
-                asks.push_back({price, 0});
-            }
-        }
-
-        // Skip updates that would clear the entire order book
-        if (bids.empty() && asks.empty()) {
-            TRACE("Skipping empty update for ", symbol);
-            return;
-        }
-
-        // Check if this update would clear all price levels
-        bool allZeroBids = true;
-        bool allZeroAsks = true;
-        for (const auto& bid : bids) {
-            if (bid.quantity > 0) {
-                allZeroBids = false;
-                break;
-            }
-        }
-        for (const auto& ask : asks) {
-            if (ask.quantity > 0) {
-                allZeroAsks = false;
-                break;
-            }
-        }
-
-        if (allZeroBids && allZeroAsks) {
-            TRACE("Skipping update that would clear all price levels for ", symbol);
-            return;
-        }
-
-        if (!bids.empty() || !asks.empty()) {
-            TRACE("Updating order book for ", symbol, " with ", bids.size(), " bids and ", asks.size(), " asks");
-            TRACE("First bid: ", (bids.empty() ? "none" : std::to_string(bids[0].price) + "@" + std::to_string(bids[0].quantity)));
-            TRACE("First ask: ", (asks.empty() ? "none" : std::to_string(asks[0].price) + "@" + std::to_string(asks[0].quantity)));
-            m_orderBookManager.updateOrderBook(ExchangeId::KUCOIN, pair, bids, asks);
-        }
-
-        // Mark that we have a snapshot for this symbol
-        setSymbolSnapshotState(pair, true);
-        TRACE("Got order book snapshot for ", symbol);
+        m_orderBookManager.updateOrderBookBestBidAsk(ExchangeId::KUCOIN, pair, bidPrice, bidQuantity, askPrice, askQuantity);
     } catch (const std::exception& e) {
-        ERROR("Error processing order book update: ", e.what());
+        ERROR("Error updating order book: ", e.what(), " data: ", data.dump());
+    }
+    // update symbol state
+    auto& state = symbolStates[pair];
+    state.lastUpdateId = timestamp;
+}
+
+void ApiKucoin::processMessage(const json& data) {
+    if (data.contains("type")) {
+        if(data["type"] == "welcome") {
+            TRACE("Received welcome message", data.dump());
+        } else if(data["type"] == "ack") {
+            TRACE("Received ack message", data.dump());
+        } else if (data["type"] == "pong") {
+            TRACE("Received pong response");
+        } else if (data["type"] == "subscribe" && data.contains("response") && data["response"] == true) {
+            processSubscribeResponse(data);
+        } else if (data["type"] == "message") {
+            if(data.contains("subject") && data["subject"] == "level1") {
+                processLevel1(data);
+            }
+        } else {
+            ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Unhandled message type: ", data["type"], " data: ", data.dump());
+        }
     }
 }
 
 void ApiKucoin::processOrderBookSnapshot(const json& data, TradingPair pair) {
-    try {
-        TRACE("Processing order book snapshot for ", tradingPairToSymbol(pair));
+    ERROR("Not implemented: processOrderBookSnapshot");
+    // try {
+    //     TRACE("Processing order book snapshot for ", tradingPairToSymbol(pair));
 
-        auto& state = symbolStates[pair];
-        state.lastUpdateId = data["lastUpdateId"];
-        setSymbolSnapshotState(pair, true);
+    //     auto& state = symbolStates[pair];
+    //     state.lastUpdateId = data["lastUpdateId"];
+    //     setSymbolSnapshotState(pair, true);
         
-        std::vector<PriceLevel> bids;
-        std::vector<PriceLevel> asks;
+    //     std::vector<PriceLevel> bids;
+    //     std::vector<PriceLevel> asks;
         
-        // Process bids
-        for (const auto& bid : data["bids"]) {
-            double price = std::stod(bid[0].get<std::string>());
-            double quantity = std::stod(bid[1].get<std::string>());
-            if (quantity > 0) {
-                bids.push_back({price, quantity});
-            }
-        }
+    //     // Process bids
+    //     for (const auto& bid : data["bids"]) {
+    //         double price = std::stod(bid[0].get<std::string>());
+    //         double quantity = std::stod(bid[1].get<std::string>());
+    //         if (quantity > 0) {
+    //             bids.push_back({price, quantity});
+    //         }
+    //     }
         
-        // Process asks
-        for (const auto& ask : data["asks"]) {
-            double price = std::stod(ask[0].get<std::string>());
-            double quantity = std::stod(ask[1].get<std::string>());
-            if (quantity > 0) {
-                asks.push_back({price, quantity});
-            }
-        }
+    //     // Process asks
+    //     for (const auto& ask : data["asks"]) {
+    //         double price = std::stod(ask[0].get<std::string>());
+    //         double quantity = std::stod(ask[1].get<std::string>());
+    //         if (quantity > 0) {
+    //             asks.push_back({price, quantity});
+    //         }
+    //     }
 
-        // Update the order book with all bids and asks at once
-        if (!bids.empty() || !asks.empty()) {
-            TRACE("Updating order book for ", tradingPairToSymbol(pair), " with ", bids.size(), " bids and ", asks.size(), " asks");
-            m_orderBookManager.updateOrderBook(ExchangeId::KUCOIN, pair, bids, asks);
+    //     // Update the order book with all bids and asks at once
+    //     if (!bids.empty() || !asks.empty()) {
+    //         TRACE("Updating order book for ", tradingPairToSymbol(pair), " with ", bids.size(), " bids and ", asks.size(), " asks");
+    //         m_orderBookManager.updateOrderBook(ExchangeId::KUCOIN, pair, bids, asks);
             
-            TRACE("Processed order book snapshot for ", tradingPairToSymbol(pair),
-                " last update: ", m_orderBookManager.getOrderBook(ExchangeId::KUCOIN, pair).getLastUpdate());
-            if (m_snapshotCallback) {
-                m_snapshotCallback(true);
-            }
+    //         TRACE("Processed order book snapshot for ", tradingPairToSymbol(pair),
+    //             " last update: ", m_orderBookManager.getOrderBook(ExchangeId::KUCOIN, pair).getLastUpdate());
+    //         if (m_snapshotCallback) {
+    //             m_snapshotCallback(true);
+    //         }
 
-            // Reset subscription state
-            setSymbolSnapshotState(pair, true);
-            TRACE("Subscription state for ", tradingPairToSymbol(pair), ": subscribed=", state.subscribed, " hasSnapshot=", state.hasSnapshot());
-        }
+    //         // Reset subscription state
+    //         setSymbolSnapshotState(pair, true);
+    //         TRACE("Subscription state for ", tradingPairToSymbol(pair), ": subscribed=", state.subscribed, " hasSnapshot=", state.hasSnapshot());
+    //     }
         
-    } catch (const std::exception& e) {
-        ERROR("Error processing order book snapshot: ", e.what());
-        if (m_snapshotCallback) {
-            m_snapshotCallback(false);
-        }
-    }
+    // } catch (const std::exception& e) {
+    //     ERROR("Error processing order book snapshot: ", e.what());
+    //     if (m_snapshotCallback) {
+    //         m_snapshotCallback(false);
+    //     }
+    // }
 }
 
 bool ApiKucoin::placeOrder(TradingPair pair, OrderType type, double price, double quantity) {
@@ -405,36 +444,30 @@ bool ApiKucoin::getBalance(const std::string& asset) {
 bool ApiKucoin::subscribeOrderBook() {
     bool success = true;
     if (!m_connected) {
-        TRACE("Not connected to Kucoin");
+        ERROR("Not connected to Kucoin");
         return false;
     }
 
-    TRACE("Subscribing to Kucoin order book for ", m_pairs.size(), " pairs");
-
+    std::string symbols;
     for (const auto& pair : m_pairs) {
+        symbols += tradingPairToSymbol(pair) + ",";
+    }
+    symbols.pop_back(); // Remove the last comma
 
-        try {
-            json message;
-            std::string symbol = tradingPairToSymbol(pair);  
-            message["id"] = "arbibot_id";
-            message["type"] = "subscribe";
-            message["topic"] = "/market/level2:" + symbol;
-            message["privateChannel"] = false;
-            message["response"] = true;
+    TRACE("Subscribing to Kucoin order book for ", m_pairs.size(), " pairs: ", symbols);
 
-            TRACE("Subscribing to Kucoin order book with message: ", message.dump());
-            doWrite(message.dump());  
+    json message;
+    try {
+        message["id"] = "arbibot_subscribeOrderBook_id";
+        message["type"] = "subscribe";
+        message["topic"] = "/spotMarket/level1:" + symbols;
+        message["response"] = true;
 
-            // Store the subscription state
-            auto& state = symbolStates[pair];
-              
-            state.subscribed = true;
-            setSymbolSnapshotState(pair, false);
-            TRACE("Subscription state for ", symbol, ": subscribed=", state.subscribed, " hasSnapshot=", state.hasSnapshot());
-        } catch (const std::exception& e) {
-            ERROR("Error subscribing to order book: ", e.what());
-            success = false;
-        }
+        TRACE("Subscribing to Kucoin order book with message: ", message.dump());
+        doWrite(message.dump());
+    } catch (const std::exception& e) {
+        ERROR("Error subscribing to order book: ", e.what(), " message: ", message.dump());
+        success = false;
     }
 
     return success;
@@ -454,24 +487,25 @@ bool ApiKucoin::getOrderBookSnapshot(TradingPair pair) {
         TRACE("Not connected to Kucoin");
         return false;
     }
-
-    try {
-        std::string symbol = tradingPairToSymbol(pair);
-        std::string endpoint = "/depth";
-        std::string params = "symbol=" + symbol + "&limit=10";
+    ERROR("Not implemented: getOrderBookSnapshot");
+    return false;
+    // try {
+    //     std::string symbol = tradingPairToSymbol(pair);
+    //     std::string endpoint = "/depth";
+    //     std::string params = "symbol=" + symbol + "&limit=10";
         
-        TRACE("Getting order book snapshot for ", symbol);
-        json response = makeHttpRequest(endpoint, params);
-        processOrderBookSnapshot(response, pair);
+    //     TRACE("Getting order book snapshot for ", symbol);
+    //     json response = makeHttpRequest(endpoint, params);
+    //     processOrderBookSnapshot(response, pair);
         
-        return true;
-    } catch (const std::exception& e) {
-        ERROR("Error getting order book snapshot: ", e.what());
-        if (m_snapshotCallback) {
-            m_snapshotCallback(false);
-        }
-        return false;
-    }
+    //     return true;
+    // } catch (const std::exception& e) {
+    //     ERROR("Error getting order book snapshot: ", e.what());
+    //     if (m_snapshotCallback) {
+    //         m_snapshotCallback(false);
+    //     }
+    //     return false;
+    // }
 } 
 
 // Implement the cooldown method for Kucoin-specific rate limiting

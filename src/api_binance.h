@@ -46,7 +46,7 @@ protected:
     void processRateLimitHeaders(const std::string& headers) override;
 
     // Message processing methods
-    void processMessage(const std::string& message) override;
+    void processMessage(const json& data) override;
     void processOrderBookUpdate(const json& data);
     void processOrderBookSnapshot(const json& data, TradingPair pair);
 }; 

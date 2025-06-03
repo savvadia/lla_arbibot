@@ -105,45 +105,38 @@ bool ApiKraken::getOrderBookSnapshot(TradingPair pair) {
     // snapshot will come from book subscription as the first msg
 }
 
-void ApiKraken::processMessage(const std::string& message) {
-    try {
-        json data = json::parse(message);
-        DEBUG("Processing message: ", data.dump());
-        
-        // examples:
-        // {"method":"subscribe","result":{"channel":"book","depth":10,"snapshot":true,"symbol":"ETH/USD"},"success":true,"time_in":"2025-05-06T09:17:26.058856Z","time_out":"2025-05-06T09:17:26.058894Z"}
-        // {"channel":"book","type":"snapshot","data":[{"symbol":"ETH/USD","bids":[{"price":1797.24,"qty":0.43393711},{"price":1797.18,"qty":139.10616255},{"price":1797.13,"qty":139.10995927},{"price":1797.12,"qty":0.80386470},{"price":1797.07,"qty":139.11517673},{"price":1796.98,"qty":5.22282896},{"price":1796.97,"qty":12.17138476},{"price":1796.95,"qty":139.69390939},{"price":1796.88,"qty":4.21870000},{"price":1796.85,"qty":1.22932317}],"asks":[{"price":1797.25,"qty":1.40355852},{"price":1797.28,"qty":10.82400000},{"price":1797.29,"qty":139.09899871},{"price":1797.30,"qty":139.09783403},{"price":1797.37,"qty":139.09216827},{"price":1797.41,"qty":5.24638952},{"price":1797.42,"qty":0.01780330},{"price":1797.46,"qty":33.05700000},{"price":1797.48,"qty":3.11556555},{"price":1797.49,"qty":139.49306646}],"checksum":2606672715}]}
-        // {"channel":"book","type":"update","data":[{"symbol":"ETH/USD","bids":[],"asks":[{"price":1797.29,"qty":0.00000000},{"price":1797.52,"qty":1.56601318}],"checksum":3329440863,"timestamp":"2025-05-06T09:17:26.208075Z"}]}
+void ApiKraken::processMessage(const json& data) {
+    // examples:
+    // {"method":"subscribe","result":{"channel":"book","depth":10,"snapshot":true,"symbol":"ETH/USD"},"success":true,"time_in":"2025-05-06T09:17:26.058856Z","time_out":"2025-05-06T09:17:26.058894Z"}
+    // {"channel":"book","type":"snapshot","data":[{"symbol":"ETH/USD","bids":[{"price":1797.24,"qty":0.43393711},{"price":1797.18,"qty":139.10616255},{"price":1797.13,"qty":139.10995927},{"price":1797.12,"qty":0.80386470},{"price":1797.07,"qty":139.11517673},{"price":1796.98,"qty":5.22282896},{"price":1796.97,"qty":12.17138476},{"price":1796.95,"qty":139.69390939},{"price":1796.88,"qty":4.21870000},{"price":1796.85,"qty":1.22932317}],"asks":[{"price":1797.25,"qty":1.40355852},{"price":1797.28,"qty":10.82400000},{"price":1797.29,"qty":139.09899871},{"price":1797.30,"qty":139.09783403},{"price":1797.37,"qty":139.09216827},{"price":1797.41,"qty":5.24638952},{"price":1797.42,"qty":0.01780330},{"price":1797.46,"qty":33.05700000},{"price":1797.48,"qty":3.11556555},{"price":1797.49,"qty":139.49306646}],"checksum":2606672715}]}
+    // {"channel":"book","type":"update","data":[{"symbol":"ETH/USD","bids":[],"asks":[{"price":1797.29,"qty":0.00000000},{"price":1797.52,"qty":1.56601318}],"checksum":3329440863,"timestamp":"2025-05-06T09:17:26.208075Z"}]}
 
-        if (!data.is_object()) {
-            ERROR("Invalid message format: ", data.dump());
-            return;
-        }
+    if (!data.is_object()) {
+        ERROR("Invalid message format: ", data.dump());
+        return;
+    }
 
-        if (data.contains("method")) {
-            if (data["method"] == "subscribe") {
-                if (data["success"] == true) {
-                    TRACE("Subscription successful: ", data.dump());
-                } else {
-                    ERROR("Subscription failed: ", data.dump());
-                }
-            }
-            return;
-        }
-
-        if (data.contains("channel")) {
-            if (data["channel"] == "status") {
-                TRACE("Got connection status: ", data.dump());
-            } else if (data["channel"] == "heartbeat") {
-                DEBUG("Got heartbeat: ", data.dump());
-            } else if (data["channel"] == "book") {
-                processOrderBookUpdate(data);
+    if (data.contains("method")) {
+        if (data["method"] == "subscribe") {
+            if (data["success"] == true) {
+                TRACE("Subscription successful: ", data.dump());
             } else {
-                ERROR("Unknown channel: ", data.dump());
+                ERROR("Subscription failed: ", data.dump());
             }
         }
-    } catch (const std::exception& e) {
-        ERROR("Error processing message: ", e.what());
+        return;
+    }
+
+    if (data.contains("channel")) {
+        if (data["channel"] == "status") {
+            TRACE("Got connection status: ", data.dump());
+        } else if (data["channel"] == "heartbeat") {
+            DEBUG("Got heartbeat: ", data.dump());
+        } else if (data["channel"] == "book") {
+            processOrderBookUpdate(data);
+        } else {
+            ERROR("Unknown channel: ", data.dump());
+        }
     }
 }
 
@@ -268,7 +261,7 @@ void ApiKraken::processOrderBookUpdate(const json& data) {
 std::string ApiKraken::formatPrice(TradingPair pair, double price) {
     std::ostringstream out;
     // Get the trading pair from the current order book being processed
-    int precision = getPricePrecision(pair);
+    int precision = TradingPairData::getPrecision(pair);
     out << std::fixed << std::setprecision(precision) << price;
     std::string s = out.str();
     s.erase(std::remove(s.begin(), s.end(), '.'), s.end());

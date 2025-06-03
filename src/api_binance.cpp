@@ -30,36 +30,29 @@ ApiBinance::ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
         pairs, testMode) {
 }
 
-void ApiBinance::processMessage(const std::string& message) {
-    try {
-        DEBUG("Received message: ", message.substr(0, 300));
-        json data = json::parse(message);
-        
-        if (data.contains("e")) {
-            std::string eventType = data["e"];
-            TRACE("received message type: ", eventType, " ", data.dump().substr(0, 300));
-            if (eventType == "depthUpdate") {
-                processOrderBookUpdate(data);
-            } else if (eventType == "executionReport") {
-                ERROR("not implemented: Execution report: ", data.dump());
-                // processExecutionReport(data);
-            } else {
-                ERROR("Unhandled event type: ", eventType);
-            }
-        } else if (data.contains("b") && data.contains("a") && data.contains("B") && data.contains("A")) {
-            DEBUG("received bookTicker: ", data.dump().substr(0, 300));
-            processBookTicker(data);
-        } else if (data.contains("result") && data["result"] == nullptr) {
-            // This is a subscription response
-            TRACE("Subscription successful", data.dump());
-        } else if (data.contains("id")) {
-            // This is a subscription response
-            TRACE("Subscription response: ", data.dump());
+void ApiBinance::processMessage(const json& data) {
+    if (data.contains("e")) {
+        std::string eventType = data["e"];
+        TRACE("received message type: ", eventType, " ", data.dump().substr(0, 300));
+        if (eventType == "depthUpdate") {
+            processOrderBookUpdate(data);
+        } else if (eventType == "executionReport") {
+            ERROR("not implemented: Execution report: ", data.dump());
+            // processExecutionReport(data);
         } else {
-            ERROR("Unhandled message type: ", message);
+            ERROR("Unhandled event type: ", eventType);
         }
-    } catch (const std::exception& e) {
-        ERROR("Error processing message: ", e.what());
+    } else if (data.contains("b") && data.contains("a") && data.contains("B") && data.contains("A")) {
+        DEBUG("received bookTicker: ", data.dump().substr(0, 300));
+        processBookTicker(data);
+    } else if (data.contains("result") && data["result"] == nullptr) {
+        // This is a subscription response
+        TRACE("Subscription successful", data.dump());
+    } else if (data.contains("id")) {
+        // This is a subscription response
+        TRACE("Subscription response: ", data.dump());
+    } else {
+        ERROR("Unhandled message type: ", data.dump());
     }
 }
 

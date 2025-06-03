@@ -93,11 +93,6 @@ inline std::ostream& operator<<(std::ostream& os, const TradingPairInfo& info) {
     return os;
 }
 
-// Convert TradingPair to string
-inline std::string toString(TradingPair pair) {
-    return TradingPairData::get(pair).displayName;
-}
-
 inline const TradingPairCoins getTradingPairCoins(TradingPair pair) {
     auto& data = TradingPairData::get(pair);
     return TradingPairCoins{data.baseSymbol, data.quoteSymbol};
@@ -105,7 +100,7 @@ inline const TradingPairCoins getTradingPairCoins(TradingPair pair) {
 
 // Stream operator for TradingPair
 inline std::ostream& operator<<(std::ostream& os, TradingPair pair) {
-    os << toString(pair);
+    os << TradingPairData::get(pair).displayName;
     return os;
 }
 

@@ -47,17 +47,17 @@ int main() {
     FastTraceLogger::setLoggingEnabled(TraceInstance::BALANCE, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK_MGR, false);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::A_EXCHANGE, true);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_EXCHANGE, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_IO, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_KRAKEN, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_BINANCE, false);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::A_KUCOIN, true);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_KUCOIN, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::MAIN, true);
 
     // Enable exchange-specific logging
     FastTraceLogger::setLoggingEnabled(ExchangeId::BINANCE, false);
     FastTraceLogger::setLoggingEnabled(ExchangeId::KRAKEN, false);
-    FastTraceLogger::setLoggingEnabled(ExchangeId::KUCOIN, true);
+    FastTraceLogger::setLoggingEnabled(ExchangeId::KUCOIN, false);
     TRACE("Trace types enabled: EVENT_LOOP, TRACES, TIMER, STRAT, BALANCE, ORDERBOOK, A_EXCHANGE, A_KRAKEN, A_BINANCE, A_KUCOIN, MAIN");
     TRACE("Exchange logging enabled: BINANCE, KRAKEN, KUCOIN");
 

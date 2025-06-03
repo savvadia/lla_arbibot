@@ -7,8 +7,6 @@
 #include <nlohmann/json.hpp>
 
 using namespace std::chrono_literals;
-using ::testing::_;
-using ::testing::Return;
 using json = nlohmann::json;
 
 class TestApiExchange : public ApiExchange {
@@ -49,7 +47,7 @@ public:
         return true; 
     }
 
-    void processMessage(const std::string& message) override {
+    void processMessage(const json& data) override {
         // Process any queued messages
         while (!m_messageQueue.empty()) {
             auto message = m_messageQueue.front();
@@ -57,7 +55,6 @@ public:
             
             // Parse the message and update order book accordingly
             try {
-                json data = json::parse(message);
                 if (data.contains("channel")) {
                     if (data["channel"] == "orderbook") {
                         std::vector<PriceLevel> bids;

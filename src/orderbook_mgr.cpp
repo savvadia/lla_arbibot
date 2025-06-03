@@ -1,14 +1,18 @@
 #include "orderbook_mgr.h"
 
-#define TRACE(...) TRACE_THIS(TraceInstance::ORDERBOOK_MGR, ExchangeId::UNKNOWN, __VA_ARGS__)
-#define DEBUG(...) DEBUG_THIS(TraceInstance::ORDERBOOK_MGR, ExchangeId::UNKNOWN, __VA_ARGS__)
-#define NOTICE(...) DEBUG_BASE(TraceInstance::ORDERBOOK_MGR, ExchangeId::UNKNOWN, __VA_ARGS__)
-#define ERROR(...) ERROR_BASE(TraceInstance::ORDERBOOK_MGR, ExchangeId::UNKNOWN, __VA_ARGS__)
+#define TRACE(_exchangeId, ...) TRACE_THIS(TraceInstance::ORDERBOOK_MGR, _exchangeId, __VA_ARGS__)
+#define DEBUG(_exchangeId, ...) DEBUG_THIS(TraceInstance::ORDERBOOK_MGR, _exchangeId, __VA_ARGS__)
+#define NOTICE(_exchangeId, ...) DEBUG_BASE(TraceInstance::ORDERBOOK_MGR, _exchangeId, __VA_ARGS__)
+#define ERROR(_exchangeId, ...) ERROR_BASE(TraceInstance::ORDERBOOK_MGR, _exchangeId, __VA_ARGS__)
+#define ERROR_CNT(_id, _exchangeId, ...) ERROR_COUNT(TraceInstance::ORDERBOOK_MGR, _exchangeId, _id, __VA_ARGS__)
 
 OrderBookManager::OrderBookManager() {
     for (int pair = 0; pair < static_cast<int>(TradingPair::COUNT); pair++) {
         if (pair == static_cast<int>(TradingPair::UNKNOWN)) continue;
-        for (const auto& exchangeId : {ExchangeId::BINANCE, ExchangeId::KRAKEN}) {
+        for (int exchangeIx = static_cast<int>(ExchangeId::UNKNOWN) + 1; 
+            exchangeIx < static_cast<int>(ExchangeId::COUNT); exchangeIx++) {
+            if (exchangeIx == static_cast<int>(ExchangeId::UNKNOWN)) continue;
+            ExchangeId exchangeId = static_cast<ExchangeId>(exchangeIx);
             orderBooks[exchangeId][static_cast<TradingPair>(pair)] = OrderBook(exchangeId, static_cast<TradingPair>(pair));
         }
     }
@@ -32,14 +36,14 @@ void OrderBookManager::updateOrderBook(ExchangeId exchangeId, TradingPair pair, 
             changed = true;
         }
 
-        NOTICE("Update order book - Exchange: ", exchangeId, " Pair: ", pair, 
+        NOTICE(exchangeId, "Update order book - Exchange: ", exchangeId, " Pair: ", pair, 
                " calling callback: ", changed, 
                " updated: ", book.getLastUpdate());
     }
 
     if (changed) {        
         if (updateCallback) {
-            TRACE("Calling update callback for exchange: ", exchangeId, " pair: ", pair);
+            TRACE(exchangeId, "Calling update callback for exchange: ", exchangeId, " pair: ", pair);
             updateCallback(exchangeId, pair);
         }
     }
@@ -49,7 +53,11 @@ void OrderBookManager::updateOrderBookBestBidAsk(ExchangeId exchangeId, TradingP
                                                 double bidPrice, double bidQuantity, 
                                                 double askPrice, double askQuantity) {
     bool changed = false;
-    {
+    TRACE(exchangeId, "Updating order book best bid/ask - Exchange: ", exchangeId, " Pair: ", pair, 
+          " Bid: ", bidPrice, "@", bidQuantity,
+          " Ask: ", askPrice, "@", askQuantity);
+    
+    try {
         MUTEX_LOCK(mutex);
     
         auto& book = orderBooks[exchangeId][pair];
@@ -70,14 +78,16 @@ void OrderBookManager::updateOrderBookBestBidAsk(ExchangeId exchangeId, TradingP
                " Ask: ", askPrice, "@", askQuantity,
                " calling callback: ", changed, 
                " updated: ", book.getLastUpdate());
+    } catch (const std::exception& e) {
+        ERROR_CNT(exchangeId, CountableTrace::A_UNKNOWN_ERROR, "Error updating order book best bid/ask: ", e.what(), " Exchange: ", exchangeId, " Pair: ", pair);
     }
 
     if (changed) {        
         if (updateCallback) {
-                TRACE("Calling update callback for exchange: ", exchangeId, " pair: ", pair);
-                updateCallback(exchangeId, pair);
+            TRACE(exchangeId, "Calling update callback for exchange: ", exchangeId, " pair: ", pair);
+            updateCallback(exchangeId, pair);
         } else {
-            TRACE("No update callback for exchange: ", exchangeId, " pair: ", pair);
+            TRACE(exchangeId, "No update callback for exchange: ", exchangeId, " pair: ", pair);
         }
     }
 }

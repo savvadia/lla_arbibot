@@ -139,7 +139,6 @@ protected:
     void doRead();
     void doWrite(std::string message);
     void writeNext();
-    virtual void processMessage(const std::string& message) = 0;
 
     // Helper method to set snapshot state and manage timer
     void setSymbolSnapshotState(TradingPair pair, bool hasSnapshot) {
@@ -163,7 +162,11 @@ protected:
     uint64_t m_snapshotValidityTimerId;  // Timer ID for snapshot validity check
     
     TradingPair symbolToTradingPair(const std::string& symbol) const {
-        return TradingPairData::fromSymbol(getExchangeId(), symbol);
+        try {
+            return TradingPairData::fromSymbol(getExchangeId(), symbol);
+        } catch (const std::exception& e) {
+            throw std::runtime_error("Error converting symbol (" + symbol + ") to trading pair: " + std::string(e.what()));
+        }
     }
 
     std::string tradingPairToSymbol(TradingPair pair) const {
@@ -176,6 +179,9 @@ protected:
     std::string formatCurlHeaders(struct curl_slist* headers);
     // Helper methods for derived classes
     virtual void processRateLimitHeaders(const std::string& headers) = 0;
+
+    void processMessage(std::string message);
+    virtual void processMessage(const json& data) = 0;
     
     // Callbacks
     std::function<void()> m_updateCallback;
@@ -197,10 +203,6 @@ protected:
     std::string m_wsHost;
     std::string m_wsPort;
     std::string m_wsEndpoint;
-
-    int getPricePrecision(TradingPair pair) const {
-        return TradingPairData::getPrecision(pair);
-    }
 
     std::vector<TradingPair> m_pairs;
 

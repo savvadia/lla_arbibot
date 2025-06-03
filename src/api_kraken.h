@@ -50,6 +50,6 @@ protected:
     void processRateLimitHeaders(const std::string& headers) override;
     
     // WebSocket callbacks
-    void processMessage(const std::string& message) override;
+    void processMessage(const json& data) override;
     void processOrderBookUpdate(const json& data);
 }; 
