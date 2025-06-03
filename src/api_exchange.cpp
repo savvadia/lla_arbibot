@@ -153,8 +153,12 @@ bool ApiExchange::connect() {
         // Perform the SSL handshake
         m_ws->next_layer().handshake(ssl::stream_base::client);
 
-        // Perform the websocket handshake
-        m_ws->handshake(m_wsHost, m_wsEndpoint);
+        // Perform the websocket handshake with the correct URL format
+        std::string target = m_wsEndpoint;
+        if (target.empty() || target[0] != '/') {
+            target = "/" + target;
+        }
+        m_ws->handshake(m_wsHost, target);
 
         m_connected = true;
 

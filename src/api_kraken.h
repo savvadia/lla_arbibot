@@ -52,4 +52,8 @@ protected:
     // WebSocket callbacks
     void processMessage(const json& data) override;
     void processOrderBookUpdate(const json& data);
+
+private:
+    // Kraken-specific message handlers
+    void processTickerUpdate(const json& data);
 }; 

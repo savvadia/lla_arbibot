@@ -29,11 +29,12 @@ ApiKraken::ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
     const std::vector<TradingPair> pairs, bool testMode)
     : ApiExchange(orderBookManager, timersMgr, 
         REST_ENDPOINT,
-        "ws.kraken.com", "443", "/ws/v2",
+        "ws.kraken.com", "443", "/v2",
         pairs, testMode) {
 }
 
 bool ApiKraken::handleSubscribeUnsubscribe(const std::vector<TradingPair>& pairs, bool subscribe) {
+    static int reqId = 1;
     if (pairs.empty()) {
         ERROR("No pairs to subscribe/unsubscribe");
         return false;
@@ -41,7 +42,7 @@ bool ApiKraken::handleSubscribeUnsubscribe(const std::vector<TradingPair>& pairs
     std::vector<std::string> symbols;
     std::string symbolsStr;
     for (const auto& pair : pairs) {
-        symbols.push_back(tradingPairToSymbol(pair));
+       symbols.push_back(tradingPairToSymbol(pair));
         symbolsStr += tradingPairToSymbol(pair) + ", ";
 
         symbolStates[pair].subscribed = subscribe;
@@ -51,8 +52,9 @@ bool ApiKraken::handleSubscribeUnsubscribe(const std::vector<TradingPair>& pairs
 
     json request = {
         {"method", subscribe ? "subscribe" : "unsubscribe"},
+        {"req_id", reqId++},
         {"params", {
-            {"channel", "book"},
+            {"channel", "ticker"},
             {"symbol", symbols}
         }}
     };
@@ -116,12 +118,22 @@ void ApiKraken::processMessage(const json& data) {
         return;
     }
 
+    if (data.contains("errorMessage")) {
+        ERROR("Error: ", data.dump());
+        return;
+    }
+
     if (data.contains("method")) {
         if (data["method"] == "subscribe") {
             if (data["success"] == true) {
                 TRACE("Subscription successful: ", data.dump());
             } else {
                 ERROR("Subscription failed: ", data.dump());
+            }
+            if(data.contains("result")) {
+                if(data.contains("warnings")) {
+                    ERROR("Subscription warnings: ", data.dump());
+                }
             }
         }
         return;
@@ -132,11 +144,56 @@ void ApiKraken::processMessage(const json& data) {
             TRACE("Got connection status: ", data.dump());
         } else if (data["channel"] == "heartbeat") {
             DEBUG("Got heartbeat: ", data.dump());
+        } else if (data["channel"] == "ticker") {
+            processTickerUpdate(data);
         } else if (data["channel"] == "book") {
             processOrderBookUpdate(data);
         } else {
             ERROR("Unknown channel: ", data.dump());
         }
+    }
+}
+
+void ApiKraken::processTickerUpdate(const json& data) {
+    TRACE("Processing ticker update: ", data.dump());
+    
+    try {
+        // Extract ticker data (first element in data array)
+        const auto& tickerData = data["data"][0];
+        const std::string& symbol = tickerData["symbol"];
+        
+        // Convert Kraken symbol to our internal format
+        TradingPair pair;
+        try {
+            pair = TradingPairData::fromSymbol(ExchangeId::KRAKEN, symbol);
+        } catch (const std::exception& e) {
+            ERROR("Failed to convert symbol ", symbol, ": ", e.what(), " - ", data.dump());
+            return;
+        }
+        
+        // Extract best bid/ask prices and quantities
+        double bestBid = tickerData["bid"].get<double>();
+        double bestBidQty = tickerData["bid_qty"].get<double>();
+        double bestAsk = tickerData["ask"].get<double>();
+        double bestAskQty = tickerData["ask_qty"].get<double>();
+        
+        // Update order book with best prices
+        m_orderBookManager.updateOrderBookBestBidAsk(
+            ExchangeId::KRAKEN,
+            pair,
+            bestBid,
+            bestBidQty,
+            bestAsk,
+            bestAskQty
+        );
+        
+        TRACE(
+            "Updated best prices for ", symbol, 
+            " bid=", bestBid, "(", bestBidQty, ")", 
+            " ask=", bestAsk, "(", bestAskQty, ")");
+            
+    } catch (const std::exception& e) {
+        ERROR("Error processing ticker update: ", e.what());
     }
 }
 

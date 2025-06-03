@@ -107,7 +107,9 @@ Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId
 
     if(buyPrice * 2 < sellPrice || sellPrice * 2 < buyPrice) {
         ERROR_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY_PRICE_DIFF, buyPrice < sellPrice ? buyExchange : sellExchange,
-            "Major price difference: ", buyPrice, " at ", buyExchange, " -> ", sellPrice, " at ", sellExchange);
+            "Major price difference: ",
+            buyPrice, " at ", buyExchange, " (", buyBook.getLastUpdate(), ") -> ",
+            sellPrice, " at ", sellExchange, " (", sellBook.getLastUpdate(), ")");
         return Opportunity(buyExchange, sellExchange, TradingPair::UNKNOWN, 0.0, 0.0, 0.0, std::chrono::system_clock::now());
     }
 
