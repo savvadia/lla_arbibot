@@ -14,6 +14,7 @@ using namespace std;
 #define TRACE(...) TRACE_THIS(TraceInstance::STRAT, ExchangeId::UNKNOWN, __VA_ARGS__)
 #define DEBUG(...) DEBUG_THIS(TraceInstance::STRAT, ExchangeId::UNKNOWN, __VA_ARGS__)
 #define TRACE_CNT(_id,...) TRACE_COUNT(TraceInstance::STRAT, _id, ExchangeId::UNKNOWN, __VA_ARGS__)
+#define ERROR_CNT(_id, _exchangeId, ...) ERROR_COUNT(TraceInstance::STRAT, _id, _exchangeId, __VA_ARGS__)
 
 Strategy::Strategy(std::string name, std::string coin, std::string stableCoin, TradingPair pair, TimersMgr &timersMgr) 
     : balances({}), name(name), coin(coin), stableCoin(stableCoin), pair(pair),
@@ -98,11 +99,17 @@ Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId
     double sellPrice = sellBook.getBestBid();
     double amount  = std::min(buyBook.getBestAskQuantity(), sellBook.getBestBidQuantity());
 
-    DEBUG("Calculating profit for ", 
+    TRACE("Calculating profit for ", 
         buyExchange, "(", buyBook.getLastUpdate(), ") -> ",
         sellExchange, "(", sellBook.getLastUpdate(), ") ",
         buyPrice, " -> ", sellPrice,
         " = ", (sellPrice - buyPrice), " (", (((sellPrice - buyPrice) / buyPrice) * 100), "%)");
+
+    if(buyPrice * 2 < sellPrice || sellPrice * 2 < buyPrice) {
+        ERROR_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY_PRICE_DIFF, buyPrice < sellPrice ? buyExchange : sellExchange,
+            "Major price difference: ", buyPrice, " at ", buyExchange, " -> ", sellPrice, " at ", sellExchange);
+        return Opportunity(buyExchange, sellExchange, TradingPair::UNKNOWN, 0.0, 0.0, 0.0, std::chrono::system_clock::now());
+    }
 
     if (buyPrice > 0 && sellPrice > 0 && amount > 0 && buyPrice < sellPrice) {
         return Opportunity(buyExchange, sellExchange, pair, amount, buyPrice, sellPrice, std::chrono::system_clock::now());

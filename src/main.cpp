@@ -43,12 +43,12 @@ int main() {
     FastTraceLogger::setLoggingEnabled(TraceInstance::EVENT_LOOP, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::TRACES, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::TIMER, false);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::STRAT, true);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::STRAT, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::BALANCE, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK_MGR, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_EXCHANGE, false);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::A_IO, true);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_IO, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_KRAKEN, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_BINANCE, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_KUCOIN, false);
