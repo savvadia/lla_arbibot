@@ -12,7 +12,7 @@ std::ofstream g_logFile;
 std::mutex g_logMutex;
 
 // Exchange logging levels
-constexpr int MAX_EXCHANGES = 3;  // UNKNOWN, BINANCE, KRAKEN
+constexpr int MAX_EXCHANGES = static_cast<int>(ExchangeId::COUNT);
 std::array<std::atomic<bool>, MAX_EXCHANGES>& FastTraceLogger::exchangeLogLevels() {
     static std::array<std::atomic<bool>, MAX_EXCHANGES> levels;
     static bool initialized = false;

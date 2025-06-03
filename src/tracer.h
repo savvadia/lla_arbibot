@@ -61,7 +61,7 @@ enum class CountableTrace {
 #define TRACE_OBJ(_level, _obj, _type, _exchangeId, ...)                                            \
     if (FastTraceLogger::globalLoggingEnabled().load(std::memory_order_relaxed) &&  \
         FastTraceLogger::logLevels()[static_cast<int>(_type)].load(std::memory_order_relaxed) && \
-        (_exchangeId == ExchangeId::UNKNOWN || FastTraceLogger::isLoggingEnabled(_exchangeId))) { \
+        FastTraceLogger::isLoggingEnabled(_exchangeId)) { \
         FastTraceLogger::log(_level, _obj, _type, _exchangeId, __FILE__, __LINE__, __VA_ARGS__); \
     }
 
@@ -72,7 +72,7 @@ enum class CountableTrace {
 #define TRACE_COUNT(_type, _id, _exchangeId, ...) \
     if(FastTraceLogger::globalLoggingEnabled().load(std::memory_order_relaxed) && \
         FastTraceLogger::logLevels()[static_cast<int>(_type)].load(std::memory_order_relaxed) && \
-        (_exchangeId == ExchangeId::UNKNOWN || FastTraceLogger::isLoggingEnabled(_exchangeId))) { \
+        FastTraceLogger::isLoggingEnabled(_exchangeId)) { \
         FastTraceLogger::countableLog("INFO ", this, _type, _id, _exchangeId, __FILE__, __LINE__, __VA_ARGS__); \
     }
 
@@ -167,6 +167,13 @@ public:
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
         auto time = std::chrono::system_clock::to_time_t(now);
 
+        if(type == TraceInstance::A_EXCHANGE) {
+            if(FastTraceLogger::isLoggingEnabled(exchangeId)) {
+                std::cout<<"Logging is allowed for "<<exchangeIdToStr(exchangeId)<<std::endl;
+            } else {
+                std::cout<<"Logging is not allowed for "<<exchangeIdToStr(exchangeId)<<std::endl;
+            }
+        }
         oss << std::put_time(std::localtime(&time), "%H:%M:%S") << "." << std::setw(3) << std::setfill('0') << ms.count();
         
         oss << " " << level;
@@ -289,7 +296,7 @@ public:
 
 private:
     // Add exchange logging levels
-    static std::array<std::atomic<bool>, 3>& exchangeLogLevels();  // UNKNOWN, BINANCE, KRAKEN
+    static std::array<std::atomic<bool>, static_cast<int>(ExchangeId::COUNT)>& exchangeLogLevels();  // UNKNOWN, BINANCE, KRAKEN
     
     // array of counters for countable traces
     static std::array<std::atomic<int>, static_cast<int>(CountableTrace::COUNT)>& countableTraces();
