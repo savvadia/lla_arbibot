@@ -2,6 +2,7 @@
 #include "api_binance.h"
 #include "api_kraken.h"
 #include "api_kucoin.h"
+#include "api_bybit.h"
 #include <stdexcept>
 #include <algorithm>
 #include "tracer.h"
@@ -60,6 +61,8 @@ std::unique_ptr<ApiExchange> createApiExchange(ExchangeId exchangeId, OrderBookM
         return std::make_unique<ApiKraken>(orderBookManager, timersMgr, pairs, testMode);
     } else if (exchangeId == ExchangeId::KUCOIN) {
         return std::make_unique<ApiKucoin>(orderBookManager, timersMgr, pairs, testMode);
+    } else if (exchangeId == ExchangeId::BYBIT) {
+        return std::make_unique<ApiBybit>(orderBookManager, timersMgr, pairs, testMode);
     }
     // Add more exchanges here as we implement them
     TRACE_BASE(TraceInstance::A_EXCHANGE, exchangeId, "ERROR: Unsupported exchange");
@@ -153,7 +156,7 @@ bool ApiExchange::connect() {
         // Perform the SSL handshake
         m_ws->next_layer().handshake(ssl::stream_base::client);
 
-        // Perform the websocket handshake with the correct URL format
+        // Perform the websocket handshake
         std::string target = m_wsEndpoint;
         if (target.empty() || target[0] != '/') {
             target = "/" + target;

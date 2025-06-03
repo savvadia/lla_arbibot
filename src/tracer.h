@@ -32,6 +32,7 @@ enum class TraceInstance {
     A_KRAKEN,
     A_BINANCE,
     A_KUCOIN,
+    A_BYBIT,
     MAIN,  // For main function logging
     MUTEX,
     COUNT,  // To track the number of log types

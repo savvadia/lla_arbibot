@@ -25,6 +25,6 @@ namespace Config {
 
     // New configuration constants
     constexpr int SNAPSHOT_VALIDITY_CHECK_INTERVAL_MS = 1000;  // Check every second
-    constexpr int SNAPSHOT_VALIDITY_CHECK_INTERVAL_PROLONGED_MS = 5000;  // Check every 10 seconds for Kucoin
-    constexpr int SNAPSHOT_VALIDITY_TIMEOUT_MS = 7000;  // Snapshot is invalid after 5 seconds
+    constexpr int SNAPSHOT_VALIDITY_CHECK_INTERVAL_PROLONGED_MS = 5000;
+    constexpr int SNAPSHOT_VALIDITY_TIMEOUT_MS = 7000;
 } 
