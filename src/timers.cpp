@@ -46,7 +46,7 @@ bool Timer::isExpired(std::chrono::steady_clock::time_point now) const {
     return timeToFire <= now;
 }
 
-int TimersMgr::addTimer(int intervalMs, TimerCallback callback, void* data, TimerType type) {
+int TimersMgr::addTimer(int intervalMs, TimerCallback callback, void* data, TimerType type, bool isPeriodic) {
     Timer timer;
     timer.id = nextId++;
     timer.interval = intervalMs;
@@ -54,7 +54,7 @@ int TimersMgr::addTimer(int intervalMs, TimerCallback callback, void* data, Time
     timer.callback = callback;
     timer.data = data;
     timer.type = type;
-
+    timer.isPeriodic = isPeriodic;
     TRACE(timer, "Added with interval ", intervalMs, "ms");
 
     {
@@ -93,8 +93,13 @@ void TimersMgr::checkTimers() {
     
     // Now execute callbacks without holding the mutex
     for (const auto& timer : timersToExecute) {
-        auto delay = std::chrono::duration_cast<std::chrono::microseconds>(now - timer.timeToFire).count();
-        TRACE(timer, "fired (delay: ", delay, " us)");
+        auto delay_micros = std::chrono::duration_cast<std::chrono::microseconds>(now - timer.timeToFire).count();
+        TRACE(timer, "fired (delay: ", delay_micros, " us)");
+
+        if (timer.isPeriodic) {
+            auto new_delay = timer.interval - delay_micros/1000;
+            addTimer(new_delay, timer.callback, timer.data, timer.type, true);
+        }
         
         auto start = std::chrono::steady_clock::now();
         timer.callback(timer.id, timer.data);

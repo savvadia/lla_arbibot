@@ -20,7 +20,10 @@ Strategy::Strategy(std::string name, std::string coin, std::string stableCoin, T
     bestOpportunity1(ExchangeId::UNKNOWN, ExchangeId::UNKNOWN, pair, 0.0, 0.0, 0.0, std::chrono::system_clock::now()),
     bestOpportunity2(ExchangeId::UNKNOWN, ExchangeId::UNKNOWN, pair, 0.0, 0.0, 0.0, std::chrono::system_clock::now()),
     timersMgr(timersMgr) {
-        resetBestSeenOpportunityTimerCallback(0, this);
+            
+    timersMgr.addTimer(Config::BEST_SEEN_OPPORTUNITY_RESET_INTERVAL_MS,
+        &Strategy::resetBestSeenOpportunityTimerCallback, this,
+        TimerType::RESET_BEST_SEEN_OPPORTUNITY, true);
 }
 
 void Strategy::setBalances(BalanceData balances) {
@@ -78,7 +81,7 @@ void StrategyPoplavki::startTimerToScan(int ms) {
     timersMgr.stopTimer(timerId);
     
     // Add new timer
-    timerId = timersMgr.addTimer(ms, timerCallback, this, TimerType::PRICE_CHECK);
+    timerId = timersMgr.addTimer(ms, timerCallback, this, TimerType::PRICE_CHECK, true);
     DEBUG("Set up timer with ID ", timerId, " for scanning in ", ms, "ms");
 }
 
@@ -152,8 +155,7 @@ void StrategyPoplavki::execute() {
 
 void StrategyPoplavki::timerCallback(int id, void *data) {
     auto* strategy = static_cast<StrategyPoplavki*>(data);
-    strategy->startTimerToScan(Config::STRATEGY_CHECK_TIMER_MS);
-
+    
     DEBUG_OBJ("INFO: ", strategy, TraceInstance::STRAT, ExchangeId::UNKNOWN, "Timer callback for strategy: ", strategy->getName());
     strategy->scanOpportunities();
 }
@@ -171,9 +173,5 @@ void Strategy::resetBestSeenOpportunityTimerCallback(int id, void *data) {
             "Resetting best seen opportunity2 for ", strategy->getName(), " ", strategy->pair, ": ", strategy->bestOpportunity2);
         strategy->bestOpportunity2 = Opportunity(ExchangeId::UNKNOWN, ExchangeId::UNKNOWN, strategy->pair, 0, 0, 0, std::chrono::system_clock::now());
     }
-    
-    strategy->timersMgr.addTimer(Config::BEST_SEEN_OPPORTUNITY_RESET_INTERVAL_MS,
-        &Strategy::resetBestSeenOpportunityTimerCallback, strategy,
-        TimerType::RESET_BEST_SEEN_OPPORTUNITY);
 }
 

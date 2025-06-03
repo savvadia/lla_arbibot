@@ -42,7 +42,8 @@ void timerPingCallback(int id, void* data) {
 }
 
 void ApiKucoin::startPingTimer() {
-    m_pingTimerId = m_timersMgr.addTimer(m_pingIntervalMs, timerPingCallback, this, TimerType::EXCHANGE_PING);
+    m_pingTimerId = m_timersMgr.addTimer(m_pingIntervalMs,
+        timerPingCallback, this, TimerType::EXCHANGE_PING, true);
 }
 
 bool ApiKucoin::connect() {
@@ -61,7 +62,6 @@ bool ApiKucoin::connect() {
 void ApiKucoin::sendPing() {
     static int pingId = 1;
     doWrite("{\"id\": \"" + std::to_string(pingId++) + "\", \"type\": \"ping\"}");
-    startPingTimer();
 }
 
 bool ApiKucoin::initWebSocketEndpoint() {

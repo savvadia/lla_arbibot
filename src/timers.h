@@ -15,22 +15,23 @@ void sleep_ms(int ms);
 // Timer types for fast comparison
 enum class TimerType {
     UNKNOWN = 0,
-    BALANCE_CHECK,
-    ORDER_CHECK,
     PRICE_CHECK,
     RESET_BEST_SEEN_OPPORTUNITY,
+    RESET_COUNTABLE_TRACES,
     EXCHANGE_CHECK_SNAPSHOT_VALIDITY,
     EXCHANGE_PING,
-    MAX
+    COUNT
 };
 
 // Convert timer type to string (only used in traces)
 inline const char* timerTypeToString(TimerType type) {
     switch (type) {
         case TimerType::UNKNOWN: return "UNKNOWN";
-        case TimerType::BALANCE_CHECK: return "BALANCE_CHECK";
-        case TimerType::ORDER_CHECK: return "ORDER_CHECK";
         case TimerType::PRICE_CHECK: return "PRICE_CHECK";
+        case TimerType::RESET_BEST_SEEN_OPPORTUNITY: return "RESET_BEST_SEEN_OPPORTUNITY";
+        case TimerType::RESET_COUNTABLE_TRACES: return "RESET_COUNTABLE_TRACES";
+        case TimerType::EXCHANGE_CHECK_SNAPSHOT_VALIDITY: return "EXCHANGE_CHECK_SNAPSHOT_VALIDITY";
+        case TimerType::EXCHANGE_PING: return "EXCHANGE_PING";
         default: return "INVALID";
     }
 }
@@ -47,7 +48,7 @@ struct Timer : public Traceable {
     TimerCallback callback;
     void* data;
     TimerType type;
-
+    bool isPeriodic;
     // Static method to format any time_point to hh:mm:ss.sss (used in traces)
     static std::string formatTime(std::chrono::steady_clock::time_point time);
 
@@ -73,7 +74,7 @@ public:
     // - addTimer: Can be called from any thread
     // - stopTimer: Can be called from any thread
     // - checkTimers: Must be called only from the main thread
-    int addTimer(int intervalMs, TimerCallback callback, void* data, TimerType type);
+    int addTimer(int intervalMs, TimerCallback callback, void* data, TimerType type, bool isPeriodic = false);
     void stopTimer(int id);
     void checkTimers();  // Called directly from main
 
