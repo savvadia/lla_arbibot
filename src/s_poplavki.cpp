@@ -99,7 +99,7 @@ Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId
     double sellPrice = sellBook.getBestBid();
     double amount  = std::min(buyBook.getBestAskQuantity(), sellBook.getBestBidQuantity());
 
-    TRACE("Calculating profit for ", 
+    DEBUG("Calculating profit for ", 
         buyExchange, "(", buyBook.getLastUpdate(), ") -> ",
         sellExchange, "(", sellBook.getLastUpdate(), ") ",
         buyPrice, " -> ", sellPrice,

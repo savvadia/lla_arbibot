@@ -43,7 +43,7 @@ int main() {
     FastTraceLogger::setLoggingEnabled(TraceInstance::EVENT_LOOP, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::TRACES, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::TIMER, false);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::STRAT, false);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::STRAT, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::BALANCE, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK_MGR, false);
