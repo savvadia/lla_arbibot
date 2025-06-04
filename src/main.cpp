@@ -53,6 +53,7 @@ int main() {
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_BINANCE, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_KUCOIN, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_OKX, false);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_CRYPTO, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::MAIN, true);
 
     // Enable exchange-specific logging
@@ -60,9 +61,10 @@ int main() {
     FastTraceLogger::setLoggingEnabled(ExchangeId::BINANCE, false);
     FastTraceLogger::setLoggingEnabled(ExchangeId::KRAKEN, false);
     FastTraceLogger::setLoggingEnabled(ExchangeId::KUCOIN, false);
-    FastTraceLogger::setLoggingEnabled(ExchangeId::OKX, true);
-    TRACE("Trace types enabled: EVENT_LOOP, TRACES, TIMER, STRAT, BALANCE, ORDERBOOK, A_EXCHANGE, A_IO, A_KRAKEN, A_BINANCE, A_KUCOIN, A_OKX, MAIN");
-    TRACE("Exchange logging enabled: BINANCE, KRAKEN, KUCOIN, OKX");
+    FastTraceLogger::setLoggingEnabled(ExchangeId::OKX, false);
+    FastTraceLogger::setLoggingEnabled(ExchangeId::CRYPTO, false);   
+    TRACE("Trace types enabled: EVENT_LOOP, TRACES, TIMER, STRAT, BALANCE, ORDERBOOK, A_EXCHANGE, A_IO, A_KRAKEN, A_BINANCE, A_KUCOIN, A_OKX, A_CRYPTO, MAIN");
+    TRACE("Exchange logging enabled: BINANCE, KRAKEN, KUCOIN, OKX, CRYPTO");
 
     // Set up signal handlers
     TRACE("Setting up signal handlers...");
@@ -87,8 +89,16 @@ int main() {
     ExchangeManager exchangeManager(timersMgr, orderBookManager, pairs);
     
     // Define exchanges to use
-    vector<ExchangeId> exchanges = {ExchangeId::KRAKEN, ExchangeId::BINANCE, ExchangeId::KUCOIN, ExchangeId::OKX};
-    TRACE("Using exchanges: ", exchanges[0], ", ", exchanges[1], ", ", exchanges[2], ", ", exchanges[3]);
+    vector<ExchangeId> exchanges;
+    std::ostringstream exchangesStr;
+    for (int i = 0; i < static_cast<int>(ExchangeId::COUNT); i++) {
+        if (i == static_cast<int>(ExchangeId::UNKNOWN)) continue;
+        if (i == static_cast<int>(ExchangeId::BINANCE)) continue;
+        if (i == static_cast<int>(ExchangeId::KRAKEN)) continue;
+        exchanges.push_back(static_cast<ExchangeId>(i));
+        exchangesStr << static_cast<ExchangeId>(i) << ", ";
+    }
+    TRACE("Using exchanges: ", exchangesStr.str());
     
     // Initialize exchanges
     TRACE("Initializing exchanges...");

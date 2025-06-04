@@ -8,14 +8,14 @@
 {"method": "subscribe","params": {"channel": "book","symbol": ["ETH/USD"], "depth": 10}}
 {"method": "subscribe","params": {"channel": "book","symbol": ["BTC/USD"], "depth": 10}}
 
- {     "method": "subscribe",     "params": {         "channel": "instrument"     },     "req/id": 79 }
+ { "method": "subscribe", "params": { "channel": "instrument" }, "req/id": 79 }
 
 
 
 // kraken
 
 {"method": "subscribe","params": {"channel": "ticker","symbol": ["AAVE/USDT"]}}
-{"method": "subscribe","params": {"channel": "ticker","symbol": ["ADA/USDT"]}}  6 
+{"method": "subscribe","params": {"channel": "ticker","symbol": ["ADA/USDT"]}} 6 
 {"method": "subscribe","params": {"channel": "ticker","symbol": ["ALGO/USDT"]}} 5
 {"method": "subscribe","params": {"channel": "ticker","symbol": ["ATOM/USDT"]}} 4
 {"method": "subscribe","params": {"channel": "ticker","symbol": ["AVAX/USDT"]}} 2
@@ -50,3 +50,18 @@
 { "method": "SUBSCRIBE", "params": [ "solusdt@bookTicker" ], "id": 1 }
 { "method": "SUBSCRIBE", "params": [ "xrpusdt@bookTicker" ], "id": 1 }
 { "method": "SUBSCRIBE", "params": [ "xtzusdt@bookTicker" ], "id": 1 }
+
+{"id":123,"op":"subscribe","args":[{"channel":"bbo-tbt","instId":"BTC-USDT"}]}
+{"op":"subscribe","args":[{"channel":"books5","instId":"BTC-USDT"}]}
+
+{"id":123,"op":"subscribe","args":[{"channel":"bbo-tbt","instId":"BTC-USDT"}]}
+{"id":123,"op":"subscribe","arg":[{"channel":"bbo-tbt","instId":"BTC-USDT"}]}
+
+// crypto.com
+{"id": 1,"method": "subscribe","params": {"channels": ["ticker.BTCUSD-PERP"]},"nonce": 1587523073344}
+{"id": 1,"method": "subscribe","params": {"channels": ["ticker.XTZUSD-PERP"]},"nonce": 1587523073344}
+
+{"id":1,"method":"subscribe","params":{"channels":["ticker.XTZ-USDT-PERP"]},"nonce": 1587523073344}
+"ticker.XTZ-USDT-PERP"
+
+{"id":1,"method":"subscribe","params":{"channels":["ticker.BTCUSD-PERP"]}}

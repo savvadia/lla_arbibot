@@ -33,6 +33,48 @@ ApiKucoin::ApiKucoin(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
         pairs, testMode) {
 }
 
+
+bool ApiKucoin::subscribeOrderBook() {
+    bool success = true;
+    if (!m_connected) {
+        ERROR("Not connected to Kucoin");
+        return false;
+    }
+
+    std::string symbols;
+    for (const auto& pair : m_pairs) {
+        symbols += tradingPairToSymbol(pair) + ",";
+    }
+    symbols.pop_back(); // Remove the last comma
+
+    TRACE("Subscribing to Kucoin order book for ", m_pairs.size(), " pairs: ", symbols);
+
+    json message;
+    try {
+        message["id"] = "arbibot_subscribeOrderBook_id";
+        message["type"] = "subscribe";
+        message["topic"] = "/spotMarket/level1:" + symbols;
+        message["response"] = true;
+
+        TRACE("Subscribing to Kucoin order book with message: ", message.dump());
+        doWrite(message.dump());
+    } catch (const std::exception& e) {
+        ERROR("Error subscribing to order book: ", e.what(), " message: ", message.dump());
+        success = false;
+    }
+
+    return success;
+}
+
+bool ApiKucoin::resubscribeOrderBook(const std::vector<TradingPair>& pairs) {
+    if (!m_connected) {
+        TRACE("Not connected to Kucoin");
+        return false;
+    }
+    ERROR("Not implemented: resubscribeOrderBook");
+    return false;
+}
+
 // Timer callback for pinging the server to keep the connection alive
 // ping message is: { "id": "ping-123", "type": "ping" }
 
@@ -439,47 +481,6 @@ bool ApiKucoin::getBalance(const std::string& asset) {
         ERROR("Error getting balance: ", e.what());
         return false;
     }
-}
-
-bool ApiKucoin::subscribeOrderBook() {
-    bool success = true;
-    if (!m_connected) {
-        ERROR("Not connected to Kucoin");
-        return false;
-    }
-
-    std::string symbols;
-    for (const auto& pair : m_pairs) {
-        symbols += tradingPairToSymbol(pair) + ",";
-    }
-    symbols.pop_back(); // Remove the last comma
-
-    TRACE("Subscribing to Kucoin order book for ", m_pairs.size(), " pairs: ", symbols);
-
-    json message;
-    try {
-        message["id"] = "arbibot_subscribeOrderBook_id";
-        message["type"] = "subscribe";
-        message["topic"] = "/spotMarket/level1:" + symbols;
-        message["response"] = true;
-
-        TRACE("Subscribing to Kucoin order book with message: ", message.dump());
-        doWrite(message.dump());
-    } catch (const std::exception& e) {
-        ERROR("Error subscribing to order book: ", e.what(), " message: ", message.dump());
-        success = false;
-    }
-
-    return success;
-}
-
-bool ApiKucoin::resubscribeOrderBook(const std::vector<TradingPair>& pairs) {
-    if (!m_connected) {
-        TRACE("Not connected to Kucoin");
-        return false;
-    }
-    ERROR("Not implemented: resubscribeOrderBook");
-    return false;
 }
 
 bool ApiKucoin::getOrderBookSnapshot(TradingPair pair) {

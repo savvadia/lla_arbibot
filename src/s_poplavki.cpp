@@ -135,7 +135,7 @@ void StrategyPoplavki::scanOpportunities() {
                     DEBUG("Best seen opportunity is better: ", bestOpportunity1, " vs ", opp1);
                 }
                 if (bestOpportunity1.profit() > Config::MIN_MARGIN) {
-                    TRACE("EXECUTABLE: Best seen opportunity: ", bestOpportunity1);
+                    TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY_EXECUTABLE, bestOpportunity1);
                 }
             }
 

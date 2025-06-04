@@ -32,6 +32,50 @@ ApiOkx::ApiOkx(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
         pairs, testMode) {
 }
 
+// [+] subscribeOrderBook
+
+bool ApiOkx::subscribeOrderBook() {
+    if (!m_connected) {
+        ERROR("Not connected to Okx");
+        return false;
+    }
+
+    bool success = true;
+
+    // Split pairs into batches of MAX_SYMBOLS_PER_REQUEST
+    int id = 1;
+    for (auto pair : m_pairs) {
+        TRACE("Subscribing to Okx order book for ", pair);
+        json message;
+        try {
+            message["id"] = id++;
+            message["op"] = "subscribe";
+            message["args"] = {
+                {
+                    {"channel", "bbo-tbt"},
+                    {"instId", tradingPairToSymbol(pair)}
+                }
+            };
+            doWrite(message.dump());
+        } catch (const std::exception& e) {
+            ERROR("Error subscribing to order book batch: ", e.what(), " message: ", message.dump());
+            success = false;
+        }
+    }
+
+    return success;
+}
+
+bool ApiOkx::resubscribeOrderBook(const std::vector<TradingPair>& pairs) {
+    if (!m_connected) {
+        TRACE("Not connected to Okx");
+        return false;
+    }
+    ERROR("Not implemented: resubscribeOrderBook");
+    return false;
+}
+
+
 void ApiOkx::processSubscribeResponse(const json& data) {
     if(!data.contains("arg") || !data["arg"].contains("instId")) {
         ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Missing instId in subscribe response: ", data.dump());
@@ -196,47 +240,6 @@ bool ApiOkx::getBalance(const std::string& asset) {
         ERROR("Error getting balance: ", e.what());
         return false;
     }
-}
-
-bool ApiOkx::subscribeOrderBook() {
-    if (!m_connected) {
-        ERROR("Not connected to Okx");
-        return false;
-    }
-
-    bool success = true;
-
-    // Split pairs into batches of MAX_SYMBOLS_PER_REQUEST
-    int id = 1;
-    for (auto pair : m_pairs) {
-        TRACE("Subscribing to Okx order book for ", pair);
-        json message;
-        try {
-            message["id"] = id++;
-            message["op"] = "subscribe";
-            message["args"] = {
-                {
-                    {"channel", "bbo-tbt"},
-                    {"instId", tradingPairToSymbol(pair)}
-                }
-            };
-            doWrite(message.dump());
-        } catch (const std::exception& e) {
-            ERROR("Error subscribing to order book batch: ", e.what(), " message: ", message.dump());
-            success = false;
-        }
-    }
-
-    return success;
-}
-
-bool ApiOkx::resubscribeOrderBook(const std::vector<TradingPair>& pairs) {
-    if (!m_connected) {
-        TRACE("Not connected to Okx");
-        return false;
-    }
-    ERROR("Not implemented: resubscribeOrderBook");
-    return false;
 }
 
 bool ApiOkx::getOrderBookSnapshot(TradingPair pair) {

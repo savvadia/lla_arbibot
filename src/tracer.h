@@ -33,6 +33,7 @@ enum class TraceInstance {
     A_BINANCE,
     A_KUCOIN,
     A_OKX,
+    A_CRYPTO,
     MAIN,  // For main function logging
     MUTEX,
     COUNT,  // To track the number of log types
@@ -53,6 +54,7 @@ enum class CountableTrace {
     A_KRAKEN_CHECKSUM_MISMATCH_RESTORED,
     A_UNKNOWN_MESSAGE_RECEIVED,
     A_UNKNOWN_TRADING_PAIR,
+    A_REJECTED_ORDER,
     A_UNKNOWN_ERROR,
     COUNT,
 };
