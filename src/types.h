@@ -12,7 +12,7 @@ enum class ExchangeId {
     BINANCE = 1,
     KRAKEN = 2,
     KUCOIN = 3,
-    BYBIT = 4,
+    OKX = 4,
     COUNT = 5 // To track the number of exchange IDs
 };
 
@@ -25,8 +25,8 @@ inline const char* toString(ExchangeId id) {
             return "KRAKEN";
         case ExchangeId::KUCOIN:
             return "KUCOIN";
-        case ExchangeId::BYBIT:
-            return "BYBIT";
+        case ExchangeId::OKX:
+            return "OKX";
         default:
             return "UNKNOWN";
     }

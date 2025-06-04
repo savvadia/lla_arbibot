@@ -15,9 +15,9 @@
 using tcp = boost::asio::ip::tcp;
 using json = nlohmann::json;
 
-class ApiBybit : public ApiExchange {
+class ApiOkx : public ApiExchange {
 public:
-    ApiBybit(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
+    ApiOkx(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
         const std::vector<TradingPair> pairs, bool testMode = true);
 
     // Subscribe to order book updates for a trading pair
@@ -33,8 +33,8 @@ public:
     bool cancelOrder(const std::string& orderId) override;
     bool getBalance(const std::string& asset) override;
 
-    std::string getExchangeName() const override { return "BYBIT"; }
-    ExchangeId getExchangeId() const override { return ExchangeId::BYBIT; }
+    std::string getExchangeName() const override { return "OKX"; }
+    ExchangeId getExchangeId() const override { return ExchangeId::OKX; }
 
     int m_pingIntervalMs = 18000;
     int m_pingTimeoutMs = 10000;
@@ -43,7 +43,7 @@ public:
     std::string m_token;
 
 protected:
-    // Override the cooldown method for BYBIT-specific rate limiting
+    // Override the cooldown method for OKX-specific rate limiting
     void cooldown(int httpCode, const std::string& response, const std::string& endpoint = "") override;
     
     // Implement pure virtual methods from base class

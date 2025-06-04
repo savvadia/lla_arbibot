@@ -52,7 +52,7 @@ int main() {
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_KRAKEN, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_BINANCE, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_KUCOIN, false);
-    FastTraceLogger::setLoggingEnabled(TraceInstance::A_BYBIT, false);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::A_OKX, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::MAIN, true);
 
     // Enable exchange-specific logging
@@ -60,9 +60,9 @@ int main() {
     FastTraceLogger::setLoggingEnabled(ExchangeId::BINANCE, false);
     FastTraceLogger::setLoggingEnabled(ExchangeId::KRAKEN, false);
     FastTraceLogger::setLoggingEnabled(ExchangeId::KUCOIN, false);
-    FastTraceLogger::setLoggingEnabled(ExchangeId::BYBIT, true);
-    TRACE("Trace types enabled: EVENT_LOOP, TRACES, TIMER, STRAT, BALANCE, ORDERBOOK, A_EXCHANGE, A_IO, A_KRAKEN, A_BINANCE, A_KUCOIN, A_BYBIT, MAIN");
-    TRACE("Exchange logging enabled: BINANCE, KRAKEN, KUCOIN, BYBIT");
+    FastTraceLogger::setLoggingEnabled(ExchangeId::OKX, true);
+    TRACE("Trace types enabled: EVENT_LOOP, TRACES, TIMER, STRAT, BALANCE, ORDERBOOK, A_EXCHANGE, A_IO, A_KRAKEN, A_BINANCE, A_KUCOIN, A_OKX, MAIN");
+    TRACE("Exchange logging enabled: BINANCE, KRAKEN, KUCOIN, OKX");
 
     // Set up signal handlers
     TRACE("Setting up signal handlers...");
@@ -87,7 +87,7 @@ int main() {
     ExchangeManager exchangeManager(timersMgr, orderBookManager, pairs);
     
     // Define exchanges to use
-    vector<ExchangeId> exchanges = {ExchangeId::KRAKEN, ExchangeId::BINANCE, ExchangeId::KUCOIN, ExchangeId::BYBIT};
+    vector<ExchangeId> exchanges = {ExchangeId::KRAKEN, ExchangeId::BINANCE, ExchangeId::KUCOIN, ExchangeId::OKX};
     TRACE("Using exchanges: ", exchanges[0], ", ", exchanges[1], ", ", exchanges[2], ", ", exchanges[3]);
     
     // Initialize exchanges

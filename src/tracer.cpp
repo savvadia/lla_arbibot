@@ -98,7 +98,7 @@ std::string_view FastTraceLogger::traceTypeToStr(TraceInstance type) {
         case TraceInstance::A_KRAKEN:   return "A_KRAKEN";
         case TraceInstance::A_BINANCE:  return "A_BINANCE";
         case TraceInstance::A_KUCOIN:   return "A_KUCOIN";
-        case TraceInstance::A_BYBIT:    return "A_BYBIT";
+        case TraceInstance::A_OKX:    return "A_OKX";
         case TraceInstance::MAIN:       return "MAIN";
         default: return "UNKNOWN";
     }
@@ -109,7 +109,7 @@ std::string_view FastTraceLogger::exchangeIdToStr(ExchangeId exchangeId) {
         case ExchangeId::BINANCE: return "BINANCE";
         case ExchangeId::KRAKEN: return "KRAKEN";
         case ExchangeId::KUCOIN: return "KUCOIN";
-        case ExchangeId::BYBIT: return "BYBIT";
+        case ExchangeId::OKX: return "OKX";
         default: return "UNKNOWN";
     }
 }

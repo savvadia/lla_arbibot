@@ -9,126 +9,129 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <nlohmann/json.hpp>
-#include "api_bybit.h"
+#include "api_okx.h"
 #include "orderbook_mgr.h"
 #include "tracer.h"
 
 using json = nlohmann::json;
 using tcp = boost::asio::ip::tcp;
 
-#define TRACE(...) TRACE_THIS(TraceInstance::A_BYBIT, ExchangeId::BYBIT, __VA_ARGS__)
-#define DEBUG(...) DEBUG_THIS(TraceInstance::A_BYBIT, ExchangeId::BYBIT, __VA_ARGS__)
-#define ERROR(...) ERROR_BASE(TraceInstance::A_BYBIT, ExchangeId::BYBIT, __VA_ARGS__)
+#define TRACE(...) TRACE_THIS(TraceInstance::A_OKX, ExchangeId::OKX, __VA_ARGS__)
+#define DEBUG(...) DEBUG_THIS(TraceInstance::A_OKX, ExchangeId::OKX, __VA_ARGS__)
+#define ERROR(...) ERROR_BASE(TraceInstance::A_OKX, ExchangeId::OKX, __VA_ARGS__)
 
-#define ERROR_CNT(_id, ...) ERROR_COUNT(TraceInstance::A_BYBIT, _id, ExchangeId::BYBIT, __VA_ARGS__)
+#define ERROR_CNT(_id, ...) ERROR_COUNT(TraceInstance::A_OKX, _id, ExchangeId::OKX, __VA_ARGS__)
 
-constexpr const char* REST_ENDPOINT = "https://stream.bybit.com";
+constexpr const char* REST_ENDPOINT = "https://www.okx.com";
 
-ApiBybit::ApiBybit(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
+ApiOkx::ApiOkx(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
         const std::vector<TradingPair> pairs, bool testMode)
         : ApiExchange(orderBookManager, timersMgr,  
         REST_ENDPOINT,
-        "stream.bybit.com", "443", "/v5/public/spot",
+        "ws.okx.com", "8443", "/ws/v5/public",
         pairs, testMode) {
 }
 
-void ApiBybit::processSubscribeResponse(const json& data) {
-    if(!data.contains("success") || data["success"] == false) {
-        ERROR("Subscription failed: ", data.dump());
+void ApiOkx::processSubscribeResponse(const json& data) {
+    if(!data.contains("arg") || !data["arg"].contains("instId")) {
+        ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Missing instId in subscribe response: ", data.dump());
         return;
     }
-    // set the subscription state for all symbols
-    for (const auto& pair : m_pairs) {
-        auto& state = symbolStates[pair];
-        state.subscribed = true;    
+    auto symbol = data["arg"]["instId"];
+    auto pair = symbolToTradingPair(symbol);
+    if(pair == TradingPair::UNKNOWN) {
+        ERROR_CNT(CountableTrace::A_UNKNOWN_TRADING_PAIR, "Unknown trading pair: ", symbol);
+        return;
     }
+    auto& state = symbolStates[pair];
+    state.subscribed = true;    
 }
 
-void ApiBybit::processOrderBookUpdate(const json& data) {
+void ApiOkx::processOrderBookUpdate(const json& data) {
     ERROR("Not implemented: processOrderBookUpdate");
 }
 
-void ApiBybit::processLevel1(const json& data) {
+void ApiOkx::processLevel1(const json& data) {
     // example:
-    // {"topic":"orderbook.1.BTCUSDT","ts":1748980103101,"type":"snapshot","data":{"s":"BTCUSDT","b":[["106285.8","0.794865"]],"a":[["106285.9","1.269905"]],"u":943951,"seq":75829523783},"cts":1748980103098}
+    // {"arg":{"channel":"bbo-tbt","instId":"BTC-USDT"},"data":[{"asks":[["105252.6","0.16271274","0","5"]],"bids":[["105252.5","1.1133491","0","19"]],"ts":"1749044565306","seqId":55729075884}]}
 
-    if(!data.contains("topic")) {
-        ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Missing topic in level1 message: ", data.dump());
+try {
+    if(!data.contains("arg") || !data["arg"].contains("instId")) {
+        ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Missing instId in level1 message: ", data.dump());
         return;
     }
-    std::string topic = data["topic"];
-    // example: "orderbook.1.BTCUSDT"
-    if(topic.find("orderbook.1.") != 0) {
-        ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Invalid topic in level1 message: ", topic, " data: ", data.dump());
-        return;
-    }
-    if(!data.contains("data") || !data["data"].contains("s") || !data["data"].contains("u")) {
-        ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Missing data in level1 message: ", data.dump());
-        return;
-    }
-    std::string symbol = data["data"]["s"];
+    std::string symbol = data["arg"]["instId"];
     TradingPair pair = symbolToTradingPair(symbol);
-    TRACE("Received level1 message for ", pair, " data: ", data.dump());
-
     if(pair == TradingPair::UNKNOWN) {
         ERROR_CNT(CountableTrace::A_UNKNOWN_TRADING_PAIR, "Unknown trading pair: ", symbol, " data: ", data.dump());
         return;
     }
-    int64_t timestamp = data["data"]["u"];
+    if(!data.contains("data") || !data["data"].is_array() || data["data"].size() != 1
+        || !data["data"][0].contains("ts") || !data["data"][0].contains("seqId")) {
+        ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Missing data in level1 message: ", data.dump());
+        return;
+    }
+    int64_t seqId = data["data"][0]["seqId"];
+    TRACE("Received level1 message for ", pair, " seqId: ", seqId, " data: ", data.dump());
 
-    if(!data["data"].contains("a") || !data["data"].contains("b") 
-        || !data["data"]["a"].is_array() || !data["data"]["b"].is_array()
-        || data["data"]["a"].size() != 1 || data["data"]["b"].size() != 1 
-        || data["data"]["a"][0].size() != 2 || data["data"]["b"][0].size() != 2
+    if(!data["data"][0].contains("asks") || !data["data"][0].contains("bids") 
+        || !data["data"][0]["asks"].is_array() || !data["data"][0]["bids"].is_array()
+        || data["data"][0]["asks"].size() != 1 || data["data"][0]["bids"].size() != 1 
+        || data["data"][0]["asks"][0].size() != 4 || data["data"][0]["bids"][0].size() != 4
     ) {
         ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Missing asks or bids in level1 message: ", data.dump());
         return;
     }
-    double bidPrice = std::stod(data["data"]["b"][0][0].get<std::string>());
-    double bidQuantity = std::stod(data["data"]["b"][0][1].get<std::string>());
-    double askPrice = std::stod(data["data"]["a"][0][0].get<std::string>());
-    double askQuantity = std::stod(data["data"]["a"][0][1].get<std::string>());
+    double bidPrice = std::stod(data["data"][0]["bids"][0][0].get<std::string>());
+    double bidQuantity = std::stod(data["data"][0]["bids"][0][1].get<std::string>());
+    double askPrice = std::stod(data["data"][0]["asks"][0][0].get<std::string>());
+    double askQuantity = std::stod(data["data"][0]["asks"][0][1].get<std::string>());
     std::vector<PriceLevel> bids({{bidPrice, bidQuantity}});
     std::vector<PriceLevel> asks({{askPrice, askQuantity}});
     try {
-        m_orderBookManager.updateOrderBookBestBidAsk(ExchangeId::BYBIT, pair, bidPrice, bidQuantity, askPrice, askQuantity);
+        m_orderBookManager.updateOrderBookBestBidAsk(ExchangeId::OKX, pair, bidPrice, bidQuantity, askPrice, askQuantity);
     } catch (const std::exception& e) {
         ERROR("Error updating order book: ", e.what(), " data: ", data.dump());
     }
     // update symbol state
     auto& state = symbolStates[pair];
-    state.lastUpdateId = timestamp;
+    state.lastUpdateId = seqId;
+    } catch (const std::exception& e) {
+        ERROR("Error processing level1 message: ", e.what(), " data: ", data.dump());
+    }
 }
 
-void ApiBybit::processMessage(const json& data) {
-    if (data.contains("ret_msg")) {
-        if(data["ret_msg"] == "subscribe") {
-            processSubscribeResponse(data);
-        } else {
-            ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Unhandled message type: ", data["type"], " data: ", data.dump());
-        }
-    } else if (data.contains("type")) {
-        if(data["type"] == "snapshot") {
-            processLevel1(data);
-        } else if (data["type"] == "update") {
-            ERROR("Not implemented: processTickerUpdate: ", data.dump());
-        } else if (data["type"] == "error") {
+void ApiOkx::processMessage(const json& data) {
+    try {
+        if (data.contains("event")) {
+            if(data["event"] == "subscribe") {
+                processSubscribeResponse(data);
+        } else if(data["event"] == "error") {
             ERROR("Error message: ", data.dump());
         } else {
-            ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Unhandled message type: ", data["type"], " data: ", data.dump());
+            ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Unhandled message type: ", data["event"], " data: ", data.dump());
+        }
+    } else if (data.contains("arg")) {
+        if(data["arg"].contains("channel") && data["arg"]["channel"] == "bbo-tbt") {
+            processLevel1(data);
+        } else {
+            ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Unhandled message type: ", data["arg"]["channel"], " data: ", data.dump());
         }
     } else {
         ERROR_CNT(CountableTrace::A_UNKNOWN_MESSAGE_RECEIVED, "Unknown message: ", data.dump());
     }
+    } catch (const std::exception& e) {
+        ERROR("Error processing message: ", e.what(), " data: ", data.dump());
+    }
 }
 
-void ApiBybit::processOrderBookSnapshot(const json& data, TradingPair pair) {
+void ApiOkx::processOrderBookSnapshot(const json& data, TradingPair pair) {
     ERROR("Not implemented: processOrderBookSnapshot");
 }
 
-bool ApiBybit::placeOrder(TradingPair pair, OrderType type, double price, double quantity) {
+bool ApiOkx::placeOrder(TradingPair pair, OrderType type, double price, double quantity) {
     if (!m_connected) {
-        TRACE("Not connected to Bybit");
+        TRACE("Not connected to Okx");
         return false;
     }
 
@@ -153,9 +156,9 @@ bool ApiBybit::placeOrder(TradingPair pair, OrderType type, double price, double
     }
 }
 
-bool ApiBybit::cancelOrder(const std::string& orderId) {
+bool ApiOkx::cancelOrder(const std::string& orderId) {
     if (!m_connected) {
-        TRACE("Not connected to Bybit");
+        TRACE("Not connected to Okx");
         return false;
     }
 
@@ -170,9 +173,9 @@ bool ApiBybit::cancelOrder(const std::string& orderId) {
     }
 }
 
-bool ApiBybit::getBalance(const std::string& asset) {
+bool ApiOkx::getBalance(const std::string& asset) {
     if (!m_connected) {
-        TRACE("Not connected to Bybit");
+        TRACE("Not connected to Okx");
         return false;
     }
 
@@ -195,40 +198,28 @@ bool ApiBybit::getBalance(const std::string& asset) {
     }
 }
 
-bool ApiBybit::subscribeOrderBook() {
+bool ApiOkx::subscribeOrderBook() {
     if (!m_connected) {
-        ERROR("Not connected to Bybit");
+        ERROR("Not connected to Okx");
         return false;
     }
 
-    const size_t MAX_SYMBOLS_PER_REQUEST = 10;
     bool success = true;
 
     // Split pairs into batches of MAX_SYMBOLS_PER_REQUEST
-    for (size_t i = 0; i < m_pairs.size(); i += MAX_SYMBOLS_PER_REQUEST) {
-        std::vector<std::string> symbolsVec;
-        std::string symbols;
-        
-        // Get the current batch of pairs
-        size_t end = std::min(i + MAX_SYMBOLS_PER_REQUEST, m_pairs.size());
-        for (size_t j = i; j < end; j++) {
-            const auto& pair = m_pairs[j];
-            symbolsVec.push_back("orderbook.1." + tradingPairToSymbol(pair));
-            symbols += tradingPairToSymbol(pair) + ",";
-        }
-        if (!symbols.empty()) {
-            symbols.pop_back(); // Remove the last comma
-        }
-
-        TRACE("Subscribing to Bybit order book batch ", (i/MAX_SYMBOLS_PER_REQUEST + 1), 
-              " for pairs: ", symbols);
-
+    int id = 1;
+    for (auto pair : m_pairs) {
+        TRACE("Subscribing to Okx order book for ", pair);
         json message;
         try {
+            message["id"] = id++;
             message["op"] = "subscribe";
-            message["args"] = symbolsVec;
-
-            TRACE("Subscribing to Bybit order book with message: ", message.dump());
+            message["args"] = {
+                {
+                    {"channel", "bbo-tbt"},
+                    {"instId", tradingPairToSymbol(pair)}
+                }
+            };
             doWrite(message.dump());
         } catch (const std::exception& e) {
             ERROR("Error subscribing to order book batch: ", e.what(), " message: ", message.dump());
@@ -239,37 +230,37 @@ bool ApiBybit::subscribeOrderBook() {
     return success;
 }
 
-bool ApiBybit::resubscribeOrderBook(const std::vector<TradingPair>& pairs) {
+bool ApiOkx::resubscribeOrderBook(const std::vector<TradingPair>& pairs) {
     if (!m_connected) {
-        TRACE("Not connected to Bybit");
+        TRACE("Not connected to Okx");
         return false;
     }
     ERROR("Not implemented: resubscribeOrderBook");
     return false;
 }
 
-bool ApiBybit::getOrderBookSnapshot(TradingPair pair) {
+bool ApiOkx::getOrderBookSnapshot(TradingPair pair) {
     if (!m_connected) {
-        TRACE("Not connected to Bybit");
+        TRACE("Not connected to Okx");
         return false;
     }
     ERROR("Not implemented: getOrderBookSnapshot");
     return false;
 } 
 
-// Implement the cooldown method for Bybit-specific rate limiting
-void ApiBybit::cooldown(int httpCode, const std::string& response, const std::string& endpoint) {
+// Implement the cooldown method for Okx-specific rate limiting
+void ApiOkx::cooldown(int httpCode, const std::string& response, const std::string& endpoint) {
     bool shouldCooldown = false;
     int cooldownMinutes = 5; // Default cooldown time
 
-    // Bybit-specific rate limit handling
+    // Okx-specific rate limit handling
     if (httpCode == 429) {
         // Try to parse the retryAfter field from the response
         try {
             json errorJson = json::parse(response);
             if (errorJson.contains("retryAfter")) {
                 int retryAfter = errorJson["retryAfter"].get<int>();
-                TRACE("Bybit rate limit retry after ", retryAfter, " seconds");
+                TRACE("Okx rate limit retry after ", retryAfter, " seconds");
                 cooldownMinutes = std::max(1, retryAfter / 60);
                 shouldCooldown = true;
             }
@@ -301,14 +292,14 @@ void ApiBybit::cooldown(int httpCode, const std::string& response, const std::st
     // Here we're just handling the cooldown based on the HTTP code
 
     if (shouldCooldown) {
-        TRACE("Bybit entering cooldown for ", cooldownMinutes, " minutes due to HTTP ", httpCode);
+        TRACE("Okx entering cooldown for ", cooldownMinutes, " minutes due to HTTP ", httpCode);
         startCooldown(cooldownMinutes);
     }
 }
 
-void ApiBybit::processRateLimitHeaders(const std::string& headers) {
+void ApiOkx::processRateLimitHeaders(const std::string& headers) {
     // Example header: "x-mbx-used-weight: 10"
-    // Parse rate limit headers from Bybit
+    // Parse rate limit headers from Okx
     size_t pos = headers.find("x-mbx-used-weight:");
     if (pos != std::string::npos) {
         try {

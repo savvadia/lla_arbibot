@@ -32,7 +32,7 @@ enum class TraceInstance {
     A_KRAKEN,
     A_BINANCE,
     A_KUCOIN,
-    A_BYBIT,
+    A_OKX,
     MAIN,  // For main function logging
     MUTEX,
     COUNT,  // To track the number of log types
@@ -168,13 +168,6 @@ public:
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
         auto time = std::chrono::system_clock::to_time_t(now);
 
-        if(type == TraceInstance::A_EXCHANGE) {
-            if(FastTraceLogger::isLoggingEnabled(exchangeId)) {
-                std::cout<<"Logging is allowed for "<<exchangeIdToStr(exchangeId)<<std::endl;
-            } else {
-                std::cout<<"Logging is not allowed for "<<exchangeIdToStr(exchangeId)<<std::endl;
-            }
-        }
         oss << std::put_time(std::localtime(&time), "%H:%M:%S") << "." << std::setw(3) << std::setfill('0') << ms.count();
         
         oss << " " << level;
