@@ -26,6 +26,8 @@ enum class TraceInstance {
     STRAT,
     ORDERBOOK,
     ORDERBOOK_MGR,
+    ORDER,
+    ORDER_MGR,
     EVENTLOOP,
     A_EXCHANGE,
     A_IO,

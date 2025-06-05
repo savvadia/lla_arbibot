@@ -133,6 +133,39 @@ inline std::ostream& operator<<(std::ostream& os, OrderType type) {
     return os;
 }
 
+
+enum class OrderState {
+    NEW,
+    PENDING,
+    EXECUTED,
+    CANCELLED,
+    TIMEOUT
+};
+
+// Convert OrderState to string
+inline const char* toString(OrderState state) {
+    switch (state) {
+        case OrderState::NEW:
+            return "NEW";
+        case OrderState::PENDING:
+            return "PENDING";
+        case OrderState::EXECUTED:
+            return "EXECUTED";
+        case OrderState::CANCELLED:
+            return "CANCELLED";
+        case OrderState::TIMEOUT:
+            return "TIMEOUT";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+inline std::ostream& operator<<(std::ostream& os, OrderState state) {
+    os << toString(state);
+    return os;
+}
+
+
 struct OrderBookData {
     double bestBid;
     double bestAsk;
