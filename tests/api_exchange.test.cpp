@@ -7,16 +7,15 @@
 
 #include "api_exchange.h"
 #include "orderbook_mgr.h"
+#include "timers.h"
 
 using namespace std::chrono_literals;
 using json = nlohmann::json;
 
 class TestApiExchange : public ApiExchange {
 public:
-    TestApiExchange(OrderBookManager& orderBookManager, TimersManager& timersMgr, bool testMode = true)
-        : ApiExchange("test.com", "443", "https://test.com/api", "/ws", {TradingPair::BTC_USDT}, testMode)
-        , orderBookManager(orderBookManager)
-        , timersManager(timersMgr) {}
+    TestApiExchange(bool testMode = true)
+        : ApiExchange("test.com", "443", "https://test.com/api", "/ws", {TradingPair::BTC_USDT}, testMode) {}
 
     bool connect() override { 
         m_connected = true;
@@ -130,16 +129,12 @@ public:
 
 private:
     std::queue<std::string> m_messageQueue;
-    OrderBookManager& orderBookManager;
-    TimersManager& timersManager;
 };
 
 class ApiExchangeTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        orderBookManager = std::make_unique<OrderBookManager>();
-        timersManager = std::make_unique<TimersManager>();
-        api = std::make_unique<TestApiExchange>(*orderBookManager, *timersManager, true);
+        api = std::make_unique<TestApiExchange>(true);
         // Connect immediately in setup to avoid repeated connection delays
         EXPECT_TRUE(api->connect());
     }
@@ -148,8 +143,6 @@ protected:
         api->disconnect();
     }
 
-    std::unique_ptr<OrderBookManager> orderBookManager;
-    std::unique_ptr<TimersManager> timersManager;
     std::unique_ptr<TestApiExchange> api;
 };
 
@@ -182,7 +175,7 @@ TEST_F(ApiExchangeTest, ProcessOrderBookSnapshot) {
     EXPECT_TRUE(api->getOrderBookSnapshot(TradingPair::BTC_USDT));
 
     // Verify the order book was updated correctly
-    auto& orderBook = orderBookManager->getOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT);
+    auto& orderBook = orderBookManager.getOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT);
     auto [bids, asks] = orderBook.getState();
     
     EXPECT_EQ(bids.size(), 2);
@@ -214,7 +207,7 @@ TEST_F(ApiExchangeTest, ProcessTradeUpdate) {
     api->processMessage(message);
 
     // Verify the last price was updated
-    auto& orderBook = orderBookManager->getOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT);
+    auto& orderBook = orderBookManager.getOrderBook(ExchangeId::BINANCE, TradingPair::BTC_USDT);
     EXPECT_DOUBLE_EQ(orderBook.getBestBid(), 0.0); // No bids set yet
     EXPECT_DOUBLE_EQ(orderBook.getBestAsk(), 0.0); // No asks set yet
 }

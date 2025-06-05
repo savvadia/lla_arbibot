@@ -9,8 +9,6 @@
 #include <ostream>
 #include "tracer.h"
 
-extern TimersManager& timersManager;
-
 typedef void (*TimerCallback)(int id, void* data);
 void sleep_ms(int ms);
 
@@ -85,5 +83,7 @@ private:
     static int nextId;  // Static member variable
     std::mutex timerMutex;  // Protects timer operations from multiple threads
 };
+
+extern TimersManager timersManager;
 
 #endif // TIMERS_H

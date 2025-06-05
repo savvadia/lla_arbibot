@@ -10,11 +10,11 @@
 
 class ExchangeManager : public Traceable {
 public:
-    ExchangeManager(const std::vector<TradingPair> pairs);
-    ~ExchangeManager();
+    ExchangeManager() {};
+    ~ExchangeManager() {};
 
     // Initialize and connect to exchanges
-    bool initializeExchanges(const std::vector<ExchangeId>& exchangeIds);
+    bool initializeExchanges(const std::vector<TradingPair>& pairs,const std::vector<ExchangeId>& exchangeIds);
     
     // Get exchange API instance
     ApiExchange* getExchange(ExchangeId id) const;
@@ -50,4 +50,4 @@ private:
     std::vector<TradingPair> m_pairs;
 }; 
 
-extern ExchangeManager& exchangeManager;
+extern ExchangeManager exchangeManager;

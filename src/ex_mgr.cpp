@@ -4,14 +4,11 @@
 // Define TRACE macro for ExchangeManager
 #define TRACE(...) TRACE_THIS(TraceInstance::EX_MGR, ExchangeId::UNKNOWN, __VA_ARGS__)
 
-ExchangeManager::ExchangeManager(const std::vector<TradingPair> pairs) : m_pairs(pairs) {
-  TRACE("initializing");
-}
-
-ExchangeManager::~ExchangeManager() = default;
-
 bool ExchangeManager::initializeExchanges(
-    const std::vector<ExchangeId> &exchangeIds) {
+  const std::vector<TradingPair>& pairs,
+  const std::vector<ExchangeId>& exchangeIds) {
+  TRACE("initializing exchanges");
+  m_pairs = pairs;
   // Clear any existing exchanges
   exchanges.clear();
   this->exchangeIds = exchangeIds;

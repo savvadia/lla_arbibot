@@ -20,15 +20,10 @@ using namespace std;
 volatile sig_atomic_t g_running = 1;
 std::atomic<bool> g_shutdown_requested{false};
 
-TimersManager* timersMgrPtr;
-OrderBookManager* orderBookManagerPtr;
-ExchangeManager* exchangeManagerPtr;
-BalanceManager* balanceMgrPtr;
-
-TimersManager& timersManager = *timersMgrPtr;
-OrderBookManager& orderBookManager = *orderBookManagerPtr;
-ExchangeManager& exchangeManager = *exchangeManagerPtr;
-BalanceManager& balanceManager = *balanceMgrPtr;
+TimersManager timersManager;
+OrderBookManager orderBookManager;
+ExchangeManager exchangeManager;
+BalanceManager balanceManager;
 
 // Signal handler for graceful shutdown
 void signal_handler(int signum) {
@@ -82,15 +77,8 @@ int main() {
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
 
-    // Create timer manager
-    TRACE("Initializing TimersManager...");
-    static TimersManager realTimersMgr;
-    static OrderBookManager realOrderBookManager;
-    timersMgrPtr = &realTimersMgr;
-    orderBookManagerPtr = &realOrderBookManager;
-
-    // init reset countable traces timer
-    initResetCountableTracesTimer(timersManager);
+    TRACE("Initializing reset countable traces timer...");
+    initResetCountableTracesTimer();
     
     // Create exchange manager
     TRACE("Initializing ExchangeManager...");
@@ -99,9 +87,7 @@ int main() {
         if (i == static_cast<int>(TradingPair::UNKNOWN)) continue;
         pairs.push_back(static_cast<TradingPair>(i));
     }
-    ExchangeManager realExchangeManager(pairs);
-    exchangeManagerPtr = &realExchangeManager;
-    
+
     // Define exchanges to use
     vector<ExchangeId> exchanges;
     std::ostringstream exchangesStr;
@@ -115,8 +101,7 @@ int main() {
     TRACE("Using exchanges: ", exchangesStr.str());
     
     // Initialize exchanges
-    TRACE("Initializing exchanges...");
-    if (!exchangeManager.initializeExchanges(exchanges)) {
+    if (!exchangeManager.initializeExchanges(pairs, exchanges)) {
         TRACE("Failed to initialize exchanges");
         return 1;
     }
@@ -137,11 +122,6 @@ int main() {
 
     // Get initial order book snapshots with timeout
     auto startTime = std::chrono::steady_clock::now();
-
-    // Create balance manager
-    TRACE("Initializing Balance manager...");
-    BalanceManager realBalanceMgr;
-    balanceMgrPtr = &realBalanceMgr;
     
     // Initialize balances
     TRACE("Retrieving initial balances...");

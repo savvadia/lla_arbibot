@@ -32,4 +32,4 @@ protected:
     }
 };
 
-extern BalanceManager& balanceManager;
+extern BalanceManager balanceManager;

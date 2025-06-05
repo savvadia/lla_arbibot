@@ -7,7 +7,7 @@
 class OrderBookManager : public Traceable {
 public:
     OrderBookManager();
-    ~OrderBookManager() = default;
+    ~OrderBookManager() {};
 
     // Update order book for a trading pair
     void updateOrderBook(ExchangeId exchangeId, TradingPair pair, std::vector<PriceLevel>& bids, std::vector<PriceLevel>& asks,
@@ -42,4 +42,4 @@ private:
     mutable std::mutex mutex;
 }; 
 
-extern OrderBookManager& orderBookManager;
+extern OrderBookManager orderBookManager;
