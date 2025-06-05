@@ -10,9 +10,12 @@ namespace Config {
     // Strategy settings
     constexpr int STRATEGY_CHECK_TIMER_MS = 5000;  // How often to check for opportunities
     constexpr int BEST_SEEN_OPPORTUNITY_RESET_INTERVAL_MS = 600000; // 10 minutes
-    constexpr double MIN_EXECUTION_MARGIN = 0.6;  // Minimum margin to execute a trade, %
-    constexpr double MIN_TRACEABLE_MARGIN = 0.06;  // Minimum margin to trace, %
-    constexpr int OPPORTUNITY_TIMEOUT_MS = 10000; // 10 seconds
+    constexpr double MIN_EXECUTION_MARGIN = 0.02;  // Minimum margin to execute a trade, %
+    constexpr double MIN_TRACEABLE_MARGIN = 0.01;  // Minimum margin to trace, %
+    constexpr int OPPORTUNITY_TIMEOUT_MS = 2000; // 10 seconds
+
+    // Order settings
+    constexpr int ORDER_TEST_STATE_CHANGE_DELAY_MS = OPPORTUNITY_TIMEOUT_MS / 2;
 
     // Traces settings
     constexpr int COUNTABLE_TRACES_PRINT_INTERVAL1 = 10;

@@ -33,7 +33,7 @@ public:
     bool cancelOrder(const std::string& orderId) override;
     bool getBalance(const std::string& asset) override;
 
-    std::string getExchangeName() const override { return "BINANCE"; }
+    std::string getExchangeName() const override { return toString(ExchangeId::BINANCE); }
     ExchangeId getExchangeId() const override { return ExchangeId::BINANCE; }
 
 protected:

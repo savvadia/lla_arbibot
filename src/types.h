@@ -21,17 +21,17 @@ enum class ExchangeId {
 inline const char* toString(ExchangeId id) {
     switch (id) {
         case ExchangeId::BINANCE:
-            return "BINANCE";
+            return "BIN";
         case ExchangeId::KRAKEN:
-            return "KRAKEN";
+            return "KRA";
         case ExchangeId::KUCOIN:
-            return "KUCOIN";
+            return "KUC";
         case ExchangeId::OKX:
             return "OKX";
         case ExchangeId::CRYPTO:
-            return "CRYPTO";
+            return "CRY";
         default:
-            return "UNKNOWN";
+            return "UNK";
     }
 }
 

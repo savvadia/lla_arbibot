@@ -7,6 +7,8 @@
 #include "tracer.h"
 #include "types.h"
 #include "orderbook_mgr.h"
+#include "order_mgr.h"
+
 using namespace std;
 
 // Define TRACE macro for StrategyPoplavki class
@@ -104,13 +106,13 @@ void StrategyPoplavki::scanOpportunities() {
                 }
                 if (bestOpportunity1.profit() > Config::MIN_EXECUTION_MARGIN) {
                     TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY_EXECUTABLE, "EXECUTABLE: ", bestOpportunity1);
+                    orderManager.handleOpportunity(bestOpportunity1);
                 }
             }
 
             Opportunity opp2 = calculateProfit(exchangeIds[j], exchangeIds[i], pair);
             if (opp2.amount > 0 && opp2.profit() > Config::MIN_TRACEABLE_MARGIN) {
                 DEBUG("Found opportunity: ", opp2);
-                // TODO: Execute opportunity
                 if (bestOpportunity2.amount == 0 || opp2.profit() > bestOpportunity2.profit()) {
                     TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY, "Updating best opp2: ", opp2);
                     bestOpportunity2 = opp2;
@@ -119,6 +121,7 @@ void StrategyPoplavki::scanOpportunities() {
                 }
                 if (bestOpportunity2.profit() > Config::MIN_EXECUTION_MARGIN) {
                     TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY_EXECUTABLE, "EXECUTABLE: ", bestOpportunity2);
+                    orderManager.handleOpportunity(bestOpportunity2);
                 }
             }
         }

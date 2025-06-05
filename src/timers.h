@@ -9,6 +9,8 @@
 #include <ostream>
 #include "tracer.h"
 
+// id - timer id
+// data - user data
 typedef void (*TimerCallback)(int id, void* data);
 void sleep_ms(int ms);
 
@@ -21,7 +23,7 @@ enum class TimerType {
     EXCHANGE_CHECK_SNAPSHOT_VALIDITY,
     EXCHANGE_PING,
     OPPORTUNITY_TIMEOUT,
-    COUNT
+    ORDER_TEST_STATE_CHANGE,
 };
 
 // Convert timer type to string (only used in traces)
@@ -34,6 +36,7 @@ inline const char* timerTypeToString(TimerType type) {
         case TimerType::EXCHANGE_CHECK_SNAPSHOT_VALIDITY: return "EXCHANGE_CHECK_SNAPSHOT_VALIDITY";
         case TimerType::EXCHANGE_PING: return "EXCHANGE_PING";
         case TimerType::OPPORTUNITY_TIMEOUT: return "OPPORTUNITY_TIMEOUT";
+        case TimerType::ORDER_TEST_STATE_CHANGE: return "ORDER_TEST_STATE_CHANGE";
         default: return "INVALID";
     }
 }

@@ -29,7 +29,7 @@ public:
 private:
     void trace(std::ostream &os) const override
     {
-        os << "Opportunity: " << buyExchange << " -> " << sellExchange << " amount: " << amount
+        os << "Opp: " << buyExchange << " -> " << sellExchange << " amount: " << amount
             << " (" << buyPrice << " -> " << sellPrice << ") profit: " << profit() << "%";
     }
 };

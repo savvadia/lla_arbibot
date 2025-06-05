@@ -36,7 +36,7 @@ public:
     bool cancelOrder(const std::string& orderId) override;
     bool getBalance(const std::string& asset) override;
 
-    std::string getExchangeName() const override { return "KUCOIN"; }
+    std::string getExchangeName() const override { return toString(ExchangeId::KUCOIN); }
     ExchangeId getExchangeId() const override { return ExchangeId::KUCOIN; }
 
     int m_pingIntervalMs = 18000;

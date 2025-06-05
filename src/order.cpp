@@ -1,9 +1,17 @@
 #include "order.h"
 #include "tracer.h"
 #include "ex_mgr.h"
+#include "order_mgr.h"
+
 #define TRACE(...) TRACE_THIS(TraceInstance::ORDER, this->exchangeId, __VA_ARGS__)
 #define DEBUG(...) DEBUG_THIS(TraceInstance::ORDER, this->exchangeId, __VA_ARGS__)
 #define ERROR(...) ERROR_BASE(TraceInstance::ORDER, this->exchangeId, __VA_ARGS__)
+
+void callbackTestOrderStateChange(int id, void* data) {
+    int orderId = *static_cast<int*>(data);
+
+    orderManager.handleOrderStateChange(orderId, OrderState::EXECUTED);
+}
 
 OrderHistoryEntry::OrderHistoryEntry(std::chrono::system_clock::time_point timestamp, OrderState state)
     : tsRequested(timestamp), state(state) {
@@ -28,8 +36,12 @@ void Order::execute() {
     }
 
     // orderIdAtExchange = exchange->placeOrder(pair, type, quantity, price);
-    TRACE("FAKE: Executed order: ", *this);
+    TRACE("FAKE: Placed order");
     setState(OrderState::EXECUTED, tsRequested);
+    // 80% chance to execute the order. otherwise, timeout should handle it
+    if (rand() % 100 < 80) {
+        timersManager.addTimer(Config::ORDER_TEST_STATE_CHANGE_DELAY_MS, callbackTestOrderStateChange, &orderId, TimerType::ORDER_TEST_STATE_CHANGE, false);
+    }
 }
 
 void Order::cancel() {

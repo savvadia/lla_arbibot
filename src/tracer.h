@@ -11,10 +11,21 @@
 #include <string>
 #include <sstream>
 #include <iomanip>
+#include <pthread.h>
+
 #include "types.h"  // For ExchangeId
 #include "config.h" // For COUNTABLE_TRACES_PRINT_INTERVAL
 // Forward declaration of TimersManager
 class TimersManager;
+
+inline uint64_t getThreadId() {
+    thread_local uint64_t cachedThreadId = []() {
+        uint64_t tid;
+        pthread_threadid_np(NULL, &tid);
+        return tid % 1000;
+    }();
+    return cachedThreadId;
+}
 
 // Enum for logging types
 enum class TraceInstance {
@@ -175,6 +186,7 @@ public:
         oss << std::put_time(std::localtime(&time), "%H:%M:%S") << "." << std::setw(3) << std::setfill('0') << ms.count();
         
         oss << " " << level;
+        oss << " tid:" << getThreadId();
 
         // filename should be 15 characters long
         oss << " " <<std::right << std::setw(15) << std::setfill(' ') << getBaseName(file) << ":"

@@ -21,25 +21,15 @@ enum OpportunityAction {
     OPP_ACTION_CANCEL,
 };
 
-std::ostream& operator<<(std::ostream& os, const OpportunityState& state) {
-    switch (state) {
-        case OPP_ACCEPTED: os << "ACCEPTED"; break;
-        case OPP_EXECUTING: os << "EXECUTING"; break;
-        case OPP_PARTIALLY_EXECUTED: os << "PART_EXECUTED"; break;
-        case OPP_CANCELLING: os << "CANCELLING"; break;
-        case OPP_CANCELLED: os << "CANCELLED"; break;
-        case OPP_EXECUTED_AS_PLANNED: os << "EXEC_AS_PLANNED"; break;
-        case OPP_EXECUTION_TIMEOUT: os << "EXEC_TIMEOUT"; break;
-    }
-    return os;
-}
+std::ostream& operator<<(std::ostream& os, const OpportunityState& state);
+std::ostream& operator<<(std::ostream& os, const OpportunityAction& action);
 
 class OpportunityHistoryEntry : public Traceable {
     public:
         OpportunityHistoryEntry(std::chrono::system_clock::time_point timestamp, OpportunityState state, OrderState buyState, OrderState sellState);
     protected:
         void trace(std::ostream& os) const override {
-            os << "OppHistory: " << tsRequested << " " << delayMicros << " " << state << " [" << buyState << " " << sellState << "]";
+            os << "OppHist: " << tsRequested << " " << delayMicros << " " << state << " [" << buyState << " " << sellState << "]";
         }
     private:
         std::chrono::system_clock::time_point tsRequested;
@@ -66,9 +56,7 @@ class AcceptedOpportunity : public Opportunity {
         int timeoutTimerId = 0;
         
     protected:
-        void trace(std::ostream& os) const override {
-            os << "AccOpportunity: " << opportunity << " [" << id << " " << state << "]";
-        }
+        void trace(std::ostream& os) const override;
 };
 
 class OrderManager : public Traceable {
@@ -76,12 +64,10 @@ class OrderManager : public Traceable {
         OrderManager() {};
         void handleOpportunity(Opportunity& opportunity);
         void handleOrderStateChange(int orderId, OrderState newState);
-        void handleOpportunityTimeout(int opportunityId, void* data);
+        void handleOpportunityTimeout(int id, void* data);
         Order& getOrder(int orderId) { return m_idToOrder[orderId]; }
     protected:
-        void trace(std::ostream& os) const override {
-            os << "OrderManager";
-        }
+        void trace(std::ostream& os) const override {};
         void handleAction(OpportunityAction action, int opportunityId);
     private:
         int m_nextAcceptedOpportunityId = 1;
@@ -93,4 +79,4 @@ class OrderManager : public Traceable {
         std::unordered_map<int, AcceptedOpportunity> m_idToOpportunity; // opportunityId -> AcceptedOpportunity
 };
 
-extern OrderManager& orderMgr;
+extern OrderManager orderManager;

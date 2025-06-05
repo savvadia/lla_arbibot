@@ -39,7 +39,7 @@ class Order : public Traceable {
 
     protected:
         void trace(std::ostream& os) const override {
-            os << "Order: " << pair << " " << type << " " << state << " " << price << " " << quantity;
+            os << "Order " << orderId << ": " << pair << " " << type << " " << state;
         }
     private:
         void setState(OrderState newState, std::chrono::system_clock::time_point timestamp);

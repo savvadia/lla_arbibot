@@ -8,6 +8,7 @@
 #include "timers.h"
 #include "ex_mgr.h"
 #include "orderbook_mgr.h"
+#include "order_mgr.h"
 #include "s_poplavki.h"
 #include "balance.h"
 #include "config.h"
@@ -24,6 +25,7 @@ std::atomic<bool> g_shutdown_requested{false};
 
 TimersManager timersManager;
 OrderBookManager orderBookManager;
+OrderManager orderManager;
 ExchangeManager exchangeManager;
 BalanceManager balanceManager;
 
@@ -55,6 +57,8 @@ int main() {
     FastTraceLogger::setLoggingEnabled(TraceInstance::BALANCE, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::ORDERBOOK_MGR, false);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::ORDER, true);
+    FastTraceLogger::setLoggingEnabled(TraceInstance::ORDER_MGR, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_EXCHANGE, false);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_IO, true);
     FastTraceLogger::setLoggingEnabled(TraceInstance::A_KRAKEN, false);
@@ -68,9 +72,9 @@ int main() {
     FastTraceLogger::setLoggingEnabled(ExchangeId::UNKNOWN, true);
     FastTraceLogger::setLoggingEnabled(ExchangeId::BINANCE, false);
     FastTraceLogger::setLoggingEnabled(ExchangeId::KRAKEN, false);
-    FastTraceLogger::setLoggingEnabled(ExchangeId::KUCOIN, false);
-    FastTraceLogger::setLoggingEnabled(ExchangeId::OKX, false);
-    FastTraceLogger::setLoggingEnabled(ExchangeId::CRYPTO, false);   
+    FastTraceLogger::setLoggingEnabled(ExchangeId::KUCOIN, true);
+    FastTraceLogger::setLoggingEnabled(ExchangeId::OKX, true);
+    FastTraceLogger::setLoggingEnabled(ExchangeId::CRYPTO, true);   
     TRACE("Trace types enabled: EVENT_LOOP, TRACES, TIMER, STRAT, BALANCE, ORDERBOOK, A_EXCHANGE, A_IO, A_KRAKEN, A_BINANCE, A_KUCOIN, A_OKX, A_CRYPTO, MAIN");
     TRACE("Exchange logging enabled: BINANCE, KRAKEN, KUCOIN, OKX, CRYPTO");
 
