@@ -1,11 +1,13 @@
+#include <stdexcept>
+#include <algorithm>
+
 #include "api_exchange.h"
 #include "api_binance.h"
 #include "api_kraken.h"
 #include "api_kucoin.h"
 #include "api_okx.h"
 #include "api_crypto.h"
-#include <stdexcept>
-#include <algorithm>
+#include "orderbook_mgr.h"
 #include "tracer.h"
 #include "config.h"
 
@@ -28,12 +30,10 @@ void snapshotValidityCheckCallback(int id, void* data) {
     }
 }
 
-ApiExchange::ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
-    const std::string& restEndpoint, 
+ApiExchange::ApiExchange(const std::string& restEndpoint, 
     const std::string& wsHost, const std::string& wsPort, const std::string& wsEndpoint,
     const std::vector<TradingPair> pairs, bool testMode)
     : m_testMode(testMode), m_inCooldown(false), m_cooldownEndTime(std::chrono::steady_clock::now()), 
-    m_timersMgr(timersMgr), m_orderBookManager(orderBookManager), 
         m_restEndpoint(restEndpoint), 
         m_wsHost(wsHost), m_wsPort(wsPort), m_wsEndpoint(wsEndpoint),
     m_pairs(pairs) {
@@ -50,22 +50,21 @@ ApiExchange::ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMg
 ApiExchange::~ApiExchange() {
     disconnect();
     cleanupCurl();
-    m_timersMgr.stopTimer(m_snapshotValidityTimerId);
+    timersManager.stopTimer(m_snapshotValidityTimerId);
 }
 
 // Factory function to create exchange API instances
-std::unique_ptr<ApiExchange> createApiExchange(ExchangeId exchangeId, OrderBookManager& orderBookManager, TimersMgr& timersMgr,
-    const std::vector<TradingPair> pairs, bool testMode) {
+std::unique_ptr<ApiExchange> createApiExchange(ExchangeId exchangeId, const std::vector<TradingPair> pairs, bool testMode) {
     if (exchangeId == ExchangeId::BINANCE) {
-        return std::make_unique<ApiBinance>(orderBookManager, timersMgr, pairs, testMode);
+        return std::make_unique<ApiBinance>(pairs, testMode);
     } else if (exchangeId == ExchangeId::KRAKEN) {
-        return std::make_unique<ApiKraken>(orderBookManager, timersMgr, pairs, testMode);
+        return std::make_unique<ApiKraken>(pairs, testMode);
     } else if (exchangeId == ExchangeId::KUCOIN) {
-        return std::make_unique<ApiKucoin>(orderBookManager, timersMgr, pairs, testMode);
+        return std::make_unique<ApiKucoin>(pairs, testMode);
     } else if (exchangeId == ExchangeId::OKX) {
-        return std::make_unique<ApiOkx>(orderBookManager, timersMgr, pairs, testMode);
+        return std::make_unique<ApiOkx>(pairs, testMode);
     } else if (exchangeId == ExchangeId::CRYPTO) {
-        return std::make_unique<ApiCrypto>(orderBookManager, timersMgr, pairs, testMode);
+        return std::make_unique<ApiCrypto>(pairs, testMode);
     }
     // Add more exchanges here as we implement them
     TRACE_BASE(TraceInstance::A_EXCHANGE, exchangeId, "ERROR: Unsupported exchange");
@@ -540,7 +539,7 @@ void ApiExchange::setBalanceCallback(std::function<void(bool)> callback) {
 }
 
 void ApiExchange::startSnapshotValidityTimer(int intervalMs) {
-    m_snapshotValidityTimerId = m_timersMgr.addTimer(
+    m_snapshotValidityTimerId = timersManager.addTimer(
         intervalMs,
         snapshotValidityCheckCallback,
         this,
@@ -567,7 +566,7 @@ ApiExchange::SnapshotRestoring ApiExchange::checkSnapshotValidity() {
         }
 
         // Get the last update time from the order book
-        auto lastUpdate = m_orderBookManager.getOrderBook(getExchangeId(), pair).getLastUpdate();
+        auto lastUpdate = orderBookManager.getOrderBook(getExchangeId(), pair).getLastUpdate();
         auto timeSinceLastUpdate = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate).count();
 
         if (timeSinceLastUpdate > Config::SNAPSHOT_VALIDITY_TIMEOUT_MS) {

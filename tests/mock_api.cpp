@@ -6,16 +6,16 @@
 #include <nlohmann/json.hpp>
 
 /*
-ApiBinance::ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
+ApiBinance::ApiBinance(OrderBookManager& orderBookManager, TimersManager& timersManager,
         const std::vector<TradingPair> pairs, bool testMode)
-        : ApiExchange(orderBookManager, timersMgr,  
+        : ApiExchange(orderBookManager, timersManager,  
         REST_ENDPOINT,
         "stream.binance.com", "9443", "/ws/stream",
         pairs, testMode) {
 }
 */
-MockApi::MockApi(OrderBookManager& orderBookManager, TimersMgr& timersMgr, const std::string& name, bool testMode)
-    : ApiExchange(orderBookManager, timersMgr, 
+MockApi::MockApi(OrderBookManager& orderBookManager, TimersManager& timersManager, const std::string& name, bool testMode)
+    : ApiExchange(orderBookManager, timersManager, 
     name == "Binance" ? "https://api.binance.com/api/v3" : "https://api.kraken.com/0/public",
     name == "Binance" ? "stream.binance.com" : "ws.kraken.com",
     name == "Binance" ? "9443" : "443",
@@ -140,7 +140,7 @@ bool MockApi::getOrderBookSnapshot(TradingPair pair) {
         };
 
         std::cout << "[" << getTestTimestamp() << "] MockApi: Updating order book with snapshot data..." << std::endl;
-        m_orderBookManager.updateOrderBook(m_id, pair, bids, asks);
+        orderBookManager.updateOrderBook(m_id, pair, bids, asks);
 
         if (m_snapshotCallback) {
             std::cout << "[" << getTestTimestamp() << "] MockApi: Calling snapshot callback with success" << std::endl;
@@ -281,7 +281,7 @@ void MockApi::handleMockMessage(const std::string& msg) {
             }
 
             if (!bids.empty() || !asks.empty()) {
-                m_orderBookManager.updateOrderBook(m_id, pair, bids, asks);
+                orderBookManager.updateOrderBook(m_id, pair, bids, asks);
             }
         }
     } catch (const std::exception& e) {

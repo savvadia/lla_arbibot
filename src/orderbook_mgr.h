@@ -41,3 +41,5 @@ private:
     std::function<void(ExchangeId, TradingPair)> updateCallback;
     mutable std::mutex mutex;
 }; 
+
+extern OrderBookManager& orderBookManager;

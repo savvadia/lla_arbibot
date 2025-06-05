@@ -12,9 +12,9 @@ inline void resetCountableTracesTimerCallback(int id, void* data) {
 }
 
 // Initialize the timer for resetting countable traces
-inline void initResetCountableTracesTimer(TimersMgr& timersMgr) {
+inline void initResetCountableTracesTimer(TimersManager& timersManager) {
     TRACE_BASE(TraceInstance::TIMER, ExchangeId::UNKNOWN, "Initializing reset countable traces timer");
-    timersMgr.addTimer(Config::COUNTABLE_TRACES_RESET_INTERVAL_MS,
+    timersManager.addTimer(Config::COUNTABLE_TRACES_RESET_INTERVAL_MS,
         resetCountableTracesTimerCallback, nullptr, TimerType::RESET_COUNTABLE_TRACES, true);
 }
 

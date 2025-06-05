@@ -9,6 +9,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <nlohmann/json.hpp>
+
 #include "api_crypto.h"
 #include "orderbook_mgr.h"
 #include "tracer.h"
@@ -24,10 +25,8 @@ using tcp = boost::asio::ip::tcp;
 
 constexpr const char* REST_ENDPOINT = "https://api.crypto.com/exchange/v1";
 
-ApiCrypto::ApiCrypto(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
-        const std::vector<TradingPair> pairs, bool testMode)
-        : ApiExchange(orderBookManager, timersMgr,  
-        REST_ENDPOINT,
+ApiCrypto::ApiCrypto(const std::vector<TradingPair> pairs, bool testMode)
+        : ApiExchange(REST_ENDPOINT,
         "stream.crypto.com", "443", "/exchange/v1/market",
         pairs, testMode) {
 }
@@ -167,7 +166,7 @@ void ApiCrypto::processLevel1(const json& data) {
 
         // Update order book with best prices
         try {
-            m_orderBookManager.updateOrderBookBestBidAsk(ExchangeId::CRYPTO, pair, bidPrice, bidQuantity, askPrice, askQuantity);
+            orderBookManager.updateOrderBookBestBidAsk(ExchangeId::CRYPTO, pair, bidPrice, bidQuantity, askPrice, askQuantity);
             TRACE("Updated best prices for ", symbol, 
                   " bid=", bidPrice, "(", bidQuantity, ")", 
                   " ask=", askPrice, "(", askQuantity, ")");

@@ -7,11 +7,11 @@
 #include "tracer.h"
 #include "config.h"
 
-// Define TRACE macro for TimersMgr
+// Define TRACE macro for TimersManager
 #define TRACE(_timer, ...) TRACE_OBJ("INFO ", &_timer, TraceInstance::TIMER, ExchangeId::UNKNOWN, __VA_ARGS__)
 #define ERROR(_timer, ...) ERROR_OBJ(&_timer, TraceInstance::TIMER, ExchangeId::UNKNOWN, __VA_ARGS__)
 // Initialize static member
-int TimersMgr::nextId = 1;
+int TimersManager::nextId = 1;
 
 void sleep_ms(int ms) {
     std::this_thread::sleep_for(std::chrono::milliseconds(ms));
@@ -47,12 +47,12 @@ bool Timer::isExpired(std::chrono::steady_clock::time_point now) const {
     return timeToFire <= now;
 }
 
-int TimersMgr::addTimer(int intervalMs, TimerCallback callback, void* data, TimerType type, bool isPeriodic) {
+int TimersManager::addTimer(int intervalMs, TimerCallback callback, void* data, TimerType type, bool isPeriodic) {
     auto timeToFire = std::chrono::steady_clock::now() + std::chrono::milliseconds(intervalMs);
     return addTimer(timeToFire, intervalMs, callback, data, type, isPeriodic);
 }
 
-int TimersMgr::addTimer(std::chrono::steady_clock::time_point timeToFire, int intervalMs, TimerCallback callback, void* data, TimerType type, bool isPeriodic) {
+int TimersManager::addTimer(std::chrono::steady_clock::time_point timeToFire, int intervalMs, TimerCallback callback, void* data, TimerType type, bool isPeriodic) {
     Timer timer;
     timer.id = nextId++;
     timer.interval = intervalMs;
@@ -71,7 +71,7 @@ int TimersMgr::addTimer(std::chrono::steady_clock::time_point timeToFire, int in
     return timer.id;
 }
 
-void TimersMgr::stopTimer(int id) {
+void TimersManager::stopTimer(int id) {
     MUTEX_LOCK(timerMutex);
     auto it = timerIds.find(id);
     if (it != timerIds.end()) {
@@ -81,7 +81,7 @@ void TimersMgr::stopTimer(int id) {
     }
 }
 
-void TimersMgr::checkTimers() {
+void TimersManager::checkTimers() {
     auto now = std::chrono::steady_clock::now();
     std::vector<Timer> timersToExecute;
     

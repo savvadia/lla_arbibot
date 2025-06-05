@@ -4,8 +4,7 @@
 #include <memory>
 #include <chrono>
 #include <nlohmann/json.hpp>
-#include "orderbook.h"
-#include "timers.h"
+#include "orderbook_mgr.h"
 
 using namespace std::chrono_literals;
 using json = nlohmann::json;
@@ -13,8 +12,7 @@ using json = nlohmann::json;
 // Create a test class that inherits from ApiKraken to access protected members
 class TestApiKraken : public ApiKraken {
 public:
-    TestApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode = true)
-        : ApiKraken(orderBookManager, timersMgr, {TradingPair::BTC_USDT}, testMode) {}
+    TestApiKraken(bool testMode = true) : ApiKraken({TradingPair::BTC_USDT}, testMode) {}
 
     // Expose protected methods for testing
     using ApiKraken::processOrderBookUpdate;
@@ -25,9 +23,7 @@ public:
 class ApiKrakenTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        orderBookManager = std::make_unique<OrderBookManager>();
-        timersMgr = std::make_unique<TimersMgr>();
-        api = std::make_unique<TestApiKraken>(*orderBookManager, *timersMgr, true);
+        api = std::make_unique<TestApiKraken>(true);
         // Connect immediately in setup to avoid repeated connection delays
         EXPECT_TRUE(api->connect());
     }
@@ -35,12 +31,8 @@ protected:
     void TearDown() override {
         api->disconnect();
         api.reset();
-        orderBookManager.reset();
-        timersMgr.reset();
     }
 
-    std::unique_ptr<OrderBookManager> orderBookManager;
-    std::unique_ptr<TimersMgr> timersMgr;
     std::unique_ptr<TestApiKraken> api;
 };
 
@@ -86,7 +78,7 @@ TEST_F(ApiKrakenTest, ProcessTradeUpdate) {
     api->processMessage(message); // This will process the message in test mode
 
     // Verify the last price was updated
-    auto& orderBook = orderBookManager->getOrderBook(ExchangeId::KRAKEN, TradingPair::BTC_USDT);
+    auto& orderBook = orderBookManager.getOrderBook(ExchangeId::KRAKEN, TradingPair::BTC_USDT);
     EXPECT_DOUBLE_EQ(orderBook.getBestBid(), 0.0); // No bids set yet
     EXPECT_DOUBLE_EQ(orderBook.getBestAsk(), 0.0); // No asks set yet
 }
@@ -153,7 +145,7 @@ TEST_F(ApiKrakenTest, OrderBookChecksumVerification) {
     std::cout << "Order book update processed" << std::endl;
 
     // Get the order book
-    auto& book = orderBookManager->getOrderBook(ExchangeId::KRAKEN, TradingPair::BTC_USDT);
+    auto& book = orderBookManager.getOrderBook(ExchangeId::KRAKEN, TradingPair::BTC_USDT);
     auto bids = book.getBids();
     auto asks = book.getAsks();
 
@@ -180,9 +172,4 @@ TEST_F(ApiKrakenTest, OrderBookChecksumVerification) {
 
     // Test order book validation
     EXPECT_TRUE(api->isOrderBookValid(pair, expectedChecksum)) << "Order book validation failed";
-}
-
-int main(int argc, char** argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

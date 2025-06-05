@@ -13,8 +13,8 @@
 #include <iomanip>
 #include "types.h"  // For ExchangeId
 #include "config.h" // For COUNTABLE_TRACES_PRINT_INTERVAL
-// Forward declaration of TimersMgr
-class TimersMgr;
+// Forward declaration of TimersManager
+class TimersManager;
 
 // Enum for logging types
 enum class TraceInstance {

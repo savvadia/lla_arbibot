@@ -1,9 +1,10 @@
-#include "balance.h"
-#include "tracer.h"
 #include <iostream>
 #include <string>
 #include <unordered_map>
 #include <sstream>
+
+#include "balance.h"
+#include "tracer.h"
 #include "types.h"
 
 using namespace std;
@@ -11,11 +12,11 @@ using namespace std;
 // Define TRACE macro for Balance class
 #define TRACE(...) TRACE_THIS(TraceInstance::BALANCE, ExchangeId::UNKNOWN, __VA_ARGS__)
 
-Balance::Balance() {
+BalanceManager::BalanceManager() {
     balances = {};
 }
 
-void Balance::inc(const std::string& exchange, const std::string& coin, double amount) {
+void BalanceManager::inc(const std::string& exchange, const std::string& coin, double amount) {
     auto exchangeIt = balances.find(exchange);
     if (exchangeIt == balances.end()) {
         TRACE("Inc for ", exchange, " ", coin, " by ", amount, " (exchange not found)");
@@ -32,7 +33,7 @@ void Balance::inc(const std::string& exchange, const std::string& coin, double a
     TRACE("Inc for ", exchange, " ", coin, " by ", amount);
 }
 
-void Balance::dec(const std::string& exchange, const std::string& coin, double amount) {
+void BalanceManager::dec(const std::string& exchange, const std::string& coin, double amount) {
     auto exchangeIt = balances.find(exchange);
     if (exchangeIt == balances.end()) {
         TRACE("Dec for ", exchange, " ", coin, " by ", amount, " (exchange not found)");
@@ -49,7 +50,7 @@ void Balance::dec(const std::string& exchange, const std::string& coin, double a
     TRACE("Dec for ", exchange, " ", coin, " by ", amount);
 }
 
-double Balance::get(const std::string& exchange, const std::string& coin) const {
+double BalanceManager::get(const std::string& exchange, const std::string& coin) const {
     auto exchangeIt = balances.find(exchange);
     if (exchangeIt == balances.end()) {
         TRACE("Get for ", exchange, " ", coin, ": 0.0 (exchange not found)");
@@ -66,11 +67,11 @@ double Balance::get(const std::string& exchange, const std::string& coin) const 
     return coinIt->second;
 }
 
-const BalanceData Balance::getBalances() const {
+const BalanceData BalanceManager::getBalances() const {
     return balances;
 }
 
-void Balance::retrieveBalances() {
+void BalanceManager::retrieveBalances() {
     TRACE("Retrieving balances...");
     balances["kraken"]["BTC"] = 0.01;
     balances["kraken"]["USDT"] = 100.0;

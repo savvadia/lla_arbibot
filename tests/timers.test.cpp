@@ -13,7 +13,7 @@ void testCallback(int id, void* data) {
 }
 
 TEST(TimersTest, AddTimer) {
-    TimersMgr mgr;
+    TimersManager mgr;
     TestOrder order;
     int timerId = mgr.addTimer(50, testCallback, &order, TimerType::PRICE_CHECK);
     EXPECT_EQ(timerId, 1);
@@ -21,7 +21,7 @@ TEST(TimersTest, AddTimer) {
 }
 
 TEST(TimersTest, StopTimer) {
-    TimersMgr mgr;
+    TimersManager mgr;
     TestOrder order;
     int timerId = mgr.addTimer(50, testCallback, &order, TimerType::PRICE_CHECK);
     mgr.stopTimer(timerId);
@@ -30,7 +30,7 @@ TEST(TimersTest, StopTimer) {
 }
 
 TEST(TimersTest, CheckTimers) {
-    TimersMgr mgr;
+    TimersManager mgr;
     TestOrder order;
     mgr.addTimer(50, testCallback, &order, TimerType::PRICE_CHECK);
     
@@ -44,7 +44,7 @@ TEST(TimersTest, CheckTimers) {
 }
 
 TEST(TimersTest, FireInCorrectOrder) {
-    TimersMgr mgr;
+    TimersManager mgr;
     std::vector<int> firedOrder;
     
     auto orderCallback = [](int id, void* data) {
@@ -69,7 +69,7 @@ TEST(TimersTest, FireInCorrectOrder) {
 }
 
 TEST(TimersTest, CancelTimerBeforeFire) {
-    TimersMgr mgr;
+    TimersManager mgr;
     std::vector<int> firedOrder;
     
     auto orderCallback = [](int id, void* data) {

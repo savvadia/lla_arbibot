@@ -10,7 +10,7 @@ using json = nlohmann::json;
 
 class MockApi : public ApiExchange {
 public:
-    MockApi(OrderBookManager& orderBookManager, TimersMgr& timersMgr, const std::string& name, bool testMode = true);
+    MockApi(OrderBookManager& orderBookManager, TimersManager& timersManager, const std::string& name, bool testMode = true);
     ~MockApi() override;
 
     // Initialize WebSocket connection

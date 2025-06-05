@@ -15,9 +15,20 @@ using namespace std;
 // Define TRACE macro for main
 #define TRACE(...) TRACE_BASE(TraceInstance::MAIN, ExchangeId::UNKNOWN, __VA_ARGS__)
 #define ERROR(...) ERROR_BASE(TraceInstance::MAIN, ExchangeId::UNKNOWN, __VA_ARGS__)
+
 // Global flag for graceful shutdown
 volatile sig_atomic_t g_running = 1;
 std::atomic<bool> g_shutdown_requested{false};
+
+TimersManager* timersMgrPtr;
+OrderBookManager* orderBookManagerPtr;
+ExchangeManager* exchangeManagerPtr;
+BalanceManager* balanceMgrPtr;
+
+TimersManager& timersManager = *timersMgrPtr;
+OrderBookManager& orderBookManager = *orderBookManagerPtr;
+ExchangeManager& exchangeManager = *exchangeManagerPtr;
+BalanceManager& balanceManager = *balanceMgrPtr;
 
 // Signal handler for graceful shutdown
 void signal_handler(int signum) {
@@ -72,12 +83,14 @@ int main() {
     signal(SIGTERM, signal_handler);
 
     // Create timer manager
-    TRACE("Initializing TimersMgr...");
-    TimersMgr timersMgr;
-    OrderBookManager orderBookManager;
+    TRACE("Initializing TimersManager...");
+    static TimersManager realTimersMgr;
+    static OrderBookManager realOrderBookManager;
+    timersMgrPtr = &realTimersMgr;
+    orderBookManagerPtr = &realOrderBookManager;
 
     // init reset countable traces timer
-    initResetCountableTracesTimer(timersMgr);
+    initResetCountableTracesTimer(timersManager);
     
     // Create exchange manager
     TRACE("Initializing ExchangeManager...");
@@ -86,7 +99,8 @@ int main() {
         if (i == static_cast<int>(TradingPair::UNKNOWN)) continue;
         pairs.push_back(static_cast<TradingPair>(i));
     }
-    ExchangeManager exchangeManager(timersMgr, orderBookManager, pairs);
+    ExchangeManager realExchangeManager(pairs);
+    exchangeManagerPtr = &realExchangeManager;
     
     // Define exchanges to use
     vector<ExchangeId> exchanges;
@@ -126,11 +140,12 @@ int main() {
 
     // Create balance manager
     TRACE("Initializing Balance manager...");
-    Balance balance;
+    BalanceManager realBalanceMgr;
+    balanceMgrPtr = &realBalanceMgr;
     
     // Initialize balances
     TRACE("Retrieving initial balances...");
-    balance.retrieveBalances();
+    balanceManager.retrieveBalances();
 
     TRACE("Initializing strategies...");
     vector<StrategyPoplavki*> strategies;
@@ -139,9 +154,9 @@ int main() {
         TradingPair pair = static_cast<TradingPair>(i);
         TradingPairCoins coins = getTradingPairCoins(pair);
         strategies.emplace_back(new StrategyPoplavki(
-            coins.base, coins.quote, pair, timersMgr, exchangeManager, exchanges));
+            coins.base, coins.quote, pair, exchanges));
 
-        strategies.back()->setBalances(balance.getBalances());
+        strategies.back()->setBalances(balanceManager.getBalances());
     }
 
     TRACE("System initialization complete, starting main loop...");
@@ -164,7 +179,7 @@ int main() {
             }
             
             // Process timers
-            timersMgr.checkTimers();
+            timersManager.checkTimers();
             
             // Execute strategy
             // TODO: check if we need it. scan is done either on timer or on exchange update

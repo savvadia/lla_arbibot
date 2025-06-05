@@ -1,13 +1,9 @@
 #pragma once
 
-#include "types.h"
-#include "orderbook_mgr.h"
-#include "timers.h"
 #include <boost/asio/io_context.hpp>
 #include <string>
 #include <functional>
 #include <memory>
-#include "tracer.h"
 #include <chrono>
 #include <mutex>
 #include <thread>
@@ -23,6 +19,10 @@
 #include <nlohmann/json.hpp>
 #include <queue>
 
+#include "tracer.h"
+#include "types.h"
+#include "timers.h"
+
 namespace beast = boost::beast;
 namespace websocket = beast::websocket;
 namespace net = boost::asio;
@@ -33,7 +33,7 @@ using json = nlohmann::json;
 // Base class for exchange APIs
 class ApiExchange : public Traceable {
 public:
-    ApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr, 
+    ApiExchange(
         const std::string& restEndpoint,
         const std::string& wsHost, const std::string& wsPort, const std::string& wsEndpoint,
         const std::vector<TradingPair> pairs, bool testMode = true);
@@ -145,7 +145,7 @@ protected:
         symbolStates[pair].setHasSnapshot(hasSnapshot);
         if (hasSnapshot) {
             // Restart the snapshot validity check timer when we get a new snapshot
-            m_timersMgr.stopTimer(m_snapshotValidityTimerId);
+            timersManager.stopTimer(m_snapshotValidityTimerId);
             startSnapshotValidityTimer();
         }
     }
@@ -157,8 +157,6 @@ protected:
     std::chrono::steady_clock::time_point m_cooldownEndTime;
     std::mutex m_cooldownMutex;
     std::map<std::string, int> m_rateLimits;
-    TimersMgr& m_timersMgr;
-    OrderBookManager& m_orderBookManager;
     uint64_t m_snapshotValidityTimerId;  // Timer ID for snapshot validity check
     
     TradingPair symbolToTradingPair(const std::string& symbol) const {
@@ -213,5 +211,4 @@ protected:
 };
 
 // Factory function to create exchange API instances
-std::unique_ptr<ApiExchange> createApiExchange(const ExchangeId exchangeId, OrderBookManager& orderBookManager, 
-    TimersMgr& timersMgr, const std::vector<TradingPair> pairs, bool testMode); 
+std::unique_ptr<ApiExchange> createApiExchange(const ExchangeId exchangeId, const std::vector<TradingPair> pairs, bool testMode); 

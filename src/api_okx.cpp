@@ -9,6 +9,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <nlohmann/json.hpp>
+
 #include "api_okx.h"
 #include "orderbook_mgr.h"
 #include "tracer.h"
@@ -24,10 +25,8 @@ using tcp = boost::asio::ip::tcp;
 
 constexpr const char* REST_ENDPOINT = "https://www.okx.com";
 
-ApiOkx::ApiOkx(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
-        const std::vector<TradingPair> pairs, bool testMode)
-        : ApiExchange(orderBookManager, timersMgr,  
-        REST_ENDPOINT,
+ApiOkx::ApiOkx(const std::vector<TradingPair> pairs, bool testMode)
+        : ApiExchange(REST_ENDPOINT,
         "ws.okx.com", "8443", "/ws/v5/public",
         pairs, testMode) {
 }
@@ -133,7 +132,7 @@ try {
     std::vector<PriceLevel> bids({{bidPrice, bidQuantity}});
     std::vector<PriceLevel> asks({{askPrice, askQuantity}});
     try {
-        m_orderBookManager.updateOrderBookBestBidAsk(ExchangeId::OKX, pair, bidPrice, bidQuantity, askPrice, askQuantity);
+        orderBookManager.updateOrderBookBestBidAsk(ExchangeId::OKX, pair, bidPrice, bidQuantity, askPrice, askQuantity);
     } catch (const std::exception& e) {
         ERROR("Error updating order book: ", e.what(), " data: ", data.dump());
     }

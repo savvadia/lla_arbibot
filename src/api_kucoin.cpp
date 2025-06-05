@@ -10,6 +10,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <nlohmann/json.hpp>
+
 #include "api_kucoin.h"
 #include "orderbook_mgr.h"
 #include "tracer.h"
@@ -25,10 +26,8 @@ using tcp = boost::asio::ip::tcp;
 
 constexpr const char* REST_ENDPOINT = "https://api.kucoin.com";
 
-ApiKucoin::ApiKucoin(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
-        const std::vector<TradingPair> pairs, bool testMode)
-        : ApiExchange(orderBookManager, timersMgr,  
-        REST_ENDPOINT,
+ApiKucoin::ApiKucoin(const std::vector<TradingPair> pairs, bool testMode)
+        : ApiExchange(REST_ENDPOINT,
         "to_be_read_from_rest_endpoint", "443", "to_be_read_from_rest_endpoint",
         pairs, testMode) {
 }
@@ -84,7 +83,7 @@ void timerPingCallback(int id, void* data) {
 }
 
 void ApiKucoin::startPingTimer() {
-    m_pingTimerId = m_timersMgr.addTimer(m_pingIntervalMs,
+    m_pingTimerId = timersManager.addTimer(m_pingIntervalMs,
         timerPingCallback, this, TimerType::EXCHANGE_PING, true);
 }
 
@@ -287,7 +286,7 @@ void ApiKucoin::processOrderBookUpdate(const json& data) {
     //     TRACE("Updating order book for ", symbol, " with ", bids.size(), " bids and ", asks.size(), " asks (", sequenceStart, " - ", sequenceEnd, ")");
     //     TRACE("First bid: ", (bids.empty() ? "none" : std::to_string(bids[0].price) + "@" + std::to_string(bids[0].quantity)));
     //     TRACE("First ask: ", (asks.empty() ? "none" : std::to_string(asks[0].price) + "@" + std::to_string(asks[0].quantity)));
-    //     m_orderBookManager.updateOrderBook(ExchangeId::KUCOIN, pair, bids, asks);
+    //     orderBookManager.updateOrderBook(ExchangeId::KUCOIN, pair, bids, asks);
     // }
 
     // // Update the last sequence number
@@ -331,7 +330,7 @@ void ApiKucoin::processLevel1(const json& data) {
     std::vector<PriceLevel> bids({{bidPrice, bidQuantity}});
     std::vector<PriceLevel> asks({{askPrice, askQuantity}});
     try {
-        m_orderBookManager.updateOrderBookBestBidAsk(ExchangeId::KUCOIN, pair, bidPrice, bidQuantity, askPrice, askQuantity);
+        orderBookManager.updateOrderBookBestBidAsk(ExchangeId::KUCOIN, pair, bidPrice, bidQuantity, askPrice, askQuantity);
     } catch (const std::exception& e) {
         ERROR("Error updating order book: ", e.what(), " data: ", data.dump());
     }
@@ -393,10 +392,10 @@ void ApiKucoin::processOrderBookSnapshot(const json& data, TradingPair pair) {
     //     // Update the order book with all bids and asks at once
     //     if (!bids.empty() || !asks.empty()) {
     //         TRACE("Updating order book for ", tradingPairToSymbol(pair), " with ", bids.size(), " bids and ", asks.size(), " asks");
-    //         m_orderBookManager.updateOrderBook(ExchangeId::KUCOIN, pair, bids, asks);
+    //         orderBookManager.updateOrderBook(ExchangeId::KUCOIN, pair, bids, asks);
             
     //         TRACE("Processed order book snapshot for ", tradingPairToSymbol(pair),
-    //             " last update: ", m_orderBookManager.getOrderBook(ExchangeId::KUCOIN, pair).getLastUpdate());
+    //             " last update: ", orderBookManager.getOrderBook(ExchangeId::KUCOIN, pair).getLastUpdate());
     //         if (m_snapshotCallback) {
     //             m_snapshotCallback(true);
     //         }

@@ -41,7 +41,7 @@ protected:
 };
 
 TEST_F(TimersPerfTest, FastTimerAccuracy) {
-    TimersMgr tm;
+    TimersManager tm;
     const int NUM_TIMERS = 1000;  // Back to 1000 timers since performance is better now
     const int INTERVAL_MS = 1;  // 1ms interval for high precision test
     
@@ -99,7 +99,7 @@ TEST_F(TimersPerfTest, FastTimerAccuracy) {
 }
 
 TEST_F(TimersPerfTest, HighFrequencyTimers) {
-    TimersMgr tm;
+    TimersManager tm;
     const int NUM_TIMERS = 100;
     const int INTERVAL_MS = 1;  // 1ms interval
     const int TEST_DURATION_MS = 20;  // Reduced from 100ms to 20ms

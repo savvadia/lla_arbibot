@@ -7,12 +7,12 @@
 
 using BalanceData = std::unordered_map<std::string, std::unordered_map<std::string, double>>;
 
-class Balance : public Traceable {
+class BalanceManager : public Traceable {
 private:
     BalanceData balances;
 
 public:
-    Balance();
+    BalanceManager();
     void inc(const std::string& exchange, const std::string& coin, double amount);
     void dec(const std::string& exchange, const std::string& coin, double amount);
     double get(const std::string& exchange, const std::string& coin) const;
@@ -31,3 +31,5 @@ protected:
         // }
     }
 };
+
+extern BalanceManager& balanceManager;

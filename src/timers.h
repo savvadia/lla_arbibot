@@ -9,6 +9,8 @@
 #include <ostream>
 #include "tracer.h"
 
+extern TimersManager& timersManager;
+
 typedef void (*TimerCallback)(int id, void* data);
 void sleep_ms(int ms);
 
@@ -63,9 +65,9 @@ struct Timer : public Traceable {
     }
 };
 
-class TimersMgr {
+class TimersManager {
 public:
-    TimersMgr() = default;
+    TimersManager() = default;
     
     // Thread-safe timer management:
     // - addTimer: Can be called from any thread

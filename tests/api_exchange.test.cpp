@@ -1,18 +1,22 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include "api_exchange.h"
 #include <memory>
 #include <thread>
 #include <chrono>
 #include <nlohmann/json.hpp>
+
+#include "api_exchange.h"
+#include "orderbook_mgr.h"
 
 using namespace std::chrono_literals;
 using json = nlohmann::json;
 
 class TestApiExchange : public ApiExchange {
 public:
-    TestApiExchange(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode = true)
-        : ApiExchange(orderBookManager, timersMgr, "test.com", "443", "https://test.com/api", "/ws", {TradingPair::BTC_USDT}, testMode) {}
+    TestApiExchange(OrderBookManager& orderBookManager, TimersManager& timersMgr, bool testMode = true)
+        : ApiExchange("test.com", "443", "https://test.com/api", "/ws", {TradingPair::BTC_USDT}, testMode)
+        , orderBookManager(orderBookManager)
+        , timersManager(timersMgr) {}
 
     bool connect() override { 
         m_connected = true;
@@ -41,7 +45,7 @@ public:
             {10001.0, 0.5},
             {10002.0, 1.5}
         };
-        m_orderBookManager.updateOrderBook(getExchangeId(), pair, bids, asks);
+        orderBookManager.updateOrderBook(getExchangeId(), pair, bids, asks);
         
         if (m_snapshotCallback) m_snapshotCallback(true);
         return true; 
@@ -71,7 +75,7 @@ public:
                             }
                         }
                         
-                        m_orderBookManager.updateOrderBook(getExchangeId(), TradingPair::BTC_USDT, bids, asks);
+                        orderBookManager.updateOrderBook(getExchangeId(), TradingPair::BTC_USDT, bids, asks);
                     } else if (data["channel"] == "balance") {
                         if (m_balanceCallback) m_balanceCallback(true);
                     } else if (data["channel"] == "order") {
@@ -122,18 +126,20 @@ public:
 
     // Expose protected members for testing
     std::map<TradingPair, SymbolState>& getSymbolStates() { return symbolStates; }
-    TimersMgr& getTimersMgr() { return m_timersMgr; }
+    TimersManager& getTimersMgr() { return timersManager; }
 
 private:
     std::queue<std::string> m_messageQueue;
+    OrderBookManager& orderBookManager;
+    TimersManager& timersManager;
 };
 
 class ApiExchangeTest : public ::testing::Test {
 protected:
     void SetUp() override {
         orderBookManager = std::make_unique<OrderBookManager>();
-        timersMgr = std::make_unique<TimersMgr>();
-        api = std::make_unique<TestApiExchange>(*orderBookManager, *timersMgr, true);
+        timersManager = std::make_unique<TimersManager>();
+        api = std::make_unique<TestApiExchange>(*orderBookManager, *timersManager, true);
         // Connect immediately in setup to avoid repeated connection delays
         EXPECT_TRUE(api->connect());
     }
@@ -143,7 +149,7 @@ protected:
     }
 
     std::unique_ptr<OrderBookManager> orderBookManager;
-    std::unique_ptr<TimersMgr> timersMgr;
+    std::unique_ptr<TimersManager> timersManager;
     std::unique_ptr<TestApiExchange> api;
 };
 
@@ -260,7 +266,11 @@ TEST_F(ApiExchangeTest, ProcessOrderUpdate) {
     EXPECT_TRUE(callbackCalled);
 }
 
-int main(int argc, char** argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+TEST_F(ApiExchangeTest, RateLimitHandling) {
+    // Test that rate limit handling works correctly
+    auto start = std::chrono::high_resolution_clock::now();
+    api->processRateLimitHeaders("X-RateLimit-Remaining: 99");
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    EXPECT_GT(duration.count(), 0);
 }

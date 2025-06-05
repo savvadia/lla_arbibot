@@ -1,5 +1,3 @@
-#include "api_binance.h"
-#include "orderbook_mgr.h"
 #include <iostream>
 #include <sstream>
 #include <boost/beast/core.hpp>
@@ -11,6 +9,8 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <nlohmann/json.hpp>
+#include "api_binance.h"
+#include "orderbook_mgr.h"
 #include "tracer.h"
 
 using json = nlohmann::json;
@@ -22,10 +22,8 @@ using tcp = boost::asio::ip::tcp;
 
 constexpr const char* REST_ENDPOINT = "https://api.binance.com/api/v3";
 
-ApiBinance::ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
-        const std::vector<TradingPair> pairs, bool testMode)
-        : ApiExchange(orderBookManager, timersMgr,  
-        REST_ENDPOINT,
+ApiBinance::ApiBinance(const std::vector<TradingPair> pairs, bool testMode)
+        : ApiExchange(REST_ENDPOINT,
         "stream.binance.com", "9443", "/ws/stream",
         pairs, testMode) {
 }
@@ -71,7 +69,7 @@ void ApiBinance::processBookTicker(const json& data) {
         double askQuantity = std::stod(data["A"].get<std::string>());
         std::vector<PriceLevel> bids({{bidPrice, bidQuantity}});
         std::vector<PriceLevel> asks({{askPrice, askQuantity}});
-        m_orderBookManager.updateOrderBookBestBidAsk(ExchangeId::BINANCE, pair, bidPrice, bidQuantity, askPrice, askQuantity);
+        orderBookManager.updateOrderBookBestBidAsk(ExchangeId::BINANCE, pair, bidPrice, bidQuantity, askPrice, askQuantity);
     
     } catch (const std::exception& e) {
         ERROR("Error processing bookTicker: ", data.dump().substr(0, 300), " ", e.what());
@@ -168,7 +166,7 @@ void ApiBinance::processOrderBookUpdate(const json& data) {
             TRACE("Updating order book for ", symbol, " with ", bids.size(), " bids and ", asks.size(), " asks");
             TRACE("First bid: ", (bids.empty() ? "none" : std::to_string(bids[0].price) + "@" + std::to_string(bids[0].quantity)));
             TRACE("First ask: ", (asks.empty() ? "none" : std::to_string(asks[0].price) + "@" + std::to_string(asks[0].quantity)));
-            m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
+            orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
         }
 
         // Mark that we have a snapshot for this symbol
@@ -211,10 +209,10 @@ void ApiBinance::processOrderBookSnapshot(const json& data, TradingPair pair) {
         // Update the order book with all bids and asks at once
         if (!bids.empty() || !asks.empty()) {
             TRACE("Updating order book for ", tradingPairToSymbol(pair), " with ", bids.size(), " bids and ", asks.size(), " asks");
-            m_orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
+            orderBookManager.updateOrderBook(ExchangeId::BINANCE, pair, bids, asks);
             
             TRACE("Processed order book snapshot for ", tradingPairToSymbol(pair),
-                " last update: ", m_orderBookManager.getOrderBook(ExchangeId::BINANCE, pair).getLastUpdate());
+                " last update: ", orderBookManager.getOrderBook(ExchangeId::BINANCE, pair).getLastUpdate());
             if (m_snapshotCallback) {
                 m_snapshotCallback(true);
             }

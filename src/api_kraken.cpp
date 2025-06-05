@@ -25,10 +25,8 @@ constexpr const char* REST_ENDPOINT = "https://api.kraken.com/0/public";
 #define ERROR_CNT(_id, ...) ERROR_COUNT(TraceInstance::A_KRAKEN, _id, ExchangeId::KRAKEN, __VA_ARGS__)
 #define TRACE_CNT(_id, ...) TRACE_COUNT(TraceInstance::A_KRAKEN, _id, ExchangeId::KRAKEN, __VA_ARGS__)
 
-ApiKraken::ApiKraken(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
-    const std::vector<TradingPair> pairs, bool testMode)
-    : ApiExchange(orderBookManager, timersMgr, 
-        REST_ENDPOINT,
+ApiKraken::ApiKraken(const std::vector<TradingPair> pairs, bool testMode)
+    : ApiExchange(REST_ENDPOINT,
         "ws.kraken.com", "443", "/v2",
         pairs, testMode) {
 }
@@ -178,7 +176,7 @@ void ApiKraken::processTickerUpdate(const json& data) {
         double bestAskQty = tickerData["ask_qty"].get<double>();
         
         // Update order book with best prices
-        m_orderBookManager.updateOrderBookBestBidAsk(
+        orderBookManager.updateOrderBookBestBidAsk(
             ExchangeId::KRAKEN,
             pair,
             bestBid,
@@ -236,7 +234,7 @@ void ApiKraken::processOrderBookUpdate(const json& data) {
     }
 
     // Store previous state for debugging
-    auto& book = m_orderBookManager.getOrderBook(ExchangeId::KRAKEN, pair);
+    auto& book = orderBookManager.getOrderBook(ExchangeId::KRAKEN, pair);
     std::vector<PriceLevel> prevBids, prevAsks;
     uint32_t prevChecksum = 0;
     if (++countCalls % Config::KRAKEN_CHECKSUM_CHECK_PERIOD == 1) {
@@ -267,13 +265,13 @@ void ApiKraken::processOrderBookUpdate(const json& data) {
     }
 
     try {
-        m_orderBookManager.updateOrderBook(ExchangeId::KRAKEN, pair, bids, asks, isCompleteUpdate);
+        orderBookManager.updateOrderBook(ExchangeId::KRAKEN, pair, bids, asks, isCompleteUpdate);
 
         uint32_t receivedChecksum = data["data"][0]["checksum"];
         // performance optimization as validation is slow. countCalls is increased above
         if (countCalls % Config::KRAKEN_CHECKSUM_CHECK_PERIOD == 1 && !isOrderBookValid(pair, receivedChecksum)) {
             // Get current state after update
-            auto& currentBook = m_orderBookManager.getOrderBook(ExchangeId::KRAKEN, pair);
+            auto& currentBook = orderBookManager.getOrderBook(ExchangeId::KRAKEN, pair);
             auto currentBids = currentBook.getBids();
             auto currentAsks = currentBook.getAsks();
             std::string currentChecksumStr = buildChecksumString(pair, currentAsks) + buildChecksumString(pair, currentBids);
@@ -354,7 +352,7 @@ uint32_t ApiKraken::computeChecksum(const std::string& checksumString) {
 }
 
 bool ApiKraken::isOrderBookValid(TradingPair pair, uint32_t receivedChecksum) {
-    auto& book = m_orderBookManager.getOrderBook(ExchangeId::KRAKEN, pair);
+    auto& book = orderBookManager.getOrderBook(ExchangeId::KRAKEN, pair);
     auto bids = book.getBids();
     auto asks = book.getAsks();
     std::string str = buildChecksumString(pair, asks) + buildChecksumString(pair, bids);

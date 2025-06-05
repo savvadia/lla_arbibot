@@ -5,7 +5,7 @@
 // Test fixture for Balance
 class BalanceTest : public ::testing::Test {
 protected:
-    Balance balance;
+    BalanceManager balance;
 
     void SetUp() override {
         balance.retrieveBalances();

@@ -2,11 +2,9 @@
 
 #include <string>
 #include "balance.h"
-#include "timers.h"
 #include <mutex>
 #include <vector>
 #include <chrono>
-#include "ex_mgr.h"
 #include "tracer.h"
 
 class Opportunity : public Traceable
@@ -44,7 +42,7 @@ protected:
     BalanceData balances;
 
 public:
-    Strategy(std::string name, std::string coin, std::string stableCoin, TradingPair pair, TimersMgr &timersMgr);
+    Strategy(std::string name, std::string coin, std::string stableCoin, TradingPair pair);
 
     std::string name;
     std::string coin;       // coin to trade
@@ -52,7 +50,6 @@ public:
     TradingPair pair;
     Opportunity bestOpportunity1;
     Opportunity bestOpportunity2;
-    TimersMgr &timersMgr;
 
     void setBalances(BalanceData balances);
 
@@ -86,8 +83,6 @@ public:
     StrategyPoplavki(const std::string &baseAsset,
                      const std::string &quoteAsset,
                      TradingPair pair,
-                     TimersMgr &timers,
-                     ExchangeManager &exchangeManager,
                      const std::vector<ExchangeId> &exchangeIds);
     ~StrategyPoplavki() override;
 
@@ -111,7 +106,6 @@ private:
     // Exchange data
     std::string baseAsset;
     std::string quoteAsset;
-    ExchangeManager &exchangeManager;
 
     // List of exchanges this strategy uses
     std::vector<ExchangeId> exchangeIds;
@@ -126,6 +120,4 @@ private:
 
     // For TRACE identification
     const std::vector<ExchangeId> &getExchangeIds() const { return exchangeIds; }
-
-    const ApiExchange &getExchange(ExchangeId exchangeId) const { return *this->exchangeManager.getExchange(exchangeId); }
 };

@@ -1,10 +1,12 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include "../src/api_binance.h"
-#include "../src/tracer.h"
 #include <memory>
 #include <chrono>
 #include <nlohmann/json.hpp>
+
+#include "../src/api_exchange.h"
+#include "../src/api_binance.h"
+#include "../src/orderbook_mgr.h"
 
 using namespace std::chrono_literals;
 using json = nlohmann::json;
@@ -12,8 +14,7 @@ using json = nlohmann::json;
 // Test class to expose protected methods for testing
 class TestApiBinance : public ApiBinance {
 public:
-    TestApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr, bool testMode = true)
-        : ApiBinance(orderBookManager, timersMgr, {TradingPair::BTC_USDT}, testMode) {}
+    TestApiBinance(bool testMode = true) : ApiBinance({TradingPair::BTC_USDT}, testMode) {}
 
     // Expose protected methods for testing
     using ApiBinance::processMessage;
@@ -25,8 +26,7 @@ class ApiBinanceTest : public ::testing::Test {
 protected:
     void SetUp() override {
         orderBookManager = std::make_unique<OrderBookManager>();
-        timersMgr = std::make_unique<TimersMgr>();
-        api = std::make_unique<TestApiBinance>(*orderBookManager, *timersMgr, true);
+        api = std::make_unique<TestApiBinance>(true);
         // Connect immediately in setup to avoid repeated connection delays
         EXPECT_TRUE(api->connect());
     }
@@ -35,11 +35,9 @@ protected:
         api->disconnect();
         api.reset();
         orderBookManager.reset();
-        timersMgr.reset();
     }
 
     std::unique_ptr<OrderBookManager> orderBookManager;
-    std::unique_ptr<TimersMgr> timersMgr;
     std::unique_ptr<TestApiBinance> api;
 };
 
@@ -183,9 +181,4 @@ TEST_F(ApiBinanceTest, RateLimitHandling) {
     // Should have some delay due to rate limiting
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     EXPECT_GT(duration.count(), 0);
-}
-
-int main(int argc, char** argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

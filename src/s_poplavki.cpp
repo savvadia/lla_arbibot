@@ -7,7 +7,7 @@
 #include "s_poplavki.h"
 #include "tracer.h"
 #include "types.h"
-
+#include "orderbook_mgr.h"
 using namespace std;
 
 // Define TRACE macro for StrategyPoplavki class
@@ -16,13 +16,13 @@ using namespace std;
 #define TRACE_CNT(_id,...) TRACE_COUNT(TraceInstance::STRAT, _id, ExchangeId::UNKNOWN, __VA_ARGS__)
 #define ERROR_CNT(_id, _exchangeId, ...) ERROR_COUNT(TraceInstance::STRAT, _id, _exchangeId, __VA_ARGS__)
 
-Strategy::Strategy(std::string name, std::string coin, std::string stableCoin, TradingPair pair, TimersMgr &timersMgr) 
+Strategy::Strategy(std::string name, std::string coin, std::string stableCoin, TradingPair pair) 
     : balances({}), name(name), coin(coin), stableCoin(stableCoin), pair(pair),
     bestOpportunity1(ExchangeId::UNKNOWN, ExchangeId::UNKNOWN, pair, 0.0, 0.0, 0.0, std::chrono::system_clock::now()),
-    bestOpportunity2(ExchangeId::UNKNOWN, ExchangeId::UNKNOWN, pair, 0.0, 0.0, 0.0, std::chrono::system_clock::now()),
-    timersMgr(timersMgr) {
+    bestOpportunity2(ExchangeId::UNKNOWN, ExchangeId::UNKNOWN, pair, 0.0, 0.0, 0.0, std::chrono::system_clock::now())
+    {
             
-    timersMgr.addTimer(Config::BEST_SEEN_OPPORTUNITY_RESET_INTERVAL_MS,
+    timersManager.addTimer(Config::BEST_SEEN_OPPORTUNITY_RESET_INTERVAL_MS,
         &Strategy::resetBestSeenOpportunityTimerCallback, this,
         TimerType::RESET_BEST_SEEN_OPPORTUNITY, true);
 }
@@ -46,19 +46,16 @@ std::string Strategy::getName() const {
 StrategyPoplavki::StrategyPoplavki(const std::string& baseAsset, 
                                  const std::string& quoteAsset, 
                                  TradingPair pair,
-                                 TimersMgr& timers,
-                                 ExchangeManager& exchangeManager,
                                  const std::vector<ExchangeId>& exchangeIds)
-    : Strategy("Poplavki", baseAsset, quoteAsset, pair, timers)
+    : Strategy("Poplavki", baseAsset, quoteAsset, pair)
     , baseAsset(baseAsset)
     , quoteAsset(quoteAsset)
-    , exchangeManager(exchangeManager)
     , exchangeIds(exchangeIds) {
     
     TRACE("Initializing with ", exchangeIds.size(), " exchanges");
     
     // Set up order book update callback
-    exchangeManager.getOrderBookManager().setUpdateCallback([this](ExchangeId exchangeId, TradingPair pair) {
+    orderBookManager.setUpdateCallback([this](ExchangeId exchangeId, TradingPair pair) {
         updateOrderBookData(exchangeId);
     });
     
@@ -79,10 +76,10 @@ void StrategyPoplavki::onExchangeUpdate(ExchangeId exchange) {
 
 void StrategyPoplavki::startTimerToScan(int ms) {
     // Remove existing timer if any
-    timersMgr.stopTimer(timerId);
+    timersManager.stopTimer(timerId);
     
     // Add new timer
-    timerId = timersMgr.addTimer(ms, timerCallback, this, TimerType::PRICE_CHECK, true);
+    timerId = timersManager.addTimer(ms, timerCallback, this, TimerType::PRICE_CHECK, true);
     DEBUG("Set up timer with ID ", timerId, " for scanning in ", ms, "ms");
 }
 
@@ -91,7 +88,6 @@ void StrategyPoplavki::updateOrderBookData(ExchangeId exchange) {
 }
 
 Opportunity StrategyPoplavki::calculateProfit(ExchangeId buyExchange, ExchangeId sellExchange, TradingPair pair) {
-    auto& orderBookManager = exchangeManager.getOrderBookManager();
     auto buyBook = orderBookManager.getOrderBook(buyExchange, pair);
     auto sellBook = orderBookManager.getOrderBook(sellExchange, pair);
 

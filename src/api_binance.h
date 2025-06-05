@@ -1,8 +1,5 @@
 #pragma once
 
-#include "api_exchange.h"
-#include "orderbook_mgr.h"
-#include "timers.h"
 #include <string>
 #include <boost/beast/core.hpp>
 #include <boost/beast/ssl.hpp>
@@ -12,13 +9,14 @@
 #include <nlohmann/json.hpp>
 #include <curl/curl.h>
 
+#include "api_exchange.h"
+
 using tcp = boost::asio::ip::tcp;
 using json = nlohmann::json;
 
 class ApiBinance : public ApiExchange {
 public:
-    ApiBinance(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
-        const std::vector<TradingPair> pairs, bool testMode = true);
+    ApiBinance(const std::vector<TradingPair> pairs, bool testMode = true);
 
     // Subscribe to order book updates for a trading pair
     bool subscribeOrderBook() override;

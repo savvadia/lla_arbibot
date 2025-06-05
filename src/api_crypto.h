@@ -1,8 +1,6 @@
 #pragma once
 
 #include "api_exchange.h"
-#include "orderbook_mgr.h"
-#include "timers.h"
 #include <string>
 #include <boost/beast/core.hpp>
 #include <boost/beast/ssl.hpp>
@@ -17,8 +15,7 @@ using json = nlohmann::json;
 
 class ApiCrypto : public ApiExchange {
 public:
-    ApiCrypto(OrderBookManager& orderBookManager, TimersMgr& timersMgr,
-        const std::vector<TradingPair> pairs, bool testMode = true);
+    ApiCrypto(const std::vector<TradingPair> pairs, bool testMode = true);
 
     // Subscribe to order book updates for a trading pair
     bool subscribeOrderBook() override;
