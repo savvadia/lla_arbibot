@@ -244,9 +244,9 @@ public:
         int cnt = countableTraces()[static_cast<int>(countableTrace)].load(std::memory_order_relaxed);
         if (cnt == 1 ||
             cnt % Config::COUNTABLE_TRACES_PRINT_INTERVAL4 == 0 ||
-            (cnt < Config::COUNTABLE_TRACES_PRINT_INTERVAL4 && cnt % Config::COUNTABLE_TRACES_PRINT_INTERVAL3 == 0) ||
-            (cnt < Config::COUNTABLE_TRACES_PRINT_INTERVAL3 && cnt % Config::COUNTABLE_TRACES_PRINT_INTERVAL2 == 0) ||
-            (cnt < Config::COUNTABLE_TRACES_PRINT_INTERVAL2 && cnt % Config::COUNTABLE_TRACES_PRINT_INTERVAL1 == 0)) {
+            (cnt < Config::COUNTABLE_TRACES_PRINT_INTERVAL3*6 && cnt % Config::COUNTABLE_TRACES_PRINT_INTERVAL3 == 0) ||
+            (cnt < Config::COUNTABLE_TRACES_PRINT_INTERVAL2*6 && cnt % Config::COUNTABLE_TRACES_PRINT_INTERVAL2 == 0) ||
+            (cnt < Config::COUNTABLE_TRACES_PRINT_INTERVAL1*6 && cnt % Config::COUNTABLE_TRACES_PRINT_INTERVAL1 == 0)) {
             log(level, instance, type, exchangeId, file, line, "[ cnt:", cnt, "] ", std::forward<Args>(args)...);
         }
     }

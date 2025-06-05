@@ -171,7 +171,7 @@ int main() {
             // strategy->execute();
             
             // Log loop count periodically
-            if (++loopCount % 1000 == 0) {
+            if (++loopCount % 5000 == 0) {
                 TRACE("Main loop iteration: ", loopCount);
             }
             

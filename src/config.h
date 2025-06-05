@@ -5,13 +5,13 @@ namespace Config {
     constexpr int EVENT_LOOP_DELAY_MS = 10;  // Delay between event loop iterations
     constexpr int MAX_EXECUTION_TIME_MS = 0;  // Maximum time to run the bot (0 = run indefinitely)
     constexpr int MAX_CALLBACK_EXECUTION_TIME_MS = 10;
-    constexpr int MAX_TIMER_DELAY_TRACE_MS = EVENT_LOOP_DELAY_MS * 1.5;
+    constexpr int MAX_TIMER_DELAY_TRACE_MS = EVENT_LOOP_DELAY_MS * 2;
 
     // Strategy settings
     constexpr int STRATEGY_CHECK_TIMER_MS = 5000;  // How often to check for opportunities
     constexpr int BEST_SEEN_OPPORTUNITY_RESET_INTERVAL_MS = 600000; // 10 minutes
-    constexpr double MIN_MARGIN = 0.21;  // Minimum margin to execute a trade, %
-    constexpr double MIN_TRACEABLE_MARGIN = 0.001;  // Minimum margin to trace, %
+    constexpr double MIN_EXECUTION_MARGIN = 0.21;  // Minimum margin to execute a trade, %
+    constexpr double MIN_TRACEABLE_MARGIN = 0.06;  // Minimum margin to trace, %
 
     // Traces settings
     constexpr int COUNTABLE_TRACES_PRINT_INTERVAL1 = 10;

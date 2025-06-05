@@ -63,7 +63,7 @@ StrategyPoplavki::StrategyPoplavki(const std::string& baseAsset,
     });
     
     // Set up periodic scanning
-    TRACE("Setting up periodic scanning with ", Config::STRATEGY_CHECK_TIMER_MS, "ms interval");
+    DEBUG("Setting up periodic scanning with ", Config::STRATEGY_CHECK_TIMER_MS, "ms interval");
     startTimerToScan(Config::STRATEGY_CHECK_TIMER_MS);
 }
 
@@ -134,8 +134,8 @@ void StrategyPoplavki::scanOpportunities() {
                 } else {
                     DEBUG("Best seen opportunity is better: ", bestOpportunity1, " vs ", opp1);
                 }
-                if (bestOpportunity1.profit() > Config::MIN_MARGIN) {
-                    TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY_EXECUTABLE, bestOpportunity1);
+                if (bestOpportunity1.profit() > Config::MIN_EXECUTION_MARGIN) {
+                    TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY_EXECUTABLE, "EXECUTABLE: ", bestOpportunity1);
                 }
             }
 
@@ -149,8 +149,8 @@ void StrategyPoplavki::scanOpportunities() {
                 } else {
                     DEBUG("Best seen opportunity is better: ", bestOpportunity2, " vs ", opp2);
                 }
-                if (bestOpportunity2.profit() > Config::MIN_MARGIN) {
-                    TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY_EXECUTABLE, bestOpportunity2);
+                if (bestOpportunity2.profit() > Config::MIN_EXECUTION_MARGIN) {
+                    TRACE_CNT(CountableTrace::S_POPLAVKI_OPPORTUNITY_EXECUTABLE, "EXECUTABLE: ", bestOpportunity2);
                 }
             }
         }
