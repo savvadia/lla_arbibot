@@ -135,11 +135,13 @@ inline std::ostream& operator<<(std::ostream& os, OrderType type) {
 
 
 enum class OrderState {
+    NONE,
     NEW,
     PENDING,
+    PARTIALLY_EXECUTED,
     EXECUTED,
     CANCELLED,
-    TIMEOUT
+    TIMEOUT,
 };
 
 // Convert OrderState to string

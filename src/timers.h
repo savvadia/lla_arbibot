@@ -20,6 +20,7 @@ enum class TimerType {
     RESET_COUNTABLE_TRACES,
     EXCHANGE_CHECK_SNAPSHOT_VALIDITY,
     EXCHANGE_PING,
+    OPPORTUNITY_TIMEOUT,
     COUNT
 };
 
@@ -32,6 +33,7 @@ inline const char* timerTypeToString(TimerType type) {
         case TimerType::RESET_COUNTABLE_TRACES: return "RESET_COUNTABLE_TRACES";
         case TimerType::EXCHANGE_CHECK_SNAPSHOT_VALIDITY: return "EXCHANGE_CHECK_SNAPSHOT_VALIDITY";
         case TimerType::EXCHANGE_PING: return "EXCHANGE_PING";
+        case TimerType::OPPORTUNITY_TIMEOUT: return "OPPORTUNITY_TIMEOUT";
         default: return "INVALID";
     }
 }

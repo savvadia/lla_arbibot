@@ -2,12 +2,15 @@
 
 #include <chrono>
 #include "types.h"
-#include "ex_mgr.h"
+#include "tracer.h"
 
-
-class OrderHistoryEntry {
+class OrderHistoryEntry : public Traceable {
     public:
         OrderHistoryEntry(std::chrono::system_clock::time_point timestamp, OrderState state);
+    protected:
+        void trace(std::ostream& os) const override {
+            os << "OrderHistoryEntry: " << tsRequested << " " << delayMicros << " " << state;
+        }
     private:
         std::chrono::system_clock::time_point tsRequested;
         long delayMicros;
@@ -16,18 +19,12 @@ class OrderHistoryEntry {
 
 class Order : public Traceable {
     public:
-        Order(ExchangeManager& exMgr, ExchangeId exchangeId, TradingPair pair, OrderType type, int orderId, double price, double quantity);
+        Order();
+        Order(ExchangeId exchangeId, TradingPair pair, OrderType type, int orderId, double price, double quantity);
         void execute();
         void cancel();
         void stateChange(OrderState newState);
 
-    protected:
-        void trace(std::ostream& os) const override {
-            os << "Order: " << pair << " " << type << " " << state << " " << price << " " << quantity;
-        }
-    private:
-        void setState(OrderState newState, std::chrono::system_clock::time_point timestamp);
-        ExchangeManager& exMgr;
         ExchangeId exchangeId;
         TradingPair pair;
         OrderType type;
@@ -35,6 +32,15 @@ class Order : public Traceable {
         std::string orderIdAtExchange;
         double price;
         double quantity;
+        double executedQuantity;
+        double executedPrice;
         std::vector<OrderHistoryEntry> history;
         OrderState state;
+
+    protected:
+        void trace(std::ostream& os) const override {
+            os << "Order: " << pair << " " << type << " " << state << " " << price << " " << quantity;
+        }
+    private:
+        void setState(OrderState newState, std::chrono::system_clock::time_point timestamp);
 };

@@ -12,6 +12,7 @@ namespace Config {
     constexpr int BEST_SEEN_OPPORTUNITY_RESET_INTERVAL_MS = 600000; // 10 minutes
     constexpr double MIN_EXECUTION_MARGIN = 0.6;  // Minimum margin to execute a trade, %
     constexpr double MIN_TRACEABLE_MARGIN = 0.06;  // Minimum margin to trace, %
+    constexpr int OPPORTUNITY_TIMEOUT_MS = 10000; // 10 seconds
 
     // Traces settings
     constexpr int COUNTABLE_TRACES_PRINT_INTERVAL1 = 10;
