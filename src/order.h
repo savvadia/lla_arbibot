@@ -36,7 +36,7 @@ class Order : public Traceable {
         double executedPrice;
         std::vector<OrderHistoryEntry> history;
         OrderState state;
-
+        std::mutex m_mutex; // for state and history
     protected:
         void trace(std::ostream& os) const override {
             os << "Order " << orderId << ": " << pair << " " << type << " " << state;

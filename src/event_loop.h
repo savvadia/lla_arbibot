@@ -1,15 +1,13 @@
 #pragma once
 
-#include "api_exchange.h"
 #include <functional>
 #include <queue>
 #include <mutex>
 #include <condition_variable>
 #include <chrono>
-#include <memory>
 #include <atomic>
 #include <thread>
-#include "tracer.h"
+#include "types.h"
 
 enum class EventType {
     // Timer events

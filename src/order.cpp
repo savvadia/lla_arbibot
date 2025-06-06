@@ -62,6 +62,7 @@ void Order::stateChange(OrderState newState) {
 }
 
 void Order::setState(OrderState newState, std::chrono::system_clock::time_point timestamp) {
+    MUTEX_LOCK(m_mutex);
     state = newState;
     history.push_back(OrderHistoryEntry(timestamp, newState));
 }

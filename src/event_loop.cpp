@@ -1,7 +1,7 @@
-#include "event_loop.h"
 #include <iostream>
 #include <thread>
-
+#include "event_loop.h"
+#include "tracer.h"
 EventLoop::EventLoop() : m_running(false) {}
 
 EventLoop::~EventLoop() {

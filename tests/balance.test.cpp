@@ -1,6 +1,5 @@
 #include "../src/balance.h"
 #include <gtest/gtest.h>
-#include <sstream>
 
 // Test fixture for Balance
 class BalanceTest : public ::testing::Test {

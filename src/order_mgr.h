@@ -41,7 +41,6 @@ class OpportunityHistoryEntry : public Traceable {
 
 class AcceptedOpportunity : public Opportunity {
     public:
-        AcceptedOpportunity();
         AcceptedOpportunity(const Opportunity& opportunity, int id)
             : Opportunity(opportunity), opportunity(opportunity), id(id) {}
         
@@ -54,6 +53,7 @@ class AcceptedOpportunity : public Opportunity {
         int orderSellId = 0;
         std::vector<OpportunityHistoryEntry> history;
         int timeoutTimerId = 0;
+        std::mutex m_mutex; // for state and history
         
     protected:
         void trace(std::ostream& os) const override;
@@ -65,7 +65,10 @@ class OrderManager : public Traceable {
         void handleOpportunity(Opportunity& opportunity);
         void handleOrderStateChange(int orderId, OrderState newState);
         void handleOpportunityTimeout(int id, void* data);
-        Order& getOrder(int orderId) { return m_idToOrder[orderId]; }
+        Order* getOrder(int orderId);
+        AcceptedOpportunity* getAcceptedOpportunity(int id);
+        AcceptedOpportunity* getAcceptedOpportunityByOrderId(int orderId);
+
     protected:
         void trace(std::ostream& os) const override {};
         void handleAction(OpportunityAction action, int opportunityId);
@@ -74,9 +77,14 @@ class OrderManager : public Traceable {
         int m_nextOrderId = 1;
         bool isOpportunityFeasible(Opportunity& opportunity);
 
+        int getNextOrderId() { MUTEX_LOCK(m_mutex); return m_nextOrderId++; }
+        int getNextAcceptedOpportunityId() { MUTEX_LOCK(m_mutex); return m_nextAcceptedOpportunityId++; }
+
         std::unordered_map<int, int> m_orderToOpportunity; // orderId -> opportunityId
         std::unordered_map<int, Order> m_idToOrder; // orderId -> Order
         std::unordered_map<int, AcceptedOpportunity> m_idToOpportunity; // opportunityId -> AcceptedOpportunity
+
+        std::mutex m_mutex; // for m_idToOrder, m_idToOpportunity, m_orderToOpportunity, m_nextOrderId, m_nextAcceptedOpportunityId
 };
 
 extern OrderManager orderManager;
